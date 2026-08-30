@@ -1,0 +1,51 @@
+name: xFG eFG Repair Shard 5
+
+on:
+  push:
+    paths:
+      - '.github/workflows/xfg-efg-repair-shard5.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [5,15]
+    steps:
+      - name: Fetch shard script
+        run: |
+          set -euo pipefail
+          curl --retry 3 --retry-delay 1 -fsSL \
+            "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/xfg_efg_shard.py" \
+            -o xfg_efg_shard.py
+      - name: Install dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas pyreadr requests
+      - name: Extract repair half
+        run: |
+          python3 xfg_efg_shard.py \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 20 \
+            --workers 2 \
+            --min-fga 300 \
+            --out-dir xfg_efg_repair
+      - name: Upload repair half
+        uses: actions/upload-artifact@v4
+        with:
+          name: xfg-efg-repair-${{ matrix.shard }}
+          path: |
+            xfg_efg_repair/partial_${{ matrix.shard }}.csv
+            xfg_efg_repair/errors_${{ matrix.shard }}.csv
+            xfg_efg_repair/summary_${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
