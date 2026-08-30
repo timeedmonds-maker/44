@@ -14,52 +14,41 @@ jobs:
   split-source-reel:
     runs-on: ubuntu-latest
     steps:
-      - name: Download original KD all-angle source artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: kd-top10-hybrid-v3-all-angles-33308288116
-          path: original
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: 33308288116
+      - name: Download original source artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9731182962/zip" \
+            -o original.zip
+          mkdir -p original
+          unzip -q original.zip -d original
+          find original -maxdepth 3 -type f -printf '%s %p\n' | sort -nr | head -30
 
-      - name: Locate source combined reel and split with stream copy
+      - name: Split original combined reel with stream copy only
         shell: bash
         run: |
           set -euo pipefail
-          echo 'Downloaded files:'
-          find original -maxdepth 3 -type f -printf '%s %p\n' | sort -nr | head -30
-
           REEL="$(find original -type f \( -iname 'reel_SOURCE.mp4' -o -iname '*reel*SOURCE*.mp4' -o -iname '*combined*.mp4' \) -printf '%s %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
           if [ -z "${REEL:-}" ]; then
             REEL="$(find original -type f -name '*.mp4' -printf '%s %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
           fi
           test -n "$REEL"
-          echo "Selected source reel: $REEL"
+          echo "SOURCE_REEL=$REEL"
 
           mkdir -p split
           ffprobe -v error -show_entries format=duration,size,bit_rate -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,bit_rate -of json "$REEL" | tee split/source_ffprobe.json
-
           DUR="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$REEL")"
-          MID="$(python3 - <<'PY' "$DUR"
-import sys
-print(float(sys.argv[1]) / 2.0)
-PY
-)"
+          MID="$(awk -v d="$DUR" 'BEGIN { printf "%.6f", d/2 }')"
           echo "duration=$DUR midpoint=$MID"
 
-          ffmpeg -hide_banner -loglevel warning -y -i "$REEL" -map 0 -c copy -f segment -segment_time "$MID" -reset_timestamps 1 split/KD_Top10_All_Angles_SOURCE_Part_%01d.mp4
-
-          COUNT="$(find split -maxdepth 1 -type f -name 'KD_Top10_All_Angles_SOURCE_Part_*.mp4' | wc -l)"
-          echo "segments=$COUNT"
-          if [ "$COUNT" -ne 2 ]; then
-            echo "Expected exactly 2 segments; got $COUNT" >&2
-            exit 1
-          fi
-
-          mv split/KD_Top10_All_Angles_SOURCE_Part_0.mp4 split/KD_Top10_All_Angles_SOURCE_Part_1.mp4.tmp
-          mv split/KD_Top10_All_Angles_SOURCE_Part_1.mp4 split/KD_Top10_All_Angles_SOURCE_Part_2.mp4
-          mv split/KD_Top10_All_Angles_SOURCE_Part_1.mp4.tmp split/KD_Top10_All_Angles_SOURCE_Part_1.mp4
+          ffmpeg -hide_banner -loglevel warning -y -i "$REEL" -t "$MID" -map 0 -c copy split/KD_Top10_All_Angles_SOURCE_Part_1.mp4
+          ffmpeg -hide_banner -loglevel warning -y -ss "$MID" -i "$REEL" -map 0 -c copy split/KD_Top10_All_Angles_SOURCE_Part_2.mp4
 
           for f in split/KD_Top10_All_Angles_SOURCE_Part_1.mp4 split/KD_Top10_All_Angles_SOURCE_Part_2.mp4; do
             echo "=== $f ==="
