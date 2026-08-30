@@ -1,0 +1,9 @@
+{
+  "label": "LeBron James last 5 made dunks, 2025-26 regular season",
+  "player_id": 2544,
+  "player_name_contains": "LeBron James",
+  "description_contains": "Dunk",
+  "require_made_fg": true,
+  "last_n": 5,
+  "source_csv_url": "https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv"
+}
