@@ -1,0 +1,10 @@
+{
+  "label": "LeBron James last 5 made dunks, 2025-26 regular season",
+  "team": "LAL",
+  "team_id": 1610612747,
+  "player_id": 2544,
+  "season": "2025-26",
+  "game_prefix": "00225",
+  "action_contains": "dunk",
+  "last_n": 5
+}
