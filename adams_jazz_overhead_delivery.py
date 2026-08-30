@@ -187,9 +187,9 @@ def to_uhd(src: Path, dst: Path) -> None:
     subprocess.run([
         'ffmpeg', '-nostdin', '-y', '-v', 'error', '-i', str(src),
         '-vf', 'scale=3840:2160:flags=lanczos,fps=30',
-        '-c:v', 'libx264', '-profile:v', 'high', '-crf', '18',
-        '-maxrate', '28M', '-bufsize', '56M',
-        '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(dst)
+        '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'high', '-crf', '20',
+        '-maxrate', '20M', '-bufsize', '40M',
+        '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', str(dst)
     ], check=True)
 
 
