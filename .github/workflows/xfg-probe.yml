@@ -1,0 +1,25 @@
+name: xFG Endpoint Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/xfg-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Probe known Kevin Durant player-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sS --max-time 30 -w '\nHTTP=%{http_code} TIME=%{time_total}\n' \
+            -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36' \
+            -H 'Referer: https://www.nba.com/' \
+            -H 'Origin: https://www.nba.com' \
+            'https://stats.gleague.nba.com/stats/shotqualityvideologs?GameID=0022500375&PlayerID=201142' \
+            | tee probe.txt
