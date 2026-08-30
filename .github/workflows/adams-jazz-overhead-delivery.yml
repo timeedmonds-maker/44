@@ -1,0 +1,39 @@
+name: Adams Jazz overhead delivery
+
+on:
+  push:
+    paths:
+      - 'adams_jazz_overhead_delivery.py'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build exact overhead-only clips
+        run: python3 adams_jazz_overhead_delivery.py
+      - name: Commit delivery files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deliveries/adams_jazz_0022500301_overhead
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Deliver Adams Jazz overhead clips"
+          git push
+      - name: Upload delivery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-overhead-clips
+          path: deliveries/adams_jazz_0022500301_overhead
+          retention-days: 7
+          compression-level: 0
