@@ -1,0 +1,12 @@
+{
+  "label": "LeBron James last 5 made dunks — 2025-26 regular season",
+  "expected_count": 5,
+  "workers": 5,
+  "events": [
+    {"rank": 1, "game_id": "0022501170", "event_id": 139},
+    {"rank": 2, "game_id": "0022501170", "event_id": 482},
+    {"rank": 3, "game_id": "0022501185", "event_id": 95},
+    {"rank": 4, "game_id": "0022501185", "event_id": 501},
+    {"rank": 5, "game_id": "0022501204", "event_id": 343}
+  ]
+}
