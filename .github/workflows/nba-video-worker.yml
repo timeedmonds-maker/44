@@ -33,6 +33,7 @@ jobs:
           mkdir -p .worker_runtime
           RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}"
           curl --retry 2 --retry-delay 1 -fsSL "$RAW_BASE/nba_video_worker.py" -o .worker_runtime/nba_video_worker.py
+          curl --retry 2 --retry-delay 1 -fsSL "$RAW_BASE/nba_best_native_entry.py" -o .worker_runtime/nba_best_native_entry.py
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             cat > .worker_runtime/request.json <<'JSON'
@@ -92,22 +93,23 @@ jobs:
           echo "FFMPEG_SETUP_MS=$((END-START))"
           .worker_runtime/bin/ffmpeg -version | head -n 1
 
-      - name: Fetch and QA native NBA source video
+      - name: Inspect all angles, fetch best native source, and QA
         shell: bash
         run: |
           set -euo pipefail
           START=$(date +%s%3N)
-          FFMPEG_BINARY="$PWD/.worker_runtime/bin/ffmpeg" \
-            python3 .worker_runtime/nba_video_worker.py \
-              --request "${{ steps.request.outputs.request_file }}" \
-              --out output
+          cd .worker_runtime
+          FFMPEG_BINARY="$GITHUB_WORKSPACE/.worker_runtime/bin/ffmpeg" \
+            python3 nba_best_native_entry.py \
+              --request "$GITHUB_WORKSPACE/${{ steps.request.outputs.request_file }}" \
+              --out "$GITHUB_WORKSPACE/output"
           END=$(date +%s%3N)
           echo "VIDEO_WORKER_MS=$((END-START))"
 
-      - name: Upload validated source video
+      - name: Upload validated best-native NBA video
         uses: actions/upload-artifact@v4
         with:
-          name: nba-source-video-${{ github.run_id }}
+          name: nba-best-native-video-${{ github.run_id }}
           path: |
             output/clips/*.mp4
             output/reel_SOURCE.mp4
