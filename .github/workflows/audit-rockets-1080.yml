@@ -1,0 +1,24 @@
+name: Audit Rockets 1080 Availability
+on:
+  push:
+    paths:
+      - 'audit_requests/rockets-1080-*.json'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Fetch audit script
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/audit_rockets_1080.py" -o audit_rockets_1080.py
+      - name: Run audit
+        run: python3 audit_rockets_1080.py
+      - name: Upload audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: rockets-1080-audit-${{ github.run_id }}
+          path: rockets_1080_audit.json
+          retention-days: 1
+          compression-level: 0
