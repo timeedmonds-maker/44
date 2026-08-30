@@ -1,0 +1,8 @@
+{
+  "label": "LeBron identity diagnostic",
+  "player_name_contains": "LeBron",
+  "description_contains": "",
+  "require_made_fg": false,
+  "last_n": 5,
+  "source_csv_url": "https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv"
+}
