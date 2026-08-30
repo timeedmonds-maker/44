@@ -6,6 +6,10 @@ on:
       - 'adams_jazz_overhead_delivery.py'
       - '.github/workflows/adams-jazz-overhead-delivery.yml'
 
+concurrency:
+  group: adams-jazz-overhead-delivery
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -30,15 +34,37 @@ jobs:
           )
           ln -sf "$FFMPEG_EXE" bin/ffmpeg
           echo "$PWD/bin" >> "$GITHUB_PATH"
+      - name: Use fast bounded UHD encode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('adams_jazz_overhead_delivery.py')
+          s=p.read_text()
+          old="'-preset', 'veryfast', '-profile:v', 'high', '-crf', '20',\n        '-maxrate', '20M', '-bufsize', '40M'"
+          new="'-preset', 'ultrafast', '-profile:v', 'high', '-b:v', '10M',\n        '-maxrate', '10M', '-bufsize', '20M'"
+          if old not in s:
+              raise SystemExit('encode signature not found')
+          p.write_text(s.replace(old,new))
+          PY
       - name: Build exact overhead-only clips
         shell: bash
         run: |
           set -euo pipefail
           FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 adams_jazz_overhead_delivery.py
+      - name: Upload delivery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-overhead-clips
+          path: deliveries/adams_jazz_0022500301_overhead
+          retention-days: 7
+          compression-level: 0
       - name: Commit delivery files
         shell: bash
         run: |
           set -euo pipefail
+          git restore adams_jazz_overhead_delivery.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add deliveries/adams_jazz_0022500301_overhead
@@ -47,10 +73,3 @@ jobs:
           fi
           git commit -m "Deliver Adams Jazz overhead clips"
           git push
-      - name: Upload delivery artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: adams-jazz-overhead-clips
-          path: deliveries/adams_jazz_0022500301_overhead
-          retention-days: 7
-          compression-level: 0
