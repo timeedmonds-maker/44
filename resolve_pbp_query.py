@@ -5,11 +5,18 @@ import csv
 import io
 import json
 import urllib.request
-from collections import deque
+from datetime import date
 from pathlib import Path
 
 DEFAULT_URL = 'https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv'
 UA = 'Mozilla/5.0'
+
+
+def parse_date(value: str):
+    try:
+        return date.fromisoformat(value)
+    except Exception:
+        return date.min
 
 
 def main() -> None:
@@ -30,8 +37,7 @@ def main() -> None:
     if not player_id and not player_name_contains and not team_filter:
         raise SystemExit('Provide player_id, player_name_contains, or team')
 
-    matched = deque(maxlen=last_n)
-    total_matches = 0
+    matched = []
     identity_examples = []
 
     request = urllib.request.Request(source_url, headers={'User-Agent': UA})
@@ -72,7 +78,6 @@ def main() -> None:
             if require_made_fg and shot_pts <= 0:
                 continue
 
-            total_matches += 1
             matched.append({
                 'game_date': row.get('game_date'),
                 'game_id': row.get('game_id'),
@@ -87,7 +92,8 @@ def main() -> None:
                 'shot_pts': shot_pts,
             })
 
-    events = list(matched)
+    matched.sort(key=lambda e: (parse_date(str(e.get('game_date') or '')), int(e.get('period') or 0), int(e.get('event_id') or 0)))
+    events = matched[-last_n:]
     for idx, e in enumerate(events, 1):
         e['rank'] = idx
 
@@ -95,7 +101,7 @@ def main() -> None:
         'source': source_url,
         'query': req,
         'identity_examples': identity_examples,
-        'total_matches': total_matches,
+        'total_matches': len(matched),
         'resolved_count': len(events),
         'events': events,
     }
