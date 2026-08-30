@@ -1,0 +1,19 @@
+name: Audit KD Top 10 1080 Counts
+on:
+  push:
+    paths:
+      - 'audit_kd_top10_1080_counts.py'
+      - '.github/workflows/audit-kd-top10-1080-counts.yml'
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit
+        run: python3 audit_kd_top10_1080_counts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-top10-1080-counts-${{ github.run_id }}
+          path: kd_top10_1080_counts.json
+          retention-days: 1
