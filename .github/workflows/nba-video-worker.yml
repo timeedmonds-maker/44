@@ -1,0 +1,96 @@
+name: NBA Video Worker
+
+on:
+  push:
+    paths:
+      - 'worker_requests/*.json'
+  workflow_dispatch:
+    inputs:
+      game_id:
+        description: 'NBA game ID, e.g. 0022500679'
+        required: true
+        type: string
+      event_id:
+        description: 'NBA event number, e.g. 102'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  source-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependency
+        run: python -m pip install --disable-pip-version-check requests
+
+      - name: Confirm FFmpeg
+        run: |
+          ffmpeg -version | head -n 1
+          ffprobe -version | head -n 1
+
+      - name: Resolve request
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            mkdir -p .worker_runtime
+            cat > .worker_runtime/request.json <<'JSON'
+          {
+            "expected_count": 1,
+            "events": [
+              {
+                "rank": 1,
+                "game_id": "${{ inputs.game_id }}",
+                "event_id": ${{ inputs.event_id }}
+              }
+            ]
+          }
+          JSON
+            REQUEST_FILE=.worker_runtime/request.json
+          else
+            REQUEST_FILE=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | grep '^worker_requests/.*\.json$' | tail -n 1)
+            test -n "$REQUEST_FILE"
+          fi
+          echo "request_file=$REQUEST_FILE" >> "$GITHUB_OUTPUT"
+          echo "Using request: $REQUEST_FILE"
+          cat "$REQUEST_FILE"
+
+      - name: Fetch and QA native NBA source video
+        run: |
+          python nba_video_worker.py \
+            --request "${{ steps.request.outputs.request_file }}" \
+            --out output
+
+      - name: Show source quality
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('output/qa.json'))
+          for e in q['events']:
+              p=e.get('probe') or {}
+              print(f"EVENT {e['game_id']}/{e['event_id']}: {p.get('width')}x{p.get('height')} codec={p.get('codec')} fps={p.get('avg_frame_rate')} bitrate={p.get('bit_rate')} duration={p.get('duration')}")
+          PY
+
+      - name: Upload validated source video
+        uses: actions/upload-artifact@v4
+        with:
+          name: nba-source-video-${{ github.run_id }}
+          path: |
+            output/clips/*.mp4
+            output/reel_SOURCE.mp4
+            output/qa.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
