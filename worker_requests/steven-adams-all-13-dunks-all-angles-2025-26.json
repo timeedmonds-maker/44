@@ -1,0 +1,22 @@
+{
+  "player": "Steven Adams",
+  "player_id": 203500,
+  "season": "2025-26",
+  "query": "all made dunks",
+  "expected_count": 13,
+  "events": [
+    {"rank":1,"game_date":"2025-10-24","matchup":"DET @ HOU","game_id":"0022500093","event_id":43},
+    {"rank":2,"game_date":"2025-10-29","matchup":"HOU @ TOR","game_id":"0022500131","event_id":86},
+    {"rank":3,"game_date":"2025-11-01","matchup":"HOU @ BOS","game_id":"0022500146","event_id":146},
+    {"rank":4,"game_date":"2025-11-03","matchup":"DAL @ HOU","game_id":"0022500160","event_id":489},
+    {"rank":5,"game_date":"2025-11-09","matchup":"HOU @ MIL","game_id":"0022500191","event_id":561},
+    {"rank":6,"game_date":"2025-11-12","matchup":"WAS @ HOU","game_id":"0022500218","event_id":96},
+    {"rank":7,"game_date":"2025-11-12","matchup":"WAS @ HOU","game_id":"0022500218","event_id":315},
+    {"rank":8,"game_date":"2025-11-30","matchup":"HOU @ UTA","game_id":"0022500301","event_id":489},
+    {"rank":9,"game_date":"2025-12-11","matchup":"LAC @ HOU","game_id":"0022501205","event_id":505},
+    {"rank":10,"game_date":"2025-12-18","matchup":"HOU @ NOP","game_id":"0022500375","event_id":121},
+    {"rank":11,"game_date":"2025-12-27","matchup":"CLE @ HOU","game_id":"0022500438","event_id":248},
+    {"rank":12,"game_date":"2025-12-29","matchup":"IND @ HOU","game_id":"0022500453","event_id":13},
+    {"rank":13,"game_date":"2026-01-05","matchup":"PHX @ HOU","game_id":"0022500505","event_id":41}
+  ]
+}
