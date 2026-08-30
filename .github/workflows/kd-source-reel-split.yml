@@ -1,0 +1,91 @@
+name: KD Source Reel Split
+
+on:
+  push:
+    paths:
+      - '.github/workflows/kd-source-reel-split.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  split-source-reel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download original KD all-angle source artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kd-top10-hybrid-v3-all-angles-33308288116
+          path: original
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 33308288116
+
+      - name: Locate source combined reel and split with stream copy
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Downloaded files:'
+          find original -maxdepth 3 -type f -printf '%s %p\n' | sort -nr | head -30
+
+          REEL="$(find original -type f \( -iname 'reel_SOURCE.mp4' -o -iname '*reel*SOURCE*.mp4' -o -iname '*combined*.mp4' \) -printf '%s %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
+          if [ -z "${REEL:-}" ]; then
+            REEL="$(find original -type f -name '*.mp4' -printf '%s %p\n' | sort -nr | head -1 | cut -d' ' -f2-)"
+          fi
+          test -n "$REEL"
+          echo "Selected source reel: $REEL"
+
+          mkdir -p split
+          ffprobe -v error -show_entries format=duration,size,bit_rate -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,bit_rate -of json "$REEL" | tee split/source_ffprobe.json
+
+          DUR="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$REEL")"
+          MID="$(python3 - <<'PY' "$DUR"
+import sys
+print(float(sys.argv[1]) / 2.0)
+PY
+)"
+          echo "duration=$DUR midpoint=$MID"
+
+          ffmpeg -hide_banner -loglevel warning -y -i "$REEL" -map 0 -c copy -f segment -segment_time "$MID" -reset_timestamps 1 split/KD_Top10_All_Angles_SOURCE_Part_%01d.mp4
+
+          COUNT="$(find split -maxdepth 1 -type f -name 'KD_Top10_All_Angles_SOURCE_Part_*.mp4' | wc -l)"
+          echo "segments=$COUNT"
+          if [ "$COUNT" -ne 2 ]; then
+            echo "Expected exactly 2 segments; got $COUNT" >&2
+            exit 1
+          fi
+
+          mv split/KD_Top10_All_Angles_SOURCE_Part_0.mp4 split/KD_Top10_All_Angles_SOURCE_Part_1.mp4.tmp
+          mv split/KD_Top10_All_Angles_SOURCE_Part_1.mp4 split/KD_Top10_All_Angles_SOURCE_Part_2.mp4
+          mv split/KD_Top10_All_Angles_SOURCE_Part_1.mp4.tmp split/KD_Top10_All_Angles_SOURCE_Part_1.mp4
+
+          for f in split/KD_Top10_All_Angles_SOURCE_Part_1.mp4 split/KD_Top10_All_Angles_SOURCE_Part_2.mp4; do
+            echo "=== $f ==="
+            ls -lh "$f"
+            ffprobe -v error -show_entries format=duration,size,bit_rate -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,bit_rate -of json "$f"
+            sha256sum "$f"
+          done | tee split/parts_qa.txt
+
+      - name: Upload source-quality part 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: KD-Top10-All-Angles-SOURCE-Part-1
+          path: |
+            split/KD_Top10_All_Angles_SOURCE_Part_1.mp4
+            split/source_ffprobe.json
+            split/parts_qa.txt
+          compression-level: 0
+          retention-days: 1
+
+      - name: Upload source-quality part 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: KD-Top10-All-Angles-SOURCE-Part-2
+          path: |
+            split/KD_Top10_All_Angles_SOURCE_Part_2.mp4
+            split/source_ffprobe.json
+            split/parts_qa.txt
+          compression-level: 0
+          retention-days: 1
