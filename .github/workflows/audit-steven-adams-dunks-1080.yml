@@ -1,0 +1,20 @@
+name: Audit Steven Adams Dunks 1080
+
+on:
+  push:
+    paths:
+      - 'audit_steven_adams_dunks_1080_counts.py'
+      - '.github/workflows/audit-steven-adams-dunks-1080.yml'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 audit_steven_adams_dunks_1080_counts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: steven-adams-dunks-1080-${{ github.run_id }}
+          path: steven_adams_dunks_1080_counts.json
+          retention-days: 1
