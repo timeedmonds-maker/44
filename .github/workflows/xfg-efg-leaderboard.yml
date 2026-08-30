@@ -1,0 +1,49 @@
+name: xFG eFG Over Expected Leaderboard
+
+on:
+  push:
+    paths:
+      - '.github/workflows/xfg-efg-leaderboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Fetch runner script
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 3 --retry-delay 1 -fsSL \
+            "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/xfg_efg_leaderboard.py" \
+            -o xfg_efg_leaderboard.py
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check pandas pyreadr requests
+
+      - name: Build leaderboard
+        run: |
+          python3 xfg_efg_leaderboard.py --min-fga 300 --workers 32 --out-dir xfg_efg_output
+
+      - name: Show top 25
+        run: |
+          cat xfg_efg_output/top25_efg_over_expected_2025_26.csv
+          cat xfg_efg_output/qa.json
+
+      - name: Upload leaderboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: xfg-efg-over-expected-2025-26-${{ github.run_id }}
+          path: |
+            xfg_efg_output/player_efg_over_expected_2025_26.csv
+            xfg_efg_output/top25_efg_over_expected_2025_26.csv
+            xfg_efg_output/qa.json
+            xfg_efg_output/errors.csv
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
