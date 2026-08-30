@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,11 +28,22 @@ H = {
     'Referer': 'https://clips.nba.com/',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 }
+MEDIA_H = {
+    'User-Agent': UA,
+    'Referer': 'https://clips.nba.com/',
+    'Accept': '*/*',
+}
 
 
 def run(cmd: list[str]) -> None:
     print('+', ' '.join(map(str, cmd)), flush=True)
     subprocess.run(cmd, check=True)
+
+
+def http_bytes(url: str, headers: dict[str, str] | None = None, timeout: int = 45) -> bytes:
+    request = urllib.request.Request(url, headers=headers or MEDIA_H)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read()
 
 
 def ahash_frame(path: Path, t: float) -> str:
@@ -72,7 +84,6 @@ def parse_duration_seconds(text: str) -> float:
 
 def probe_video(path: Path) -> dict:
     # Use ffmpeg itself for metadata so the fast worker only needs one bundled binary.
-    # -c copy and a tiny output duration avoid a decode/transcode pass.
     p = subprocess.run(
         [FFMPEG, '-hide_banner', '-i', str(path), '-map', '0:v:0',
          '-c', 'copy', '-t', '0.01', '-f', 'null', '-'],
@@ -114,10 +125,7 @@ def probe_video(path: Path) -> dict:
 
 def parse_clips_page(game_id: str, event_id: int) -> dict:
     page_url = f'https://clips.nba.com/?gameNo={game_id}&eventNum={event_id}&source=grs'
-    request = urllib.request.Request(page_url, headers=H)
-    with urllib.request.urlopen(request, timeout=45) as response:
-        text = response.read().decode('utf-8', errors='replace')
-
+    text = http_bytes(page_url, H).decode('utf-8', errors='replace')
     title_match = re.search(r'<title>(.*?)</title>', text, flags=re.I | re.S)
     title = htmlmod.unescape(title_match.group(1).strip()) if title_match else ''
 
@@ -135,13 +143,87 @@ def parse_clips_page(game_id: str, event_id: int) -> dict:
     return {'page_url': page_url, 'title': title, 'selected': selected, 'angle_count': len(hls)}
 
 
+def signed_join(base: str, child: str) -> str:
+    joined = urllib.parse.urljoin(base, child)
+    base_p = urllib.parse.urlsplit(base)
+    child_p = urllib.parse.urlsplit(joined)
+    # Wowza signed playlists sometimes rely on the playlist query token for relative media URLs.
+    if base_p.query and not child_p.query:
+        child_p = child_p._replace(query=base_p.query)
+        joined = urllib.parse.urlunsplit(child_p)
+    return joined
+
+
+def parse_hls_playlist(url: str, depth: int = 0) -> tuple[str | None, list[str]]:
+    if depth > 3:
+        raise RuntimeError('HLS playlist nesting too deep')
+    text = http_bytes(url, MEDIA_H).decode('utf-8', errors='replace')
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines or lines[0] != '#EXTM3U':
+        raise RuntimeError('Invalid HLS playlist')
+
+    for line in lines:
+        if line.startswith('#EXT-X-KEY:') and 'METHOD=NONE' not in line:
+            raise RuntimeError('Encrypted HLS playlist is not supported by fast source path')
+
+    variants: list[tuple[int, str]] = []
+    for i, line in enumerate(lines):
+        if not line.startswith('#EXT-X-STREAM-INF:'):
+            continue
+        bw_m = re.search(r'BANDWIDTH=(\d+)', line)
+        bandwidth = int(bw_m.group(1)) if bw_m else 0
+        for child in lines[i + 1:]:
+            if not child.startswith('#'):
+                variants.append((bandwidth, signed_join(url, child)))
+                break
+    if variants:
+        return parse_hls_playlist(max(variants, key=lambda x: x[0])[1], depth + 1)
+
+    init_url = None
+    segments: list[str] = []
+    for line in lines:
+        if line.startswith('#EXT-X-MAP:'):
+            m = re.search(r'URI="([^"]+)"', line)
+            if m:
+                init_url = signed_join(url, m.group(1))
+        elif not line.startswith('#'):
+            segments.append(signed_join(url, line))
+
+    if not segments:
+        raise RuntimeError('No HLS media segments found')
+    return init_url, segments
+
+
 def download_hls_source(url: str, out: Path) -> None:
-    headers = f'User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\n'
-    run([
-        FFMPEG, '-nostdin', '-y', '-v', 'error', '-rw_timeout', '30000000', '-headers', headers,
-        '-i', url, '-map', '0:v:0', '-map', '0:a:0?',
-        '-c', 'copy', '-movflags', '+faststart', str(out),
-    ])
+    init_url, segments = parse_hls_playlist(url)
+    part_file = out.with_suffix('.hls.part')
+    urls = ([init_url] if init_url else []) + segments
+    parts: list[bytes | None] = [None] * len(urls)
+    workers = min(8, len(urls))
+
+    def fetch_one(index: int, media_url: str) -> tuple[int, bytes]:
+        return index, http_bytes(media_url, MEDIA_H, timeout=45)
+
+    with ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix='hls-segment') as pool:
+        futures = [pool.submit(fetch_one, i, media_url) for i, media_url in enumerate(urls)]
+        for future in as_completed(futures):
+            index, payload = future.result()
+            parts[index] = payload
+
+    with part_file.open('wb') as f:
+        for part in parts:
+            if part is None:
+                raise RuntimeError('Missing HLS segment payload')
+            f.write(part)
+
+    try:
+        run([
+            FFMPEG, '-nostdin', '-y', '-v', 'error', '-i', str(part_file),
+            '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy',
+            '-movflags', '+faststart', str(out),
+        ])
+    finally:
+        part_file.unlink(missing_ok=True)
 
 
 def process_event(event: dict, fallback_rank: int, clips_dir: Path) -> dict:
@@ -256,7 +338,7 @@ def main() -> None:
 
     payload = {
         'mode': 'source',
-        'processing': 'NONE: signed NBA HLS remuxed to MP4 with ffmpeg -c copy; no scaling, denoise, sharpening, interpolation, or re-encoding',
+        'processing': 'NONE: signed NBA HLS downloaded as original media segments and remuxed to MP4 with ffmpeg -c copy; no scaling, denoise, sharpening, interpolation, or re-encoding',
         'source_policy': 'clips.nba.com exact event page -> fresh signed lrmedia.nba.com HLS',
         'worker': {
             'parallel_workers': workers,
@@ -278,7 +360,7 @@ def main() -> None:
             f"EVENT {rec['game_id']}/{rec['event_id']}: status={rec['status']} "
             f"{p.get('width')}x{p.get('height')} codec={p.get('codec')} "
             f"fps={p.get('avg_frame_rate')} bitrate={p.get('bit_rate')} "
-            f"duration={p.get('duration')} total_s={t.get('total')}",
+            f"duration={p.get('duration')} total_s={t.get('total')} error={rec.get('error')}",
             flush=True,
         )
 
