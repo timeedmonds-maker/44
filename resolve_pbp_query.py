@@ -20,13 +20,18 @@ def main() -> None:
 
     req = json.loads(Path(args.request).read_text(encoding='utf-8'))
     source_url = req.get('source_csv_url', DEFAULT_URL)
-    player_id = str(req['player_id'])
-    description_contains = str(req.get('description_contains', '')).lower()
+    player_id = str(req.get('player_id', '')).strip()
+    player_name_contains = str(req.get('player_name_contains', '')).strip().lower()
+    description_contains = str(req.get('description_contains', '')).strip().lower()
     last_n = int(req.get('last_n', 5))
     require_made_fg = bool(req.get('require_made_fg', True))
 
+    if not player_id and not player_name_contains:
+        raise SystemExit('Provide player_id or player_name_contains')
+
     matched = deque(maxlen=last_n)
     total_matches = 0
+    identity_examples = []
 
     request = urllib.request.Request(source_url, headers={'User-Agent': UA})
     with urllib.request.urlopen(request, timeout=120) as resp:
@@ -35,11 +40,23 @@ def main() -> None:
         for row in reader:
             p1 = row.get('player1_name') or ''
             desc = row.get('description') or ''
-            if not p1.startswith(player_id + ' '):
+            p1_low = p1.lower()
+
+            id_ok = bool(player_id) and (
+                p1.startswith(player_id + ' ') or
+                p1 == player_id or
+                (' ' + player_id + ' ') in (' ' + p1 + ' ')
+            )
+            name_ok = bool(player_name_contains) and player_name_contains in p1_low
+            if not (id_ok or name_ok):
                 continue
+
+            if len(identity_examples) < 10 and p1 not in identity_examples:
+                identity_examples.append(p1)
+
             if description_contains and description_contains not in desc.lower():
                 continue
-            if require_made_fg and row.get('msg_type') != '1':
+            if require_made_fg and row.get('msg_type') not in {'1', '1.0'}:
                 continue
             try:
                 shot_pts = int(float(row.get('shot_pts') or 0))
@@ -47,6 +64,7 @@ def main() -> None:
                 shot_pts = 0
             if require_made_fg and shot_pts <= 0:
                 continue
+
             total_matches += 1
             matched.append({
                 'game_date': row.get('game_date'),
@@ -69,6 +87,7 @@ def main() -> None:
     payload = {
         'source': source_url,
         'query': req,
+        'identity_examples': identity_examples,
         'total_matches': total_matches,
         'resolved_count': len(events),
         'events': events,
