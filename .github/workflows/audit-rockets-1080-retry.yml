@@ -1,0 +1,20 @@
+name: Retry Rockets 1080 Audit
+on:
+  push:
+    paths:
+      - 'audit_requests/rockets-1080-retry-*.json'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - run: curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/audit_rockets_1080_retry.py" -o audit.py
+      - run: python3 audit.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rockets-1080-retry-${{ github.run_id }}
+          path: rockets_1080_retry.json
+          retention-days: 1
+          compression-level: 0
