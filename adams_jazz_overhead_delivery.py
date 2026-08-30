@@ -141,7 +141,24 @@ def resolve_exact_events_from_pbp() -> dict[str, dict]:
     return {'block': block, 'dunk': dunk}
 
 
-def above_rim_option(eid: int) -> tuple[str, str, list[str]]:
+def top_master_resolution(url: str) -> tuple[int, int]:
+    try:
+        txt = get(url).decode('utf-8', 'replace')
+    except Exception:
+        return (0, 0)
+    best = (0, 0)
+    for line in txt.splitlines():
+        if not line.startswith('#EXT-X-STREAM-INF:'):
+            continue
+        m = re.search(r'RESOLUTION=(\d+)x(\d+)', line)
+        if m:
+            wh = (int(m.group(1)), int(m.group(2)))
+            if wh[0] * wh[1] > best[0] * best[1]:
+                best = wh
+    return best
+
+
+def above_rim_option(eid: int) -> tuple[str, str, list[str], tuple[int, int]]:
     page = f'https://clips.nba.com/?gameNo={GAME_ID}&eventNum={eid}&source=grs'
     txt = get(page).decode('utf-8', 'replace')
     opts = []
@@ -155,10 +172,15 @@ def above_rim_option(eid: int) -> tuple[str, str, list[str]]:
     above = [(lab, u) for lab, u in opts if 'above rim' in lab.lower()]
     if not above:
         raise RuntimeError(f'No Above Rim angle for event {eid}; have {[x[0] for x in opts]}')
+
     priority = {'left above rim': 0, 'right above rim': 1, 'above rim': 2}
-    above.sort(key=lambda x: (priority.get(x[0].lower(), 9), x[0].lower()))
-    lab, url = above[0]
-    return lab, url, [x[0] for x in opts]
+    scored = []
+    for lab, u in above:
+        res = top_master_resolution(u)
+        scored.append((res[0] * res[1], -priority.get(lab.lower(), 9), lab, u, res))
+    scored.sort(reverse=True)
+    _, _, lab, url, advertised_res = scored[0]
+    return lab, url, [x[0] for x in opts], advertised_res
 
 
 def to_uhd(src: Path, dst: Path) -> None:
@@ -182,13 +204,13 @@ def main() -> None:
     for kind in ('block', 'dunk'):
         row = events[kind]
         eid = event_id(row)
-        label, hls, all_labels = above_rim_option(eid)
-        source = OUT / f'.{kind}_above_rim_source_1080.mp4'
+        label, hls, all_labels, advertised_res = above_rim_option(eid)
+        source = OUT / f'.{kind}_above_rim_source.mp4'
         final = OUT / names[kind]
         download_hls(hls, source)
         source_qa = probe(source)
-        if (source_qa.get('width'), source_qa.get('height')) != (1920, 1080):
-            raise RuntimeError(f'Expected native 1920x1080 Above Rim source for {kind}, got {source_qa}')
+        if not source_qa.get('width') or not source_qa.get('height') or source_qa.get('duration', 0) < 2:
+            raise RuntimeError(f'Invalid Above Rim source for {kind}: {source_qa}')
         to_uhd(source, final)
         final_qa = probe(final)
         if (final_qa.get('width'), final_qa.get('height')) != (3840, 2160):
@@ -200,6 +222,7 @@ def main() -> None:
             'clock': row.get('clock') or row.get('game_clock'),
             'description': row.get('description'),
             'angle_label': label,
+            'advertised_best_resolution': {'width': advertised_res[0], 'height': advertised_res[1]},
             'available_angle_labels': all_labels,
             'source_qa': source_qa,
             'final_qa': final_qa,
