@@ -1,0 +1,59 @@
+name: KD Top 10 All Angles
+
+on:
+  push:
+    paths:
+      - '.github/workflows/kd-top10-all-angles.yml'
+      - 'build_kd_top10_all_angles.py'
+      - 'worker_requests/kd-top10-hybrid-v3-all-angles.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Fetch worker files
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}"
+          curl -fsSL "$RAW/nba_video_worker.py" -o nba_video_worker.py
+          curl -fsSL "$RAW/build_kd_top10_all_angles.py" -o build_kd_top10_all_angles.py
+          curl -fsSL "$RAW/worker_requests/kd-top10-hybrid-v3-all-angles.json" -o request.json
+
+      - name: Prepare FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor bin
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Build all-angle source reel
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 build_kd_top10_all_angles.py --request request.json --out output --workers 8
+
+      - name: Upload combined reel and QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kd-top10-hybrid-v3-all-angles-${{ github.run_id }}
+          path: |
+            output/reel_SOURCE.mp4
+            output/qa.json
+            output/clips/*.mp4
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
