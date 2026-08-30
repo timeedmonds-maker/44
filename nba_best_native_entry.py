@@ -22,6 +22,8 @@ CAMERA_PREFERENCE = {
     'Mobile Broadcast': 11,
 }
 
+_SELECTION_CACHE: dict[tuple[str, int], dict] = {}
+
 
 def _inspect_master(option: dict) -> dict:
     rec = dict(option)
@@ -30,7 +32,7 @@ def _inspect_master(option: dict) -> dict:
         text = worker.http_bytes(option['url'], worker.MEDIA_H, timeout=30).decode('utf-8', errors='replace')
         lines = [x.strip() for x in text.splitlines() if x.strip()]
         variants = []
-        for i, line in enumerate(lines):
+        for line in lines:
             if not line.startswith('#EXT-X-STREAM-INF:'):
                 continue
             bw_m = re.search(r'BANDWIDTH=(\d+)', line)
@@ -64,7 +66,7 @@ def parse_clips_page_best_native(game_id: str, event_id: int) -> dict:
     if not options:
         raise RuntimeError(f'No signed lrmedia HLS found for {game_id}/{event_id}')
 
-    # Always inspect all camera masters, but do so concurrently to keep this off the critical path.
+    # Mandatory on every query: inspect every camera master concurrently.
     inspected = []
     with ThreadPoolExecutor(max_workers=min(12, len(options)), thread_name_prefix='angle-probe') as pool:
         futures = [pool.submit(_inspect_master, option) for option in options]
@@ -75,7 +77,7 @@ def parse_clips_page_best_native(game_id: str, event_id: int) -> dict:
     native_hd = [o for o in inspected if o.get('height', 0) >= 720 and o.get('width', 0) >= 1280]
 
     if native_hd:
-        # Resolution outranks camera label; camera preference only breaks equal-resolution ties.
+        # Native resolution outranks camera label. Camera usefulness breaks equal-resolution ties.
         chosen = max(
             native_hd,
             key=lambda o: (
@@ -101,11 +103,25 @@ def parse_clips_page_best_native(game_id: str, event_id: int) -> dict:
         for o in sorted(inspected, key=lambda x: CAMERA_PREFERENCE.get(x.get('label', ''), 99))
     ]
 
-    # Keep worker compatibility: it expects clip['selected']['url'/'label'].
     chosen = dict(chosen)
     chosen['selection_reason'] = reason
     chosen['native_hd_found'] = bool(native_hd)
-    chosen['available_native_hd_labels'] = [o['label'] for o in native_hd]
+    chosen['available_native_hd_labels'] = sorted(
+        [o['label'] for o in native_hd],
+        key=lambda label: CAMERA_PREFERENCE.get(label, 99),
+    )
+
+    _SELECTION_CACHE[(str(game_id), int(event_id))] = {
+        'policy': 'inspect_all_angles_then_prefer_best_native_resolution',
+        'selection_reason': reason,
+        'selected_angle_label': chosen.get('label'),
+        'selected_advertised_width': chosen.get('width'),
+        'selected_advertised_height': chosen.get('height'),
+        'selected_advertised_bandwidth': chosen.get('bandwidth'),
+        'native_hd_found': bool(native_hd),
+        'available_native_hd_labels': chosen['available_native_hd_labels'],
+        'angle_inventory': angle_inventory,
+    }
 
     return {
         'page_url': page_url,
@@ -158,18 +174,19 @@ def parse_hls_playlist_resolution_first(url: str, depth: int = 0):
     return init_url, segments
 
 
-# Patch the validated worker at runtime so all existing QA/concurrency/reel behavior is preserved.
 worker.parse_clips_page = parse_clips_page_best_native
 worker.parse_hls_playlist = parse_hls_playlist_resolution_first
-
 _original_process_event = worker.process_event
 
 
 def process_event_with_source_metadata(event, fallback_rank, clips_dir):
     rec = _original_process_event(event, fallback_rank, clips_dir)
-    # The original worker records selected_angle_label but not the new decision metadata.
-    # Re-resolving would waste time, so the detailed angle inventory is intentionally kept
-    # in the page-selection function only for selection. The final probe is authoritative.
+    gid = str(event['game_id'])
+    eid = int(event.get('event_id') or event.get('event_num'))
+    rec['source_selection'] = _SELECTION_CACHE.get((gid, eid), {
+        'policy': 'inspect_all_angles_then_prefer_best_native_resolution',
+        'selection_reason': 'selection_metadata_unavailable',
+    })
     return rec
 
 worker.process_event = process_event_with_source_metadata
