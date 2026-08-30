@@ -20,36 +20,19 @@ permissions:
 
 jobs:
   source-video:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          python -m pip install --disable-pip-version-check requests
-
-      - name: Confirm FFmpeg
-        run: |
-          set -o pipefail
-          ffmpeg -version | head -n 1
-          ffprobe -version | head -n 1
-
-      - name: Resolve request
+      - name: Resolve request and fetch worker
         id: request
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p .worker_runtime
+          RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}"
+          curl --retry 2 --retry-delay 1 -fsSL "$RAW_BASE/nba_video_worker.py" -o .worker_runtime/nba_video_worker.py
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            mkdir -p .worker_runtime
             cat > .worker_runtime/request.json <<'JSON'
           {
             "expected_count": 1,
@@ -57,14 +40,13 @@ jobs:
               {
                 "rank": 1,
                 "game_id": "${{ inputs.game_id }}",
-                "event_id": ${{ inputs.event_id }}
+                "event_id": "${{ inputs.event_id }}"
               }
             ]
           }
           JSON
-            REQUEST_FILE=.worker_runtime/request.json
           else
-            REQUEST_FILE=$(python - <<'PY'
+            REQUEST_PATH=$(python3 - <<'PY'
           import json, os
           event = json.load(open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8'))
           head = event.get('head_commit') or {}
@@ -77,27 +59,53 @@ jobs:
           print(candidates[-1])
           PY
           )
-            test -n "$REQUEST_FILE"
+            curl --retry 2 --retry-delay 1 -fsSL "$RAW_BASE/$REQUEST_PATH" -o .worker_runtime/request.json
           fi
-          echo "request_file=$REQUEST_FILE" >> "$GITHUB_OUTPUT"
-          echo "Using request: $REQUEST_FILE"
-          cat "$REQUEST_FILE"
+
+          echo "request_file=.worker_runtime/request.json" >> "$GITHUB_OUTPUT"
+          echo "Using request:"
+          cat .worker_runtime/request.json
+
+      - name: Prepare lightweight FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .worker_runtime/bin .worker_runtime/vendor
+          START=$(date +%s%3N)
+
+          if python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir \
+            --target .worker_runtime/vendor imageio-ffmpeg==0.6.0; then
+            FFMPEG_EXE=$(PYTHONPATH=.worker_runtime/vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+            ln -sf "$FFMPEG_EXE" .worker_runtime/bin/ffmpeg
+          else
+            echo "Bundled FFmpeg install failed; falling back to apt." >&2
+            if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg; then
+              sudo apt-get update -qq
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg
+            fi
+            ln -sf "$(command -v ffmpeg)" .worker_runtime/bin/ffmpeg
+          fi
+
+          echo "$PWD/.worker_runtime/bin" >> "$GITHUB_PATH"
+          END=$(date +%s%3N)
+          echo "FFMPEG_SETUP_MS=$((END-START))"
+          .worker_runtime/bin/ffmpeg -version | head -n 1
 
       - name: Fetch and QA native NBA source video
+        shell: bash
         run: |
-          python nba_video_worker.py \
-            --request "${{ steps.request.outputs.request_file }}" \
-            --out output
-
-      - name: Show source quality
-        run: |
-          python - <<'PY'
-          import json
-          q=json.load(open('output/qa.json'))
-          for e in q['events']:
-              p=e.get('probe') or {}
-              print(f"EVENT {e['game_id']}/{e['event_id']}: {p.get('width')}x{p.get('height')} codec={p.get('codec')} fps={p.get('avg_frame_rate')} bitrate={p.get('bit_rate')} duration={p.get('duration')}")
-          PY
+          set -euo pipefail
+          START=$(date +%s%3N)
+          FFMPEG_BINARY="$PWD/.worker_runtime/bin/ffmpeg" \
+            python3 .worker_runtime/nba_video_worker.py \
+              --request "${{ steps.request.outputs.request_file }}" \
+              --out output
+          END=$(date +%s%3N)
+          echo "VIDEO_WORKER_MS=$((END-START))"
 
       - name: Upload validated source video
         uses: actions/upload-artifact@v4
