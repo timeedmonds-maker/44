@@ -1,0 +1,11 @@
+{
+  "label": "4-event parallel source benchmark",
+  "expected_count": 4,
+  "workers": 4,
+  "events": [
+    {"rank": 1, "game_id": "0022500375", "event_id": 608},
+    {"rank": 2, "game_id": "0022500491", "event_id": 88},
+    {"rank": 3, "game_id": "0022500628", "event_id": 553},
+    {"rank": 4, "game_id": "0022500054", "event_id": 256}
+  ]
+}
