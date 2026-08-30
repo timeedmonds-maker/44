@@ -87,7 +87,7 @@ def schedule_games_stats(team_id: int, season: str, game_prefix: str):
     return out, {'url': url, 'rows': len(rows), 'team_games': len(out)}
 
 
-def resolve_game(game, player_id: int, action_contains: str):
+def resolve_game(game, player_id: int, action_contains: str, event_mode: str):
     gid = game['game_id']
     url = f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json'
     data = get_json(url, 30)
@@ -104,25 +104,30 @@ def resolve_game(game, player_id: int, action_contains: str):
         subtype = str(a.get('subType') or '')
         action_type = str(a.get('actionType') or '')
         hay = ' '.join([desc, subtype, action_type]).lower()
+        if action_contains not in hay:
+            continue
         is_fg = a.get('isFieldGoal') in {1, True, '1'}
         made = str(a.get('shotResult') or '').lower() == 'made'
-        if is_fg and made and action_contains in hay:
-            found.append({
-                'game_date': game.get('game_date', ''),
-                'game_id': gid,
-                'event_id': int(a.get('actionNumber') or a.get('actionId') or 0),
-                'period': int(a.get('period') or 0),
-                'clock': a.get('clock'),
-                'description': desc,
-                'player_id': pid,
-                'player_name': a.get('playerName'),
-                'team': a.get('teamTricode'),
-                'action_type': action_type,
-                'sub_type': subtype,
-                'shot_distance': a.get('shotDistance'),
-                'x': a.get('xLegacy'),
-                'y': a.get('yLegacy'),
-            })
+        if event_mode == 'made_fg' and not (is_fg and made):
+            continue
+        if event_mode not in {'made_fg', 'any'}:
+            raise ValueError(f'Unsupported event_mode: {event_mode}')
+        found.append({
+            'game_date': game.get('game_date', ''),
+            'game_id': gid,
+            'event_id': int(a.get('actionNumber') or a.get('actionId') or 0),
+            'period': int(a.get('period') or 0),
+            'clock': a.get('clock'),
+            'description': desc,
+            'player_id': pid,
+            'player_name': a.get('playerName'),
+            'team': a.get('teamTricode'),
+            'action_type': action_type,
+            'sub_type': subtype,
+            'shot_distance': a.get('shotDistance'),
+            'x': a.get('xLegacy'),
+            'y': a.get('yLegacy'),
+        })
     return found
 
 
@@ -138,6 +143,7 @@ def main():
     season = str(q.get('season', '2025-26'))
     prefix = str(q.get('game_prefix', '00225'))
     action_contains = str(q.get('action_contains', 'dunk')).lower()
+    event_mode = str(q.get('event_mode', 'made_fg')).lower()
     last_n = int(q.get('last_n', 5))
 
     games, diagnostics = schedule_games_static(team, prefix)
@@ -161,7 +167,7 @@ def main():
 
     all_matches = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-        futs = {ex.submit(resolve_game, g, player_id, action_contains): g for g in games}
+        futs = {ex.submit(resolve_game, g, player_id, action_contains, event_mode): g for g in games}
         for fut in concurrent.futures.as_completed(futs):
             g = futs[fut]
             try:
