@@ -1,0 +1,9 @@
+{
+  "label": "Validate mixed best-native reel with one 1080 event and one 540 fallback",
+  "expected_count": 2,
+  "workers": 2,
+  "events": [
+    {"rank": 1, "game_id": "0022501185", "event_id": 501},
+    {"rank": 2, "game_id": "0022501170", "event_id": 482}
+  ]
+}
