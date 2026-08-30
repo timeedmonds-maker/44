@@ -1,0 +1,31 @@
+name: Inspect NBA HLS Renditions
+on:
+  push:
+    paths:
+      - 'hls_inspect_requests/*.json'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve request and inspect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p .runtime output
+          RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}"
+          curl -fsSL "$RAW_BASE/inspect_nba_hls.py" -o .runtime/inspect.py
+          REQUEST_PATH=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}" | jq -r '.files[]?.filename | select(startswith("hls_inspect_requests/") and endswith(".json"))' | tail -n1)
+          test -n "$REQUEST_PATH"
+          curl -fsSL "$RAW_BASE/$REQUEST_PATH" -o .runtime/request.json
+          GAME=$(jq -r '.game_id' .runtime/request.json)
+          EVENT=$(jq -r '.event_id' .runtime/request.json)
+          python3 .runtime/inspect.py --game "$GAME" --event "$EVENT" --out output/hls_renditions.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nba-hls-renditions-${{ github.run_id }}
+          path: output/hls_renditions.json
+          retention-days: 1
+          compression-level: 0
