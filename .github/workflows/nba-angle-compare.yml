@@ -1,0 +1,46 @@
+name: NBA Native Angle Compare
+on:
+  push:
+    paths:
+      - 'angle_compare_requests/*.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve request and script
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p .runtime output
+          RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}"
+          curl -fsSL "$RAW_BASE/download_nba_angle_compare.py" -o .runtime/run.py
+          REQUEST_PATH=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}" | jq -r '.files[]?.filename | select(startswith("angle_compare_requests/") and endswith(".json"))' | tail -n 1)
+          test -n "$REQUEST_PATH"
+          curl -fsSL "$RAW_BASE/$REQUEST_PATH" -o .runtime/request.json
+      - name: Prepare FFmpeg
+        run: |
+          set -euo pipefail
+          mkdir -p .runtime/bin .runtime/vendor
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target .runtime/vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=.runtime/vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" .runtime/bin/ffmpeg
+          echo "$PWD/.runtime/bin" >> "$GITHUB_PATH"
+      - name: Download native 1080 angles
+        run: |
+          FFMPEG_BINARY="$PWD/.runtime/bin/ffmpeg" python3 .runtime/run.py --request .runtime/request.json --out output
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nba-native-angle-compare-${{ github.run_id }}
+          path: |
+            output/*.mp4
+            output/qa.json
+          retention-days: 1
+          compression-level: 0
