@@ -1,0 +1,11 @@
+{
+  "label": "speed benchmark after request resolution fix",
+  "expected_count": 1,
+  "events": [
+    {
+      "rank": 1,
+      "game_id": "0022500679",
+      "event_id": 102
+    }
+  ]
+}
