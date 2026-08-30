@@ -1,0 +1,10 @@
+{
+  "team": "HOU",
+  "team_id": 1610612745,
+  "player_id": 203500,
+  "season": "2025-26",
+  "game_prefix": "0022500301",
+  "action_contains": "dunk",
+  "event_mode": "made_fg",
+  "last_n": 1
+}
