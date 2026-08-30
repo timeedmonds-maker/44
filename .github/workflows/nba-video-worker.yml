@@ -31,11 +31,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Python dependency
-        run: python -m pip install --disable-pip-version-check requests
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install --disable-pip-version-check requests
 
       - name: Confirm FFmpeg
         run: |
+          set -o pipefail
           ffmpeg -version | head -n 1
           ffprobe -version | head -n 1
 
@@ -60,7 +64,7 @@ jobs:
           JSON
             REQUEST_FILE=.worker_runtime/request.json
           else
-            REQUEST_FILE=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | grep '^worker_requests/.*\.json$' | tail -n 1)
+            REQUEST_FILE=$(git ls-tree -r --name-only "$GITHUB_SHA" worker_requests | grep '^worker_requests/.*\.json$' | sort | tail -n 1)
             test -n "$REQUEST_FILE"
           fi
           echo "request_file=$REQUEST_FILE" >> "$GITHUB_OUTPUT"
