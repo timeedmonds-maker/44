@@ -1,0 +1,80 @@
+{
+  "game_id": "0022500301",
+  "pbp_source": "https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv",
+  "events": {
+    "block": {
+      "event_id": 486,
+      "period": 3,
+      "clock": "04:11.00",
+      "description": "MISS B. Sensabaugh driving DUNK - blocked",
+      "angle_label": "Left Above Rim",
+      "advertised_best_resolution": {
+        "width": 960,
+        "height": 540
+      },
+      "available_angle_labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right Above Rim",
+        "Right HandHeld",
+        "Right Slash"
+      ],
+      "source_qa": {
+        "width": 960,
+        "height": 540,
+        "duration": 37.76
+      },
+      "final_qa": {
+        "width": 3840,
+        "height": 2160,
+        "duration": 37.8
+      },
+      "file": "steven_adams_block_vs_jazz_above_rim_UHD.mp4",
+      "clips_page": "https://clips.nba.com/?gameNo=0022500301&eventNum=486&source=grs"
+    },
+    "dunk": {
+      "event_id": 489,
+      "period": 3,
+      "clock": "04:03.00",
+      "description": "S. Adams DUNK (10 PTS) (K. Durant 3 AST)",
+      "angle_label": "Left Above Rim",
+      "advertised_best_resolution": {
+        "width": 960,
+        "height": 540
+      },
+      "available_angle_labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right Above Rim",
+        "Right HandHeld",
+        "Right Slash"
+      ],
+      "source_qa": {
+        "width": 960,
+        "height": 540,
+        "duration": 19.88
+      },
+      "final_qa": {
+        "width": 3840,
+        "height": 2160,
+        "duration": 19.9
+      },
+      "file": "steven_adams_dunk_vs_jazz_above_rim_UHD.mp4",
+      "clips_page": "https://clips.nba.com/?gameNo=0022500301&eventNum=489&source=grs"
+    }
+  }
+}
