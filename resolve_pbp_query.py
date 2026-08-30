@@ -22,12 +22,13 @@ def main() -> None:
     source_url = req.get('source_csv_url', DEFAULT_URL)
     player_id = str(req.get('player_id', '')).strip()
     player_name_contains = str(req.get('player_name_contains', '')).strip().lower()
+    team_filter = str(req.get('team', '')).strip().upper()
     description_contains = str(req.get('description_contains', '')).strip().lower()
     last_n = int(req.get('last_n', 5))
     require_made_fg = bool(req.get('require_made_fg', True))
 
-    if not player_id and not player_name_contains:
-        raise SystemExit('Provide player_id or player_name_contains')
+    if not player_id and not player_name_contains and not team_filter:
+        raise SystemExit('Provide player_id, player_name_contains, or team')
 
     matched = deque(maxlen=last_n)
     total_matches = 0
@@ -42,16 +43,22 @@ def main() -> None:
             desc = row.get('description') or ''
             p1_low = p1.lower()
 
-            id_ok = bool(player_id) and (
-                p1.startswith(player_id + ' ') or
-                p1 == player_id or
-                (' ' + player_id + ' ') in (' ' + p1 + ' ')
-            )
-            name_ok = bool(player_name_contains) and player_name_contains in p1_low
-            if not (id_ok or name_ok):
-                continue
+            if team_filter:
+                teams = {str(row.get('team_abb') or '').upper(), str(row.get('team_home') or '').upper(), str(row.get('team_away') or '').upper()}
+                if team_filter not in teams:
+                    continue
 
-            if len(identity_examples) < 10 and p1 not in identity_examples:
+            if player_id or player_name_contains:
+                id_ok = bool(player_id) and (
+                    p1.startswith(player_id + ' ') or
+                    p1 == player_id or
+                    (' ' + player_id + ' ') in (' ' + p1 + ' ')
+                )
+                name_ok = bool(player_name_contains) and player_name_contains in p1_low
+                if not (id_ok or name_ok):
+                    continue
+
+            if len(identity_examples) < 20 and p1 and p1 not in identity_examples:
                 identity_examples.append(p1)
 
             if description_contains and description_contains not in desc.lower():
