@@ -64,7 +64,19 @@ jobs:
           JSON
             REQUEST_FILE=.worker_runtime/request.json
           else
-            REQUEST_FILE=$(git ls-tree -r --name-only "$GITHUB_SHA" worker_requests | grep '^worker_requests/.*\.json$' | sort | tail -n 1)
+            REQUEST_FILE=$(python - <<'PY'
+          import json, os
+          event = json.load(open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8'))
+          head = event.get('head_commit') or {}
+          candidates = [
+              p for p in (head.get('added', []) + head.get('modified', []))
+              if p.startswith('worker_requests/') and p.endswith('.json')
+          ]
+          if not candidates:
+              raise SystemExit('No changed worker request JSON found in push event')
+          print(candidates[-1])
+          PY
+          )
             test -n "$REQUEST_FILE"
           fi
           echo "request_file=$REQUEST_FILE" >> "$GITHUB_OUTPUT"
