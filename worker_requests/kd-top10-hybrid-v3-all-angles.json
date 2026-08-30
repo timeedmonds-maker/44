@@ -1,0 +1,17 @@
+{
+  "label": "Kevin Durant 2025-26 hybrid-v3 top 10 — all camera angles",
+  "methodology": "Reuse final validated KD hybrid shot difficulty v3 manifest unchanged",
+  "expected_count": 10,
+  "events": [
+    {"rank":1,"game_id":"0022500375","event_id":608,"game_date":"12/18/2025","matchup":"HOU @ NOP","hybrid_difficulty_score":91.85},
+    {"rank":2,"game_id":"0022500491","event_id":88,"game_date":"01/03/2026","matchup":"HOU @ DAL","hybrid_difficulty_score":91.79},
+    {"rank":3,"game_id":"0022500628","event_id":553,"game_date":"01/22/2026","matchup":"HOU @ PHI","hybrid_difficulty_score":91.42},
+    {"rank":4,"game_id":"0022500054","event_id":256,"game_date":"11/21/2025","matchup":"DEN @ HOU","hybrid_difficulty_score":91.38},
+    {"rank":5,"game_id":"0022500816","event_id":676,"game_date":"02/21/2026","matchup":"HOU @ NYK","hybrid_difficulty_score":90.48},
+    {"rank":6,"game_id":"0022501178","event_id":79,"game_date":"04/10/2026","matchup":"MIN @ HOU","hybrid_difficulty_score":90.18},
+    {"rank":7,"game_id":"0022500679","event_id":102,"game_date":"01/28/2026","matchup":"SAS @ HOU","hybrid_difficulty_score":90.01},
+    {"rank":8,"game_id":"0022501058","event_id":735,"game_date":"03/25/2026","matchup":"HOU @ MIN","hybrid_difficulty_score":89.97},
+    {"rank":9,"game_id":"0022500782","event_id":225,"game_date":"02/11/2026","matchup":"LAC @ HOU","hybrid_difficulty_score":89.56},
+    {"rank":10,"game_id":"0022500527","event_id":498,"game_date":"01/07/2026","matchup":"HOU @ POR","hybrid_difficulty_score":88.91}
+  ]
+}
