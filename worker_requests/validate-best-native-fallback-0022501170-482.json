@@ -1,0 +1,7 @@
+{
+  "label": "Validate best-native selector fallback on 540-only LeBron event",
+  "expected_count": 1,
+  "events": [
+    {"rank": 1, "game_id": "0022501170", "event_id": 482}
+  ]
+}
