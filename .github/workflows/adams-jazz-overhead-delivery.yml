@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'adams_jazz_overhead_delivery.py'
+      - '.github/workflows/adams-jazz-overhead-delivery.yml'
 
 permissions:
   contents: write
@@ -16,8 +17,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Prepare FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor bin
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          echo "$PWD/bin" >> "$GITHUB_PATH"
       - name: Build exact overhead-only clips
-        run: python3 adams_jazz_overhead_delivery.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 adams_jazz_overhead_delivery.py
       - name: Commit delivery files
         shell: bash
         run: |
