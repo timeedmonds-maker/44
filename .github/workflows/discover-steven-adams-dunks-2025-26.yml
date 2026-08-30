@@ -1,0 +1,23 @@
+name: Discover Steven Adams Dunks 2025-26
+
+on:
+  push:
+    paths:
+      - 'discover_steven_adams_dunks_2025_26.py'
+      - '.github/workflows/discover-steven-adams-dunks-2025-26.yml'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve exact Adams dunk events
+        run: python3 discover_steven_adams_dunks_2025_26.py
+      - name: Upload manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: steven-adams-dunks-manifest-${{ github.run_id }}
+          path: steven_adams_dunks_manifest.json
+          retention-days: 1
