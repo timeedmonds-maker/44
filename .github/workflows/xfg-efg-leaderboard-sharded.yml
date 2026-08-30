@@ -1,0 +1,130 @@
+name: xFG eFG Over Expected Leaderboard Sharded
+
+on:
+  push:
+    paths:
+      - '.github/workflows/xfg-efg-leaderboard-sharded.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9]
+    steps:
+      - name: Fetch shard script
+        run: |
+          set -euo pipefail
+          curl --retry 3 --retry-delay 1 -fsSL \
+            "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/xfg_efg_shard.py" \
+            -o xfg_efg_shard.py
+      - name: Install dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas pyreadr requests
+      - name: Extract xFG shard
+        run: |
+          python3 xfg_efg_shard.py \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 10 \
+            --workers 2 \
+            --min-fga 300 \
+            --out-dir xfg_efg_shards
+      - name: Upload shard
+        uses: actions/upload-artifact@v4
+        with:
+          name: xfg-efg-shard-${{ matrix.shard }}
+          path: |
+            xfg_efg_shards/partial_${{ matrix.shard }}.csv
+            xfg_efg_shards/errors_${{ matrix.shard }}.csv
+            xfg_efg_shards/summary_${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  merge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: extract
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: xfg-efg-shard-*
+          path: downloaded
+          merge-multiple: true
+      - name: Install pandas
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas
+      - name: Merge leaderboard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import pandas as pd
+
+          parts=[]
+          for p in sorted(Path('downloaded').glob('partial_*.csv')):
+              try:
+                  d=pd.read_csv(p)
+              except pd.errors.EmptyDataError:
+                  continue
+              if len(d): parts.append(d)
+          if not parts:
+              raise SystemExit('No partial rows')
+          df=pd.concat(parts, ignore_index=True)
+          sums=['tracked_fga','tracked_fgm','tracked_3pa','tracked_3pm','actual_efg_num','expected_efg_num','api_official_fga','unlisted_fga','successful_games','failed_games']
+          agg={c:'sum' for c in sums}
+          agg.update({'player_name':'first','pbp_fga_global':'max'})
+          g=df.groupby('player_id',as_index=False).agg(agg)
+          g['actual_efg_pct']=100*g['actual_efg_num']/g['tracked_fga']
+          g['expected_efg_pct']=100*g['expected_efg_num']/g['tracked_fga']
+          g['efg_over_expected_pp']=g['actual_efg_pct']-g['expected_efg_pct']
+          g['coverage_pct_vs_api_fga']=100*g['tracked_fga']/g['api_official_fga'].replace(0,pd.NA)
+          g['coverage_pct_vs_pbp_fga']=100*g['tracked_fga']/g['pbp_fga_global'].replace(0,pd.NA)
+          g=g.sort_values(['efg_over_expected_pp','tracked_fga'],ascending=[False,False]).reset_index(drop=True)
+          g.insert(0,'rank',range(1,len(g)+1))
+          Path('final').mkdir(exist_ok=True)
+          g.to_csv('final/player_efg_over_expected_2025_26.csv',index=False)
+          g.head(25).to_csv('final/top25_efg_over_expected_2025_26.csv',index=False)
+
+          summaries=[]
+          for p in sorted(Path('downloaded').glob('summary_*.json')):
+              summaries.append(json.loads(p.read_text()))
+          qa={
+              'season':'2025-26',
+              'season_type':'Regular Season',
+              'minimum_pbp_fga':300,
+              'shards':10,
+              'source_resource':'shotqualityvideologs',
+              'source_host':'stats.gleague.nba.com',
+              'definition':{
+                  'actual_efg':'sum(made * [1.5 if 3PT else 1.0]) / tracked_xfg_fga',
+                  'expected_efg':'sum(xFG * [1.5 if 3PT else 1.0]) / tracked_xfg_fga',
+                  'efg_over_expected_pp':'actual_eFG% - expected_eFG%'
+              },
+              'request_pairs':sum(int(x.get('request_pairs',0)) for x in summaries),
+              'errors':sum(int(x.get('errors',0)) for x in summaries),
+              'shard_summaries':summaries,
+              'note':'Per-shot expected eFG uses NBA xFG on public shotList rows only; missing individual xFG is not imputed.'
+          }
+          qa['success_rate_pct']=100*(qa['request_pairs']-qa['errors'])/qa['request_pairs'] if qa['request_pairs'] else None
+          Path('final/qa.json').write_text(json.dumps(qa,indent=2))
+          cols=['rank','player_name','pbp_fga_global','tracked_fga','actual_efg_pct','expected_efg_pct','efg_over_expected_pp','coverage_pct_vs_pbp_fga']
+          print(g.head(25)[cols].to_csv(index=False))
+          print(json.dumps(qa,indent=2))
+          PY
+      - name: Upload final leaderboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: xfg-efg-over-expected-sharded-${{ github.run_id }}
+          path: final/*
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
