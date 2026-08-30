@@ -1,0 +1,51 @@
+name: Steven Adams All Dunks Watchable
+on:
+  push:
+    paths:
+      - '.github/workflows/steven-adams-all-dunks-watchable.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch worker files
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}"
+          curl -fsSL "$RAW/nba_video_worker.py" -o nba_video_worker.py
+          curl -fsSL "$RAW/build_kd_top10_all_angles.py" -o build_all_angles.py
+          curl -fsSL "$RAW/worker_requests/steven-adams-all-13-dunks-all-angles-2025-26.json" -o request.json
+      - name: Prepare FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor bin
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+      - name: Build source sequence
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 build_all_angles.py --request request.json --out output --workers 8
+      - name: Encode watchable copy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ffmpeg -nostdin -y -v error -i output/reel_SOURCE.mp4 -c:v libx264 -preset veryfast -crf 27 -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart Steven_Adams_All_13_Dunks_All_Angles_WATCH.mp4
+          ls -lh Steven_Adams_All_13_Dunks_All_Angles_WATCH.mp4
+      - name: Upload watchable reel
+        uses: actions/upload-artifact@v4
+        with:
+          name: steven-adams-all-13-dunks-watchable-${{ github.run_id }}
+          path: Steven_Adams_All_13_Dunks_All_Angles_WATCH.mp4
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
