@@ -1,0 +1,190 @@
+name: Steven Adams selected rim blocks all angles native
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-selected-rim-blocks-all-angles-native.yml'
+      - 'resolve_adams_rim_blocks_2025_26.py'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout public worker repo
+        uses: actions/checkout@v4
+
+      - name: Prepare dependencies and FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir requests
+          mkdir -p vendor bin
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve all Adams rim blocks then keep requested six
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 resolve_adams_rim_blocks_2025_26.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          src=json.loads(Path('adams_rim_blocks_2025_26.json').read_text())
+          keep={2,3,4,5,6,9}
+          selected=[]
+          for e in src['events']:
+              old=int(e['rank'])
+              if old in keep:
+                  x=dict(e)
+                  x['original_rim_rank']=old
+                  selected.append(x)
+          selected.sort(key=lambda x:x['original_rim_rank'])
+          if [x['original_rim_rank'] for x in selected] != [2,3,4,5,6,9]:
+              raise SystemExit('Requested Adams block subset did not resolve exactly')
+          for i,e in enumerate(selected,1):
+              e['rank']=i
+          out={
+              'source':src['source'],
+              'player':src['player'],
+              'player_id':src['player_id'],
+              'season':src['season'],
+              'rim_definition':src['rim_definition'],
+              'selection':'Keep original Restricted Area ranks 2-6 and 9; exclude original ranks 1, 7, 8',
+              'expected_count':6,
+              'events':selected,
+          }
+          Path('request_selected.json').write_text(json.dumps(out,indent=2,ensure_ascii=False))
+          print('SELECTED=' + json.dumps([{k:e.get(k) for k in ['rank','original_rim_rank','game_date','game_id','event_id','shooter','description']} for e in selected]))
+          PY
+          cat request_selected.json
+
+      - name: Download every official NBA camera angle at native source quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 build_kd_top10_all_angles.py --request request_selected.json --out output --workers 8
+
+      - name: Verify six blocks and all-angle video QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+          req=json.loads(Path('request_selected.json').read_text())
+          qa=json.loads(Path('output/qa.json').read_text())
+          if len(req.get('events',[])) != 6:
+              raise SystemExit('Expected exactly six selected Adams rim blocks')
+          if qa.get('valid_clip_count') != qa.get('expanded_clip_count'):
+              raise SystemExit('Native all-angle QA count mismatch')
+          if qa.get('exact_cross_event_duplicate_groups'):
+              raise SystemExit('Exact cross-event duplicate media detected')
+          counts=Counter(int(c['shot_rank']) for c in qa.get('clips',[]) if c.get('status')=='ok')
+          if sorted(counts) != [1,2,3,4,5,6] or any(counts[r] < 1 for r in range(1,7)):
+              raise SystemExit(f'Missing validated angles for a selected block: {dict(counts)}')
+          summary=[]
+          for e in req['events']:
+              rank=int(e['rank'])
+              summary.append({**e,'validated_angle_count':counts[rank]})
+          Path('adams_selected_blocks_with_angle_counts.json').write_text(json.dumps(summary,indent=2,ensure_ascii=False))
+          print('SELECTED_BLOCKS_VALIDATED=' + json.dumps(summary))
+          PY
+
+      - name: Package each block into sub-100MB ZIP parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p packages
+          python3 - <<'PY'
+          import json, re, zipfile
+          from pathlib import Path
+
+          LIMIT=95_000_000
+          req=json.loads(Path('request_selected.json').read_text())
+          qa=json.loads(Path('output/qa.json').read_text())
+          packages=[]
+          clips=Path('output/clips')
+
+          def slug(s):
+              s=re.sub(r'^\d+\s+','',s or '')
+              return re.sub(r'[^A-Za-z0-9]+','_',s).strip('_') or 'block'
+
+          for e in req['events']:
+              rank=int(e['rank']); orig=int(e['original_rim_rank']); gid=str(e['game_id']); eid=int(e['event_id'])
+              files=sorted(clips.glob(f'*_R{rank:02d}_{gid}_{eid}_*_SOURCE.mp4'))
+              if not files:
+                  raise SystemExit(f'No native angle clips for selected rank {rank}')
+              shooter=slug(e.get('shooter'))
+              groups=[]; cur=[]; cur_bytes=0
+              for p in files:
+                  sz=p.stat().st_size
+                  if sz >= LIMIT:
+                      raise SystemExit(f'Single angle file too large for sub-100MB packaging: {p} {sz}')
+                  if cur and cur_bytes + sz > LIMIT:
+                      groups.append(cur); cur=[]; cur_bytes=0
+                  cur.append(p); cur_bytes += sz
+              if cur: groups.append(cur)
+
+              for part_no,group in enumerate(groups,1):
+                  suffix=f'_part_{part_no:02d}' if len(groups)>1 else ''
+                  z=Path('packages')/f'adams_block_origR{orig:02d}_{shooter}_{gid}_{eid}_ALL_NATIVE_ANGLES{suffix}.zip'
+                  with zipfile.ZipFile(z,'w',compression=zipfile.ZIP_STORED) as a:
+                      for p in group:
+                          a.write(p,arcname=f'angles/{p.name}')
+                      # Metadata is tiny, but only include it in every part for self-contained downloads.
+                      a.write('request_selected.json',arcname='event_manifest.json')
+                      a.write('output/qa.json',arcname='video_qa.json')
+                  if z.stat().st_size >= 100_000_000:
+                      raise SystemExit(f'ZIP exceeds 100MB hard limit: {z} {z.stat().st_size}')
+                  packages.append({
+                      'selected_rank':rank,
+                      'original_rim_rank':orig,
+                      'game_id':gid,
+                      'event_id':eid,
+                      'shooter':e.get('shooter'),
+                      'description':e.get('description'),
+                      'part':part_no,
+                      'parts_total':len(groups),
+                      'angle_count_in_part':len(group),
+                      'angle_files':[p.name for p in group],
+                      'filename':z.name,
+                      'bytes':z.stat().st_size,
+                      'mb_decimal':round(z.stat().st_size/1_000_000,2),
+                  })
+          Path('packages/packages.json').write_text(json.dumps(packages,indent=2,ensure_ascii=False))
+          print('PACKAGES=' + json.dumps(packages))
+          PY
+          ls -lh packages
+
+      - name: Upload selected Adams native all-angle packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-selected-rim-blocks-all-angles-NATIVE-${{ github.run_id }}
+          path: |
+            packages/*.zip
+            packages/packages.json
+            request_selected.json
+            adams_selected_blocks_with_angle_counts.json
+            adams_rim_blocks_2025_26.json
+            output/qa.json
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
