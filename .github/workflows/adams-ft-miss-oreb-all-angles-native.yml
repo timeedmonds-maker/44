@@ -82,7 +82,8 @@ jobs:
               })
           Path('native_source_qa.json').write_text(json.dumps(rows,indent=2))
           print(f'NATIVE_ANGLE_CLIPS={len(rows)}')
-          print('RESOLUTIONS=' + json.dumps(sorted({f"{r["width"]}x{r["height"]}" for r in rows})))
+          resolutions=sorted({'{}x{}'.format(r['width'],r['height']) for r in rows})
+          print('RESOLUTIONS=' + json.dumps(resolutions))
           PY
 
       - name: Package native clips into approximately 95 MB download parts
