@@ -82,7 +82,9 @@ def main() -> None:
                 'team_away': scalar(row.get('team_away')),
             })
 
-    rows.sort(key=lambda x: (x['game_id'], x['event_id'] if x['event_id'] is not None else 10**9, x['source_row']))
+    # The source CSV is already in true chronological PBP row order. event_num is
+    # not monotonic, so sorting by event_num breaks "very next event" adjacency.
+    rows.sort(key=lambda x: x['source_row'])
 
     events = []
     for i in range(len(rows) - 1):
@@ -139,7 +141,7 @@ def main() -> None:
 
     payload = {
         'label': 'Steven Adams 2025-26 OREB immediately after teammate missed FT - all camera angles UHD',
-        'definition': '2025-26 regular season; HOU missed FT by non-Adams teammate; the very next ordered PBP row is a rebound credited to Steven Adams for HOU in the same game and period',
+        'definition': '2025-26 regular season; HOU missed FT by non-Adams teammate; the very next chronological PBP row is a rebound credited to Steven Adams for HOU in the same game and period',
         'source': 'ramirobentes/nba_pbp_data pbp-final-2026/data.csv',
         'expected_count': len(events),
         'workers': 8,
