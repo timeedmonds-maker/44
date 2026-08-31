@@ -1,0 +1,128 @@
+name: Reed Sheppard hardest 5 all angles native
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/reed-hardest-5-all-angles-native.yml'
+      - 'resolve_reed_hardest_5_xfg.py'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/reed-hardest-5-all-angles-native.yml'
+      - 'resolve_reed_hardest_5_xfg.py'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout public worker repo
+        uses: actions/checkout@v4
+
+      - name: Prepare dependencies and FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir pandas requests
+          mkdir -p vendor bin
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve Reed five hardest makes from official NBA xFG
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 resolve_reed_hardest_5_xfg.py
+          cat request.json
+
+      - name: Download every official NBA camera angle at native source quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 build_kd_top10_all_angles.py --request request.json --out output --workers 8
+
+      - name: Verify five shots and all-angle video QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+          req=json.loads(Path('request.json').read_text())
+          qa=json.loads(Path('output/qa.json').read_text())
+          if len(req.get('events',[])) != 5:
+              raise SystemExit('Expected exactly five Reed events')
+          if qa.get('valid_clip_count') != qa.get('expanded_clip_count'):
+              raise SystemExit('Native all-angle QA count mismatch')
+          counts=Counter(int(c['shot_rank']) for c in qa.get('clips',[]) if c.get('status')=='ok')
+          if sorted(counts) != [1,2,3,4,5] or any(counts[r] < 1 for r in range(1,6)):
+              raise SystemExit(f'Missing validated angles for a Reed shot: {dict(counts)}')
+          summary=[]
+          for e in req['events']:
+              rank=int(e['rank'])
+              summary.append({**e,'validated_angle_count':counts[rank]})
+          Path('reed_top5_with_angle_counts.json').write_text(json.dumps(summary,indent=2))
+          print('REED_TOP5_VALIDATED=' + json.dumps(summary))
+          PY
+
+      - name: Package each shot with all native angles
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p packages
+          python3 - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+          req=json.loads(Path('request.json').read_text())
+          packages=[]
+          clips=Path('output/clips')
+          for e in req['events']:
+              rank=int(e['rank']); gid=str(e['game_id']); eid=int(e['event_id'])
+              files=sorted(clips.glob(f'*_R{rank:02d}_{gid}_{eid}_*_SOURCE.mp4'))
+              if not files:
+                  raise SystemExit(f'No native angle clips for rank {rank}')
+              z=Path('packages')/f'reed_shot_{rank:02d}_{gid}_{eid}_ALL_NATIVE_ANGLES.zip'
+              with zipfile.ZipFile(z,'w',compression=zipfile.ZIP_STORED) as a:
+                  for p in files:
+                      a.write(p,arcname=f'angles/{p.name}')
+                  a.write('request.json',arcname='event_manifest.json')
+                  a.write('output/qa.json',arcname='video_qa.json')
+              packages.append({'rank':rank,'game_id':gid,'event_id':eid,'xfg_pct':e.get('xfg_pct'),'angle_count':len(files),'filename':z.name,'bytes':z.stat().st_size})
+          Path('packages/packages.json').write_text(json.dumps(packages,indent=2))
+          print('PACKAGES=' + json.dumps(packages))
+          PY
+          ls -lh packages
+
+      - name: Upload Reed native all-angle packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reed-hardest-5-all-angles-NATIVE-${{ github.run_id }}
+          path: |
+            packages/*.zip
+            packages/packages.json
+            request.json
+            reed_top5_with_angle_counts.json
+            reed_official_xfg_shots_2025_26.csv
+            reed_xfg_errors.json
+            output/qa.json
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
