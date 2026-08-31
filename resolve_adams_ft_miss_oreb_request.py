@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import concurrent.futures
+import csv
+import io
 import json
+import re
 import urllib.request
 from pathlib import Path
 
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151 Safari/537.36'
 ADAMS_ID = 203500
 HOU = 'HOU'
-GAME_PREFIX = '00225'
-STATIC_SCHEDULES = [
-    'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json',
-    'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json',
-]
+PBP_INDEX_URL = 'https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv'
 
 
 def get_json(url: str, timeout: int = 30) -> dict:
@@ -20,57 +19,48 @@ def get_json(url: str, timeout: int = 30) -> dict:
         'User-Agent': UA,
         'Accept': 'application/json, text/plain, */*',
         'Referer': 'https://www.nba.com/',
-        'Origin': 'https://www.nba.com',
     })
     with urllib.request.urlopen(req, timeout=timeout) as response:
         return json.load(response)
 
 
-def walk_games(obj):
-    if isinstance(obj, dict):
-        if 'gameId' in obj and ('homeTeam' in obj or 'awayTeam' in obj):
-            yield obj
-        for value in obj.values():
-            yield from walk_games(value)
-    elif isinstance(obj, list):
-        for value in obj:
-            yield from walk_games(value)
+def norm_gid(value) -> str:
+    s = str(value or '').strip()
+    try:
+        s = str(int(float(s)))
+    except Exception:
+        s = re.sub(r'\D', '', s)
+    return s.zfill(10)
 
 
-def tricode(team) -> str:
-    if not isinstance(team, dict):
-        return ''
-    for key in ('teamTricode', 'teamCode', 'tricode'):
-        if team.get(key):
-            return str(team[key]).upper()
-    return ''
-
-
-def schedule_games() -> tuple[list[dict], list[dict]]:
-    diagnostics = []
-    for url in STATIC_SCHEDULES:
-        try:
-            data = get_json(url)
-            games = list(walk_games(data))
-            selected = []
-            for game in games:
-                gid = str(game.get('gameId') or '')
-                home = tricode(game.get('homeTeam'))
-                away = tricode(game.get('awayTeam'))
-                if gid.startswith(GAME_PREFIX) and HOU in {home, away}:
-                    selected.append({
-                        'game_id': gid,
-                        'game_date': game.get('gameDate') or game.get('gameDateEst') or game.get('gameDateTimeUTC') or game.get('gameDateTimeEst') or '',
-                        'home': home,
-                        'away': away,
-                    })
-            diagnostics.append({'url': url, 'games_total': len(games), 'hou_2025_26_regular_season_games': len(selected)})
-            if selected:
-                unique = {g['game_id']: g for g in selected}
-                return list(unique.values()), diagnostics
-        except Exception as exc:
-            diagnostics.append({'url': url, 'error': repr(exc)})
-    return [], diagnostics
+def source_games() -> list[dict]:
+    req = urllib.request.Request(PBP_INDEX_URL, headers={'User-Agent': UA})
+    games = {}
+    with urllib.request.urlopen(req, timeout=180) as response:
+        text_stream = io.TextIOWrapper(response, encoding='utf-8-sig', newline='')
+        reader = csv.DictReader(text_stream)
+        for row in reader:
+            gid = norm_gid(row.get('game_id'))
+            if not gid.startswith('002'):
+                continue
+            team = str(row.get('team_abb') or '').strip().upper()
+            home = str(row.get('team_home') or '').strip().upper()
+            away = str(row.get('team_away') or '').strip().upper()
+            if HOU not in {team, home, away}:
+                continue
+            rec = games.setdefault(gid, {
+                'game_id': gid,
+                'game_date': str(row.get('game_date') or row.get('date') or '').strip(),
+                'home': home,
+                'away': away,
+            })
+            if not rec['game_date']:
+                rec['game_date'] = str(row.get('game_date') or row.get('date') or '').strip()
+            if not rec['home']:
+                rec['home'] = home
+            if not rec['away']:
+                rec['away'] = away
+    return list(games.values())
 
 
 def person_id(action: dict) -> int:
@@ -100,7 +90,9 @@ def is_adams_offensive_rebound(action: dict) -> bool:
     desc = text(action, 'description').lower()
     team = text(action, 'teamTricode').upper()
     is_rebound = 'rebound' in action_type or 'rebound' in subtype or 'rebound' in desc
-    offensive = 'offensive' in subtype or 'offensive rebound' in desc or '(off:' in desc
+    # LiveData rebound rows identify the player and expose offensive status either
+    # in subType or in the running Off/Def rebound totals in the description.
+    offensive = 'offensive' in subtype or 'offensive rebound' in desc
     return is_rebound and offensive and person_id(action) == ADAMS_ID and team == HOU
 
 
@@ -118,9 +110,25 @@ def resolve_game(game: dict) -> dict:
     actions = ((data.get('game') or {}).get('actions') or [])
     events = []
     missed_ft_count = 0
+    adams_rebound_samples = []
 
-    # LiveData actions are consumed in their delivered chronological sequence.
-    # "Immediately after" is strict: the very next action must be Adams' OREB.
+    for action in actions:
+        if person_id(action) == ADAMS_ID and 'rebound' in (' '.join([
+            text(action, 'actionType'), text(action, 'subType'), text(action, 'description')
+        ])).lower():
+            if len(adams_rebound_samples) < 5:
+                adams_rebound_samples.append({
+                    'actionNumber': action_number(action),
+                    'actionType': action.get('actionType'),
+                    'subType': action.get('subType'),
+                    'description': action.get('description'),
+                    'teamTricode': action.get('teamTricode'),
+                    'period': action.get('period'),
+                    'clock': action.get('clock'),
+                })
+
+    # Official LiveData list order is the chronological event chain. "Immediately
+    # after" is strict: the next action itself must be Adams' offensive rebound.
     for index in range(len(actions) - 1):
         ft = actions[index]
         rb = actions[index + 1]
@@ -136,7 +144,6 @@ def resolve_game(game: dict) -> dict:
         if not is_adams_offensive_rebound(rb):
             continue
 
-        shooter_id = person_id(ft)
         events.append({
             'game_id': gid,
             'event_id': action_number(rb),
@@ -145,7 +152,7 @@ def resolve_game(game: dict) -> dict:
             'matchup': f"{game.get('away', '')} @ {game.get('home', '')}",
             'period': int(rb.get('period') or 0),
             'clock': rb.get('clock') or ft.get('clock') or '',
-            'ft_shooter_id': shooter_id,
+            'ft_shooter_id': person_id(ft),
             'ft_shooter': ft.get('playerName') or ft.get('playerNameI') or '',
             'ft_description': ft.get('description') or '',
             'rebounder_id': ADAMS_ID,
@@ -162,14 +169,14 @@ def resolve_game(game: dict) -> dict:
         'missed_teammate_fts': missed_ft_count,
         'qualifying_events': events,
         'action_count': len(actions),
+        'adams_rebound_samples': adams_rebound_samples,
     }
 
 
 def main() -> None:
-    games, schedule_diagnostics = schedule_games()
+    games = source_games()
     if not games:
-        print(json.dumps({'schedule_diagnostics': schedule_diagnostics}, indent=2), flush=True)
-        raise SystemExit('No Houston 2025-26 regular-season games resolved from official NBA schedule')
+        raise SystemExit('No Houston 2025-26 regular-season games resolved from PBP game index')
 
     diagnostics = []
     events = []
@@ -184,6 +191,7 @@ def main() -> None:
                     'missed_teammate_fts': result['missed_teammate_fts'],
                     'qualifying_count': len(result['qualifying_events']),
                     'action_count': result['action_count'],
+                    'adams_rebound_samples': result['adams_rebound_samples'],
                 })
                 events.extend(result['qualifying_events'])
             except Exception as exc:
@@ -196,11 +204,12 @@ def main() -> None:
     payload = {
         'label': 'Steven Adams 2025-26 offensive rebounds immediately after teammate missed free throw - all camera angles UHD',
         'definition': '2025-26 regular season; Houston teammate (non-Adams) misses a free throw; the immediately following official NBA LiveData action is an offensive rebound credited to Steven Adams for Houston',
-        'source': 'official NBA liveData play-by-play (cdn.nba.com)',
+        'game_index_source': 'ramirobentes/nba_pbp_data pbp-final-2026/data.csv (game IDs only)',
+        'event_source': 'official NBA liveData play-by-play (cdn.nba.com)',
         'video_anchor': 'Steven Adams offensive rebound actionNumber',
         'expected_count': len(events),
         'workers': 8,
-        'schedule_diagnostics': schedule_diagnostics,
+        'hou_games_resolved': len(games),
         'game_diagnostics': sorted(diagnostics, key=lambda d: d['game_id']),
         'events': events,
     }
@@ -209,6 +218,7 @@ def main() -> None:
     for event in events:
         print(json.dumps(event, ensure_ascii=False), flush=True)
     if not events:
+        print(json.dumps({'diagnostics': payload['game_diagnostics']}, indent=2), flush=True)
         raise SystemExit('No qualifying Adams FT-miss OREB events resolved from official NBA LiveData')
 
 
