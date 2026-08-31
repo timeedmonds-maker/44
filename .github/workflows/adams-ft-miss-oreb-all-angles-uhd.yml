@@ -21,10 +21,11 @@ jobs:
       - name: Checkout public worker repo
         uses: actions/checkout@v4
 
-      - name: Prepare FFmpeg
+      - name: Prepare dependencies and FFmpeg
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir pandas pyreadr requests
           mkdir -p vendor bin
           python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
           FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
