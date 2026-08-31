@@ -1,0 +1,135 @@
+name: Steven Adams FT-Miss OREB All Angles Native
+
+on:
+  push:
+    paths:
+      - '.github/workflows/adams-ft-miss-oreb-all-angles-native.yml'
+      - 'resolve_adams_ft_miss_oreb_request.py'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout public worker repo
+        uses: actions/checkout@v4
+
+      - name: Prepare resolver dependencies and FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir pandas pyreadr requests
+          mkdir -p vendor bin
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve strict Adams FT-miss OREB event IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 resolve_adams_ft_miss_oreb_request.py
+          cat request.json
+
+      - name: Download every NBA camera angle at highest native HLS rendition
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 build_kd_top10_all_angles.py --request request.json --out output --workers 8
+
+      - name: Verify native-source policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          qa=json.loads(Path('output/qa.json').read_text())
+          if qa.get('valid_clip_count') != qa.get('expanded_clip_count'):
+              raise SystemExit('Native clip QA count mismatch')
+          clips=qa.get('clips',[])
+          if not clips:
+              raise SystemExit('No native clips')
+          rows=[]
+          for c in clips:
+              p=c.get('probe') or {}
+              if c.get('status')!='ok' or not p.get('ok'):
+                  raise SystemExit(f'Clip QA failed: {c}')
+              rows.append({
+                  'file': Path(c['source_path']).name,
+                  'game_id': c['game_id'],
+                  'event_id': c['event_id'],
+                  'angle': c['label'],
+                  'width': p.get('width'),
+                  'height': p.get('height'),
+                  'fps': p.get('avg_frame_rate'),
+                  'codec': p.get('codec'),
+                  'duration': p.get('duration'),
+                  'sha256': p.get('sha256'),
+                  'native_policy': 'highest-bandwidth signed NBA HLS rendition; stream-copy remux only; no scaling; no video re-encode',
+              })
+          Path('native_source_qa.json').write_text(json.dumps(rows,indent=2))
+          print(f'NATIVE_ANGLE_CLIPS={len(rows)}')
+          print('RESOLUTIONS=' + json.dumps(sorted({f"{r["width"]}x{r["height"]}" for r in rows})))
+          PY
+
+      - name: Package native clips into approximately 95 MB download parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p parts
+          python3 - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+          MAX=95_000_000
+          files=sorted(Path('output/clips').glob('*.mp4'))
+          if not files:
+              raise SystemExit('No source clips to package')
+          groups=[]; cur=[]; total=0
+          for p in files:
+              s=p.stat().st_size
+              if cur and total+s>MAX:
+                  groups.append(cur); cur=[]; total=0
+              cur.append(p); total+=s
+          if cur: groups.append(cur)
+          manifest=[]
+          for i,group in enumerate(groups,1):
+              z=Path('parts')/f'steven_adams_ft_miss_oreb_all_angles_NATIVE_part_{i:02d}.zip'
+              with zipfile.ZipFile(z,'w',compression=zipfile.ZIP_STORED) as a:
+                  for p in group:
+                      a.write(p,arcname=f'videos/{p.name}')
+                  a.write('request.json',arcname='event_manifest.json')
+                  a.write('output/qa.json',arcname='video_qa.json')
+                  a.write('native_source_qa.json',arcname='native_source_qa.json')
+              manifest.append({'part':i,'filename':z.name,'bytes':z.stat().st_size,'mb_decimal':round(z.stat().st_size/1_000_000,2),'video_files':len(group)})
+          Path('parts/parts.json').write_text(json.dumps(manifest,indent=2))
+          print('DOWNLOAD_PARTS='+json.dumps(manifest))
+          PY
+          ls -lh parts
+
+      - name: Upload native source parts and metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-ft-miss-oreb-all-angles-NATIVE-${{ github.run_id }}
+          path: |
+            parts/*.zip
+            parts/parts.json
+            request.json
+            output/qa.json
+            native_source_qa.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
