@@ -40,105 +40,111 @@ jobs:
           import csv, io, json, re, urllib.request
           from pathlib import Path
 
-          URL='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv'
-          UA='timeedmonds-maker-44-adams-ft-miss-oreb'
-          ADAMS_ID='203500'
-          HOU='HOU'
-          ACTOR_RE=re.compile(r'^\s*(\d+)\s+(.+?)\s*$')
+          URL = 'https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv'
+          UA = 'timeedmonds-maker-44-adams-ft-miss-oreb'
+          ADAMS_ID = '203500'
+          HOU = 'HOU'
+          ACTOR_RE = re.compile(r'^\s*(\d+)\s+(.+?)\s*$')
 
           def scalar(v):
               return '' if v is None else str(v).strip()
 
           def integer(v):
-              try: return int(float(v))
-              except Exception: return None
+              try:
+                  return int(float(v))
+              except Exception:
+                  return None
 
           def actor(v):
-              s=scalar(v)
-              m=ACTOR_RE.match(s)
-              return (m.group(1),m.group(2).strip()) if m else ('',s)
+              s = scalar(v)
+              m = ACTOR_RE.match(s)
+              return (m.group(1), m.group(2).strip()) if m else ('', s)
 
           def gid(v):
-              s=scalar(v)
-              try: s=str(int(float(s)))
-              except Exception: s=re.sub(r'\D','',s)
+              s = scalar(v)
+              try:
+                  s = str(int(float(s)))
+              except Exception:
+                  s = re.sub(r'\D', '', s)
               return s.zfill(10)
 
-          req=urllib.request.Request(URL,headers={'User-Agent':UA})
-          rows=[]
-          with urllib.request.urlopen(req,timeout=180) as r:
-              text=io.TextIOWrapper(r,encoding='utf-8-sig',newline='')
-              reader=csv.DictReader(text)
-              fields=reader.fieldnames or []
-              evc=next((c for c in ('event_num','event_id','eventnum','event_no','event_number') if c in fields),None)
+          request = urllib.request.Request(URL, headers={'User-Agent': UA})
+          rows = []
+          with urllib.request.urlopen(request, timeout=180) as response:
+              text = io.TextIOWrapper(response, encoding='utf-8-sig', newline='')
+              reader = csv.DictReader(text)
+              fields = reader.fieldnames or []
+              evc = next((c for c in ('event_num', 'event_id', 'eventnum', 'event_no', 'event_number') if c in fields), None)
               if not evc:
                   raise SystemExit(f'No event id column. fields={fields}')
-              for source_row,row in enumerate(reader):
-                  ngid=gid(row.get('game_id'))
+              for source_row, row in enumerate(reader):
+                  ngid = gid(row.get('game_id'))
                   if not ngid.startswith('002'):
                       continue
                   rows.append({
-                      'source_row':source_row,
-                      'game_id':ngid,
-                      'event_id':integer(row.get(evc)),
-                      'period':integer(row.get('period')),
-                      'msg_type':integer(row.get('msg_type')),
-                      'team':scalar(row.get('team_abb')).upper(),
-                      'player1_name':scalar(row.get('player1_name')),
-                      'description':scalar(row.get('description')),
-                      'clock':scalar(row.get('clock')),
-                      'game_date':scalar(row.get('game_date') or row.get('date')),
-                      'team_home':scalar(row.get('team_home')),
-                      'team_away':scalar(row.get('team_away')),
+                      'source_row': source_row,
+                      'game_id': ngid,
+                      'event_id': integer(row.get(evc)),
+                      'period': integer(row.get('period')),
+                      'msg_type': integer(row.get('msg_type')),
+                      'team': scalar(row.get('team_abb')).upper(),
+                      'player1_name': scalar(row.get('player1_name')),
+                      'description': scalar(row.get('description')),
+                      'clock': scalar(row.get('clock')),
+                      'game_date': scalar(row.get('game_date') or row.get('date')),
+                      'team_home': scalar(row.get('team_home')),
+                      'team_away': scalar(row.get('team_away')),
                   })
 
-          rows.sort(key=lambda x:(x['game_id'], x['event_id'] if x['event_id'] is not None else 10**9, x['source_row']))
-          events=[]
-          for i in range(len(rows)-1):
-              ft=rows[i]; rb=rows[i+1]
+          rows.sort(key=lambda x: (x['game_id'], x['event_id'] if x['event_id'] is not None else 10**9, x['source_row']))
+          events = []
+          for i in range(len(rows) - 1):
+              ft = rows[i]
+              rb = rows[i + 1]
               if ft['msg_type'] != 3 or 'MISS' not in ft['description'].upper() or ft['team'] != HOU:
                   continue
-              shooter_id,shooter_name=actor(ft['player1_name'])
+              shooter_id, shooter_name = actor(ft['player1_name'])
               if shooter_id == ADAMS_ID:
                   continue
               if rb['game_id'] != ft['game_id'] or rb['period'] != ft['period']:
                   continue
               if rb['msg_type'] != 4:
                   continue
-              rebounder_id,rebounder_name=actor(rb['player1_name'])
+              rebounder_id, rebounder_name = actor(rb['player1_name'])
               if rebounder_id != ADAMS_ID or rb['team'] != ft['team']:
                   continue
               events.append({
-                  'rank':len(events)+1,
-                  'game_id':rb['game_id'],
-                  'event_id':rb['event_id'],
-                  'ft_event_id':ft['event_id'],
-                  'game_date':rb['game_date'],
-                  'matchup':f"{rb['team_away']} @ {rb['team_home']}" if rb['team_away'] and rb['team_home'] else '',
-                  'period':rb['period'],
-                  'clock':rb['clock'],
-                  'ft_shooter_id':shooter_id,
-                  'ft_shooter':shooter_name,
-                  'ft_description':ft['description'],
-                  'rebounder_id':rebounder_id,
-                  'rebounder':rebounder_name,
-                  'rebound_description':rb['description'],
+                  'rank': len(events) + 1,
+                  'game_id': rb['game_id'],
+                  'event_id': rb['event_id'],
+                  'ft_event_id': ft['event_id'],
+                  'game_date': rb['game_date'],
+                  'matchup': f"{rb['team_away']} @ {rb['team_home']}" if rb['team_away'] and rb['team_home'] else '',
+                  'period': rb['period'],
+                  'clock': rb['clock'],
+                  'ft_shooter_id': shooter_id,
+                  'ft_shooter': shooter_name,
+                  'ft_description': ft['description'],
+                  'rebounder_id': rebounder_id,
+                  'rebounder': rebounder_name,
+                  'rebound_description': rb['description'],
               })
 
           if not events:
               raise SystemExit('No qualifying events resolved')
-          payload={
-              'label':'Steven Adams 2025-26 OREB immediately after teammate missed FT — all camera angles UHD',
-              'definition':'2025-26 regular season; HOU missed FT by non-Adams teammate; the very next ordered PBP row is a rebound credited to Steven Adams for HOU in the same game and period',
-              'source':'ramirobentes/nba_pbp_data pbp-final-2026/data.csv',
-              'expected_count':len(events),
-              'workers':8,
-              'events':events,
+
+          payload = {
+              'label': 'Steven Adams 2025-26 OREB immediately after teammate missed FT - all camera angles UHD',
+              'definition': '2025-26 regular season; HOU missed FT by non-Adams teammate; the very next ordered PBP row is a rebound credited to Steven Adams for HOU in the same game and period',
+              'source': 'ramirobentes/nba_pbp_data pbp-final-2026/data.csv',
+              'expected_count': len(events),
+              'workers': 8,
+              'events': events,
           }
-          Path('request.json').write_text(json.dumps(payload,indent=2),encoding='utf-8')
+          Path('request.json').write_text(json.dumps(payload, indent=2), encoding='utf-8')
           print(f'QUALIFYING_EVENTS={len(events)}')
-          for e in events:
-              print(json.dumps(e,ensure_ascii=False))
+          for event in events:
+              print(json.dumps(event, ensure_ascii=False))
           PY
           cat request.json
 
@@ -165,20 +171,22 @@ jobs:
           python3 - <<'PY'
           import json, subprocess
           from pathlib import Path
-          files=sorted(Path('uhd').glob('*.mp4'))
-          if not files: raise SystemExit('No UHD files')
-          out=[]
-          for p in files:
-              q=subprocess.run(['ffmpeg','-hide_banner','-i',str(p),'-f','null','-'],capture_output=True,text=True)
-              text=q.stderr or ''
-              ok='3840x2160' in text and 'Video:' in text
-              out.append({'file':p.name,'bytes':p.stat().st_size,'uhd_3840x2160':ok})
-              if not ok: raise SystemExit(f'UHD QA failed: {p}')
-          Path('uhd_qa.json').write_text(json.dumps(out,indent=2))
+          files = sorted(Path('uhd').glob('*.mp4'))
+          if not files:
+              raise SystemExit('No UHD files')
+          qa = []
+          for path in files:
+              probe = subprocess.run(['ffmpeg', '-hide_banner', '-i', str(path), '-f', 'null', '-'], capture_output=True, text=True)
+              text = probe.stderr or ''
+              ok = '3840x2160' in text and 'Video:' in text
+              qa.append({'file': path.name, 'bytes': path.stat().st_size, 'uhd_3840x2160': ok})
+              if not ok:
+                  raise SystemExit(f'UHD QA failed: {path}')
+          Path('uhd_qa.json').write_text(json.dumps(qa, indent=2))
           print(f'UHD_FILES={len(files)}')
           PY
 
-      - name: Package ~95 MB download parts
+      - name: Package approximately 95 MB download parts
         shell: bash
         run: |
           set -euo pipefail
@@ -186,100 +194,53 @@ jobs:
           python3 - <<'PY'
           import json, zipfile
           from pathlib import Path
-          MAX=95_000_000
-          files=sorted(Path('uhd').glob('*.mp4'))
-          groups=[]; cur=[]; size=0
-          for p in files:
-              n=p.stat().st_size
-              if cur and size+n>MAX:
-                  groups.append(cur); cur=[]; size=0
-              cur.append(p); size+=n
-          if cur: groups.append(cur)
-          manifest=[]
-          for i,g in enumerate(groups,1):
-              z=Path('parts')/f'steven_adams_ft_miss_oreb_all_angles_UHD_part_{i:02d}.zip'
-              with zipfile.ZipFile(z,'w',compression=zipfile.ZIP_STORED) as out:
-                  for p in g: out.write(p,arcname=f'videos/{p.name}')
-                  out.write('request.json',arcname='event_manifest.json')
-                  out.write('output/qa.json',arcname='video_qa.json')
-                  out.write('uhd_qa.json',arcname='uhd_qa.json')
-              manifest.append({'part':i,'filename':z.name,'bytes':z.stat().st_size,'mb_decimal':round(z.stat().st_size/1_000_000,2),'video_files':len(g)})
-          Path('parts/parts.json').write_text(json.dumps(manifest,indent=2))
-          print('DOWNLOAD_PARTS='+json.dumps(manifest))
+          MAX = 95_000_000
+          files = sorted(Path('uhd').glob('*.mp4'))
+          groups = []
+          current = []
+          current_bytes = 0
+          for path in files:
+              size = path.stat().st_size
+              if current and current_bytes + size > MAX:
+                  groups.append(current)
+                  current = []
+                  current_bytes = 0
+              current.append(path)
+              current_bytes += size
+          if current:
+              groups.append(current)
+          manifest = []
+          for i, group in enumerate(groups, 1):
+              zpath = Path('parts') / f'steven_adams_ft_miss_oreb_all_angles_UHD_part_{i:02d}.zip'
+              with zipfile.ZipFile(zpath, 'w', compression=zipfile.ZIP_STORED) as archive:
+                  for path in group:
+                      archive.write(path, arcname=f'videos/{path.name}')
+                  archive.write('request.json', arcname='event_manifest.json')
+                  archive.write('output/qa.json', arcname='video_qa.json')
+                  archive.write('uhd_qa.json', arcname='uhd_qa.json')
+              manifest.append({
+                  'part': i,
+                  'filename': zpath.name,
+                  'bytes': zpath.stat().st_size,
+                  'mb_decimal': round(zpath.stat().st_size / 1_000_000, 2),
+                  'video_files': len(group),
+              })
+          Path('parts/parts.json').write_text(json.dumps(manifest, indent=2))
+          print('DOWNLOAD_PARTS=' + json.dumps(manifest))
           PY
           ls -lh parts
 
-      - name: Upload metadata
+      - name: Upload all approximately 95 MB parts and metadata
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-ft-miss-oreb-all-angles-UHD-metadata-${{ github.run_id }}
+          name: adams-ft-miss-oreb-all-angles-UHD-${{ github.run_id }}
           path: |
+            parts/*.zip
+            parts/parts.json
             request.json
             output/qa.json
             uhd_qa.json
-            parts/parts.json
           if-no-files-found: warn
           retention-days: 14
           compression-level: 0
-
-      - name: Upload part 01
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-01-${{ github.run_id }}, path: parts/*_part_01.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 02
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-02-${{ github.run_id }}, path: parts/*_part_02.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 03
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-03-${{ github.run_id }}, path: parts/*_part_03.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 04
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-04-${{ github.run_id }}, path: parts/*_part_04.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 05
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-05-${{ github.run_id }}, path: parts/*_part_05.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 06
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-06-${{ github.run_id }}, path: parts/*_part_06.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 07
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-07-${{ github.run_id }}, path: parts/*_part_07.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 08
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-08-${{ github.run_id }}, path: parts/*_part_08.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 09
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-09-${{ github.run_id }}, path: parts/*_part_09.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 10
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-10-${{ github.run_id }}, path: parts/*_part_10.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 11
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-11-${{ github.run_id }}, path: parts/*_part_11.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 12
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-12-${{ github.run_id }}, path: parts/*_part_12.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 13
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-13-${{ github.run_id }}, path: parts/*_part_13.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 14
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-14-${{ github.run_id }}, path: parts/*_part_14.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 15
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-15-${{ github.run_id }}, path: parts/*_part_15.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 16
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-16-${{ github.run_id }}, path: parts/*_part_16.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 17
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-17-${{ github.run_id }}, path: parts/*_part_17.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 18
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-18-${{ github.run_id }}, path: parts/*_part_18.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 19
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-19-${{ github.run_id }}, path: parts/*_part_19.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
-      - name: Upload part 20
-        uses: actions/upload-artifact@v4
-        with: {name: adams-ft-oreb-UHD-part-20-${{ github.run_id }}, path: parts/*_part_20.zip, if-no-files-found: ignore, retention-days: 14, compression-level: 0}
