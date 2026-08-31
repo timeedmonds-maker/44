@@ -1,0 +1,111 @@
+name: Steven Adams rim blocks native reels 2025-26
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'resolve_adams_rim_blocks_2025_26.py'
+      - 'build_adams_rim_block_reels.py'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+      - '.github/workflows/adams-rim-blocks-native-reels.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'resolve_adams_rim_blocks_2025_26.py'
+      - 'build_adams_rim_block_reels.py'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+      - '.github/workflows/adams-rim-blocks-native-reels.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout public worker repo
+        uses: actions/checkout@v4
+
+      - name: Prepare dependencies and FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir requests
+          mkdir -p vendor bin
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve every Steven Adams block at the rim
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 resolve_adams_rim_blocks_2025_26.py
+          cat request.json
+
+      - name: Build native official NBA Broadcast reels
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 build_adams_rim_block_reels.py --request request.json --out adams_rim_blocks_output
+
+      - name: Verify manifest and reel QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          req=json.loads(Path('request.json').read_text())
+          qa=json.loads(Path('adams_rim_blocks_output/qa.json').read_text())
+          n=int(req['expected_count'])
+          if n <= 0:
+              raise SystemExit('No rim blocks resolved')
+          if qa.get('event_count') != n or qa.get('validated_clip_count') != n:
+              raise SystemExit(f'Count mismatch request={n} qa={qa.get("event_count")}/{qa.get("validated_clip_count")}')
+          ranks=sorted(int(c['rank']) for c in qa['clips'])
+          if ranks != list(range(1,n+1)):
+              raise SystemExit(f'Rank coverage failure: {ranks}')
+          for c in qa['clips']:
+              if not (c.get('probe') or {}).get('ok'):
+                  raise SystemExit(f'Clip QA failure: {c}')
+          reels=qa.get('reels') or []
+          if not reels:
+              raise SystemExit('No reels built')
+          if sum(int(r['event_count']) for r in reels) != n:
+              raise SystemExit('Reels do not cover every event exactly once')
+          for r in reels:
+              if int(r['bytes']) >= 100_000_000:
+                  raise SystemExit(f'Reel over 100 MB: {r}')
+              if not (r.get('probe') or {}).get('ok'):
+                  raise SystemExit(f'Reel probe failed: {r}')
+          print(f'QA_OK rim_blocks={n} reels={len(reels)}')
+          for r in reels:
+              print(f"{Path(r['path']).name} {r['mb_decimal']} MB events={r['event_count']}")
+          PY
+
+      - name: Upload native reels and QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steven-adams-rim-blocks-native-reels-${{ github.run_id }}
+          path: |
+            adams_rim_blocks_output/reels/*.mp4
+            adams_rim_blocks_output/qa.json
+            adams_rim_blocks_output/reels.json
+            request.json
+            adams_rim_blocks_2025_26.json
+            adams_all_blocks_2025_26.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
