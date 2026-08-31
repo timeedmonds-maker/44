@@ -46,6 +46,12 @@ def norm_gid(v) -> str:
     return s.zfill(10)
 
 
+def is_missed_ft(row: dict) -> bool:
+    result = scalar(row.get('shot_result')).lower()
+    desc = scalar(row.get('description')).upper()
+    return row.get('msg_type') == 3 and (result in {'miss', 'missed'} or 'MISS' in desc)
+
+
 def main() -> None:
     request = urllib.request.Request(PBP_URL, headers={'User-Agent': UA})
     rows = []
@@ -69,6 +75,7 @@ def main() -> None:
                 'team': scalar(row.get('team_abb')).upper(),
                 'player1_name': scalar(row.get('player1_name')),
                 'description': scalar(row.get('description')),
+                'shot_result': scalar(row.get('shot_result')),
                 'clock': scalar(row.get('clock')),
                 'game_date': scalar(row.get('game_date') or row.get('date')),
                 'team_home': scalar(row.get('team_home')),
@@ -81,9 +88,7 @@ def main() -> None:
     for i in range(len(rows) - 1):
         ft = rows[i]
         rb = rows[i + 1]
-        if ft['msg_type'] != 3:
-            continue
-        if 'MISS' not in ft['description'].upper():
+        if not is_missed_ft(ft):
             continue
         if ft['team'] != HOU:
             continue
@@ -112,20 +117,23 @@ def main() -> None:
             'ft_shooter_id': shooter_id,
             'ft_shooter': shooter_name,
             'ft_description': ft['description'],
+            'ft_shot_result': ft['shot_result'],
             'rebounder_id': rebounder_id or ADAMS_ID,
             'rebounder': rebounder_name,
             'rebound_description': rb['description'],
         })
 
     if not events:
-        adams_rows = [r for r in rows if is_adams(r['player1_name'])]
-        hou_fts = [r for r in rows if r['msg_type'] == 3 and r['team'] == HOU]
+        missed = [r for r in rows if r['team'] == HOU and is_missed_ft(r) and not is_adams(r['player1_name'])]
+        examples = []
+        position = {id(r): i for i, r in enumerate(rows)}
+        for ft in missed[:30]:
+            i = position[id(ft)]
+            examples.append({'ft': ft, 'next': rows[i + 1] if i + 1 < len(rows) else None})
         print(json.dumps({
             'diagnostic': 'no qualifying events',
-            'adams_player1_rows': len(adams_rows),
-            'hou_ft_rows': len(hou_fts),
-            'adams_examples': adams_rows[:10],
-            'hou_ft_examples': hou_fts[:10],
+            'hou_teammate_missed_fts': len(missed),
+            'missed_ft_next_row_examples': examples,
         }, indent=2), flush=True)
         raise SystemExit('No qualifying events resolved')
 
