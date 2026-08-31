@@ -1,0 +1,28 @@
+name: Diagnose Steven Adams block rows
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'diagnose_adams_block_rows.py'
+      - '.github/workflows/diagnose-adams-blocks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect 2025-26 Adams block rows and shot coordinates
+        run: python3 diagnose_adams_block_rows.py
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-block-diagnostic-${{ github.run_id }}
+          path: adams_block_diagnostic.json
+          retention-days: 1
