@@ -10,7 +10,7 @@ from pathlib import Path
 PBP_URL = 'https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
 ADAMS = '203500 Steven Adams'
 ADAMS_ID = 203500
-RIM_MAX_FT = 4.0
+RIM_AREA = 'Restricted Area'
 UA = 'Mozilla/5.0'
 OUT = Path('request.json')
 ALL_OUT = Path('adams_all_blocks_2025_26.json')
@@ -65,6 +65,7 @@ def main() -> None:
         if eid is None:
             continue
         dist = fnum(row.get('shot_distance'))
+        area = (row.get('area') or '').strip()
         block_event_id = None
         block_desc = None
         if i + 1 < len(source_rows):
@@ -99,10 +100,10 @@ def main() -> None:
             'shot_distance_ft': dist,
             'locX': fnum(row.get('locX')),
             'locY': fnum(row.get('locY')),
-            'area': (row.get('area') or '').strip(),
+            'area': area,
             'area_detail': (row.get('area_detail') or '').strip(),
-            'at_rim': dist is not None and dist <= RIM_MAX_FT,
-            'rim_definition': f'blocked shot distance <= {RIM_MAX_FT:.1f} ft',
+            'at_rim': area.lower() == RIM_AREA.lower(),
+            'rim_definition': 'NBA PBP shot area = Restricted Area',
             'video_anchor': 'blocked shot event_id',
         }
         rows.append(rec)
@@ -131,7 +132,7 @@ def main() -> None:
         r['rank'] = i
 
     if not rim:
-        raise SystemExit('No Adams blocks within 4.0 ft')
+        raise SystemExit('No Adams blocks classified by NBA PBP as Restricted Area')
 
     all_payload = {
         'source': PBP_URL,
@@ -147,7 +148,7 @@ def main() -> None:
         'player': 'Steven Adams',
         'player_id': ADAMS_ID,
         'season': '2025-26',
-        'rim_definition': f'blocked shot distance <= {RIM_MAX_FT:.1f} ft',
+        'rim_definition': 'NBA PBP shot area = Restricted Area',
         'video_anchor': 'blocked shot event_num',
         'expected_count': len(rim),
         'events': rim,
@@ -157,9 +158,9 @@ def main() -> None:
     OUT.write_text(json.dumps(rim_payload, indent=2, ensure_ascii=False))
 
     print(f'ALL_ADAMS_BLOCKS={len(rows)} RIM_BLOCKS={len(rim)}')
-    print('AREA_DETAIL_VALUES=' + json.dumps(sorted({r['area_detail'] for r in rows})))
+    print('AREA_VALUES=' + json.dumps(sorted({r['area'] for r in rows})))
     for r in rim:
-        print(f"R{r['rank']:02d} {r['game_date']} {r['team_away']} @ {r['team_home']} {r['game_id']}/{r['event_id']} P{r['period']} {r['clock']} {r['shot_distance_ft']}ft :: {r['description']}")
+        print(f"R{r['rank']:02d} {r['game_date']} {r['team_away']} @ {r['team_home']} {r['game_id']}/{r['event_id']} P{r['period']} {r['clock']} {r['shot_distance_ft']}ft {r['area']} :: {r['description']}")
 
 
 if __name__ == '__main__':
