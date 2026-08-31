@@ -59,7 +59,7 @@ jobs:
             ffmpeg -nostdin -y -v error -i "$f" \
               -map 0:v:0 -map 0:a:0? \
               -vf 'hqdn3d=0.6:0.6:2.0:2.0,scale=3840:2160:flags=lanczos,cas=0.22,fps=30' \
-              -c:v libx264 -preset fast -crf 16 -maxrate 36M -bufsize 72M -profile:v high -pix_fmt yuv420p \
+              -c:v libx264 -preset veryfast -crf 16 -maxrate 36M -bufsize 72M -profile:v high -pix_fmt yuv420p \
               -c:a aac -b:a 192k -movflags +faststart \
               "uhd/${base}_UHD.mp4"
           done
