@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# Visible PR-run trigger for Reed all-angle production.
 import json
 import math
 import time
@@ -105,7 +106,6 @@ def main() -> None:
 
     if errors:
         Path('reed_xfg_errors.json').write_text(json.dumps(errors, indent=2))
-        # Do not silently rank an incomplete season if any Reed player-game request failed.
         raise RuntimeError(f'Official xFG requests failed for {len(errors)} Reed games; see reed_xfg_errors.json')
 
     allshots = pd.DataFrame(shots)
