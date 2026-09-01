@@ -28,12 +28,16 @@ jobs:
             --count 8 \
             --out right_slash_prior_scan
 
-      - name: Package scan
+      - name: Package scan and native calibration candidates
         if: always()
         run: |
-          mkdir -p delivery
+          mkdir -p delivery/event_55_frames delivery/event_85_frames
           cp right_slash_prior_scan/same_game_right_slash_prior_scan.json delivery/ || true
           cp right_slash_prior_scan/*_sheet.png delivery/ || true
+          cp right_slash_prior_scan/event_55_frames/*.png delivery/event_55_frames/ || true
+          cp right_slash_prior_scan/event_85_frames/*.png delivery/event_85_frames/ || true
+          test "$(find delivery/event_55_frames -name '*.png' | wc -l)" -eq 9
+          test "$(find delivery/event_85_frames -name '*.png' | wc -l)" -eq 9
 
       - name: Upload scan
         if: always()
