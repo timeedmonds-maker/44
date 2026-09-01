@@ -179,6 +179,9 @@ def main() -> None:
     }
     payload = {
         "status": "strict_metric_camera_not_accepted" if not gate["pass"] else "strict_metric_camera_accepted",
+        "anchor_family": "fixed_regulation_geometry",
+        "anchors": ["regulation_rim_inner_edge", "regulation_restricted_area_centerline"],
+        "promotion_allowed": bool(gate["pass"]),
         "method": "known 3D rim circle + known 4ft restricted-area floor circle; no player or ball points",
         "qa": qa,
         "gate": gate,
