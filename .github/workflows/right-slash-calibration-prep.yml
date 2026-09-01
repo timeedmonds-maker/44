@@ -53,7 +53,7 @@ jobs:
           python freeze_spin/export_visual_state_candidates.py \
             --windows contact_windows \
             --out visual_state_candidates \
-            --start 23 --end 32 \
+            --start 18 --end 32 \
             --reference-frame 28
 
       - name: Run annotation-only pose assistant
@@ -70,12 +70,12 @@ jobs:
           mkdir -p delivery/right_slash_native delivery/right_slash_pose_assist
           cp visual_state_candidates/07_Right_Slash/f*.png delivery/right_slash_native/
           cp pose_assist/right_slash/* delivery/right_slash_pose_assist/
-          cp visual_state_candidates/07_Right_Slash_F23_F32_sheet.png delivery/
+          cp visual_state_candidates/07_Right_Slash_F18_F32_sheet.png delivery/
           cp visual_state_candidates/07_Right_Slash_F28_reference_sheet.png delivery/
           cp visual_state_candidates/visual_state_candidates.json delivery/
           cp diagnostics/audio_sync_graph.json delivery/
           cp source_output/qa.json delivery/source_video_qa.json
-          test "$(find delivery/right_slash_native -name 'f*.png' | wc -l)" -eq 10
+          test "$(find delivery/right_slash_native -name 'f*.png' | wc -l)" -eq 15
 
       - name: Upload Right Slash calibration prep
         uses: actions/upload-artifact@v4
