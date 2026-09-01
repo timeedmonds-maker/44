@@ -83,7 +83,7 @@ jobs:
           python freeze_spin/export_visual_state_candidates.py \
             --windows contact_windows \
             --out visual_state_candidates \
-            --start 24 --end 32
+            --start 23 --end 32
 
       - name: Export locked exact visual state
         run: |
