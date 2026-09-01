@@ -12,6 +12,8 @@ on:
       - "freeze_spin/export_locked_exact_state.py"
       - "freeze_spin/sidy_foreground_landmarks_v1.json"
       - "freeze_spin/triangulate_locked_ball_v1.py"
+      - "freeze_spin/sidy_block_interaction_landmarks_v1.json"
+      - "freeze_spin/triangulate_semantic_points_v1.py"
       - "freeze_spin/build_dynamic_sparse_player_cloud_v1.py"
       - ".github/workflows/nba-basket-geometry-proof.yml"
 
@@ -103,6 +105,17 @@ jobs:
             --locked-images locked_exact_state \
             --out foreground_v1/ball_triangulation_v1.json
 
+      - name: Triangulate provisional semantic block interaction
+        run: |
+          python -m freeze_spin.triangulate_semantic_points_v1 \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --landmarks freeze_spin/sidy_block_interaction_landmarks_v1.json \
+            --ball foreground_v1/ball_triangulation_v1.json \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --anchor-images impact_images \
+            --locked-images locked_exact_state \
+            --out foreground_v1/semantic_points
+
       - name: Build dynamic sparse player cloud
         run: |
           python -m freeze_spin.build_dynamic_sparse_player_cloud_v1 \
@@ -129,11 +142,14 @@ jobs:
           cp freeze_spin/export_locked_exact_state.py delivery/ || true
           cp freeze_spin/sidy_foreground_landmarks_v1.json delivery/ || true
           cp freeze_spin/triangulate_locked_ball_v1.py delivery/ || true
+          cp freeze_spin/sidy_block_interaction_landmarks_v1.json delivery/ || true
+          cp freeze_spin/triangulate_semantic_points_v1.py delivery/ || true
           cp freeze_spin/build_dynamic_sparse_player_cloud_v1.py delivery/ || true
           cp visual_state_candidates/*_sheet.png delivery/ 2>/dev/null || true
           cp visual_state_candidates/visual_state_candidates.json delivery/ 2>/dev/null || true
           cp locked_exact_state/* delivery/ 2>/dev/null || true
           cp foreground_v1/* delivery/ 2>/dev/null || true
+          cp foreground_v1/semantic_points/* delivery/ 2>/dev/null || true
           cp foreground_v1/player_cloud/* delivery/ 2>/dev/null || true
 
       - name: Upload strict proof
