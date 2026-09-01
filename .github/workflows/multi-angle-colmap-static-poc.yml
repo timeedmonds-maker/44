@@ -1,0 +1,122 @@
+name: Multi-angle joint SfM static POC
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "freeze_spin/analyze_colmap_static.py"
+      - ".github/workflows/multi-angle-colmap-static-poc.yml"
+
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime and COLMAP
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg colmap
+          python -m pip install --upgrade pip
+          python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84
+          colmap -h | head -40
+
+      - name: Retrieve all validated native NBA angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 8
+
+      - name: Synchronize all angles from audio graph
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/prepare_kalicalib_inputs.py \
+            --windows contact_windows \
+            --out impact_images
+
+      - name: Extract SIFT features independently per physical feed
+        run: |
+          mkdir -p sfm
+          colmap feature_extractor \
+            --database_path sfm/database.db \
+            --image_path impact_images \
+            --ImageReader.camera_model SIMPLE_RADIAL \
+            --ImageReader.single_camera 0 \
+            --ImageReader.default_focal_length_factor 1.2 \
+            --SiftExtraction.use_gpu 0 \
+            --SiftExtraction.max_num_features 16000
+
+      - name: Exhaustively match synchronized views
+        run: |
+          colmap exhaustive_matcher \
+            --database_path sfm/database.db \
+            --SiftMatching.use_gpu 0 \
+            --SiftMatching.max_num_matches 32768
+
+      - name: Jointly solve all camera poses and sparse scene
+        run: |
+          mkdir -p sfm/sparse
+          colmap mapper \
+            --database_path sfm/database.db \
+            --image_path impact_images \
+            --output_path sfm/sparse \
+            --Mapper.min_num_matches 10 \
+            --Mapper.init_min_num_inliers 12 \
+            --Mapper.abs_pose_min_num_inliers 10 \
+            --Mapper.ba_refine_focal_length 1 \
+            --Mapper.ba_refine_principal_point 0 \
+            --Mapper.ba_refine_extra_params 1
+          find sfm/sparse -maxdepth 2 -type f -print
+
+      - name: Convert every recovered model to text
+        run: |
+          mkdir -p sfm/models_txt
+          shopt -s nullglob
+          for d in sfm/sparse/*; do
+            [ -d "$d" ] || continue
+            b=$(basename "$d")
+            mkdir -p "sfm/models_txt/$b"
+            colmap model_converter \
+              --input_path "$d" \
+              --output_path "sfm/models_txt/$b" \
+              --output_type TXT
+          done
+          find sfm/models_txt -maxdepth 2 -type f -print
+
+      - name: Apply strict joint-camera quality gate
+        run: |
+          python freeze_spin/analyze_colmap_static.py \
+            --models sfm/models_txt \
+            --mapping impact_images/mapping.json \
+            --out sfm_qa
+
+      - name: Package diagnostics whether pass or fail
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp diagnostics/audio_sync_graph.json delivery/ || true
+          cp impact_images/mapping.json delivery/ || true
+          cp impact_images/[0-9]*.png delivery/ || true
+          cp sfm_qa/* delivery/ 2>/dev/null || true
+          cp sfm/models_txt/*/*.txt delivery/ 2>/dev/null || true
+
+      - name: Upload joint SfM experiment
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-cissoko-joint-sfm-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
