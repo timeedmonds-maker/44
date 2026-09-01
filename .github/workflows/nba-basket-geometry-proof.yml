@@ -45,7 +45,7 @@ jobs:
             --windows contact_windows \
             --out impact_images
 
-      - name: Solve metric cameras from regulation basket geometry
+      - name: Solve metric cameras from regulation basket and court geometry
         run: |
           python -m freeze_spin.solve_nba_geometry_proof \
             --landmarks freeze_spin/sidy_basket_landmarks.json \
@@ -57,7 +57,7 @@ jobs:
         run: |
           mkdir -p delivery
           cp geometry_proof/* delivery/ 2>/dev/null || true
-          cp impact_images/4.png impact_images/6.png delivery/ 2>/dev/null || true
+          cp impact_images/4.png impact_images/6.png impact_images/10.png delivery/ 2>/dev/null || true
           cp impact_images/mapping.json delivery/impact_mapping.json || true
           cp diagnostics/audio_sync_graph.json delivery/ || true
           cp freeze_spin/sidy_basket_landmarks.json delivery/ || true
