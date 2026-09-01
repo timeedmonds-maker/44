@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "freeze_spin/prepare_kalicalib_inputs.py"
+      - "freeze_spin/validate_kalicalib_predictions.py"
       - ".github/workflows/multi-angle-camera-calibration-poc.yml"
 
 jobs:
@@ -48,10 +49,26 @@ jobs:
             --windows contact_windows \
             --out kalicalib_input
 
-      - name: Install KaliCalib
+      - name: Install KaliCalib and 2026 compatibility shim
         run: |
           git clone --depth 1 https://github.com/CEA-LIST/KaliCalib.git kalicalib_repo
-          python -m pip install -r kalicalib_repo/requirements.txt
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'deepsport-utilities>=4.0.9' tqdm yacs pytorch-ignite
+          python - <<'PY'
+          from pathlib import Path
+          import site
+          candidates = [Path(site.getusersitepackages()), *map(Path, site.getsitepackages())]
+          target = next((p / 'deepsport_utilities' / 'utils.py' for p in candidates if (p / 'deepsport_utilities' / 'utils.py').exists()), None)
+          if target is None:
+              raise RuntimeError('Could not locate deepsport_utilities/utils.py')
+          text = target.read_text(encoding='utf-8')
+          old = "color_cycle_rgb = list(map(lambda color: list(map(lambda c: int(c, 16), [color[1:3], color[3:5], color[5:7]])), color_cycle))"
+          new = "color_cycle_rgb = [([int(color[1:3],16), int(color[3:5],16), int(color[5:7],16)] if isinstance(color,str) and color.startswith('#') else [int(round(float(c)*255)) if float(c) <= 1 else int(round(float(c))) for c in color[:3]]) for color in color_cycle]"
+          if old not in text:
+              raise RuntimeError('Expected deepsport color-cycle compatibility line not found')
+          target.write_text(text.replace(old, new), encoding='utf-8')
+          print('PATCHED', target)
+          PY
 
       - name: Run KaliCalib challenge model on NBA impact views
         run: |
@@ -63,6 +80,15 @@ jobs:
             MODEL.DEVICE cpu \
             DATALOADER.NUM_WORKERS 0
 
+      - name: Validate predicted camera geometry
+        if: success()
+        run: |
+          python freeze_spin/validate_kalicalib_predictions.py \
+            --predictions kalicalib_repo/predictions.json \
+            --mapping kalicalib_input/mapping.json \
+            --images kalicalib_input \
+            --out calibration_qa
+
       - name: Package calibration diagnostics
         if: always()
         run: |
@@ -71,6 +97,7 @@ jobs:
           cp diagnostics/audio_sync_graph.json calibration_delivery/audio_sync_graph.json
           if [ -f kalicalib_repo/predictions.json ]; then cp kalicalib_repo/predictions.json calibration_delivery/kalicalib_predictions.json; fi
           if [ -d kalicalib_repo/output/evaluation_images ]; then cp -R kalicalib_repo/output/evaluation_images calibration_delivery/; fi
+          if [ -d calibration_qa ]; then cp -R calibration_qa calibration_delivery/; fi
           cp kalicalib_input/[0-9]*.png calibration_delivery/
 
       - name: Upload calibration experiment
