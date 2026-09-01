@@ -82,15 +82,26 @@ jobs:
           print('This job passing means the audit executed correctly; camera promotion is governed only by promotion_allowed in the report.')
           PY
 
-      - name: Package strict audit evidence
+      - name: Package strict audit evidence without filename collisions
         if: always()
         run: |
           mkdir -p delivery
           cp diagnostics/right_slash_same_game_transfer_audit.json delivery/ || true
           cp visual_state_candidates/07_Right_Slash/f018.png delivery/Right_Slash_F18.png || true
           cp right_slash_prior_scan/same_game_right_slash_prior_scan.json delivery/ || true
-          cp right_slash_prior_scan/event_55_frames/*.png delivery/ || true
-          cp right_slash_prior_scan/event_85_frames/*.png delivery/ || true
+          for d in right_slash_prior_scan/event_*_frames; do
+            [ -d "$d" ] || continue
+            cp -a "$d" delivery/
+          done
+          python - <<'PY'
+          from pathlib import Path
+          event_dirs = sorted(Path('delivery').glob('event_*_frames'))
+          print('PACKAGED EVENT DIRECTORIES:', len(event_dirs))
+          for d in event_dirs:
+              print(d.name, len(list(d.glob('*.png'))), 'native frames')
+          assert len(event_dirs) >= 2, 'expected at least two independently named event frame directories'
+          assert all(len(list(d.glob('*.png'))) >= 1 for d in event_dirs)
+          PY
 
       - name: Upload audit
         if: always()
