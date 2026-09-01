@@ -55,6 +55,7 @@ jobs:
             --config freeze_spin/sidy_cissoko_sync_map.json \
             --sync diagnostics/audio_sync_graph.json \
             --clips source_output/clips \
+            --before 0.50 --after 1.10 \
             --out contact_windows
           python freeze_spin/diagnose_view_overlap.py \
             --config freeze_spin/sidy_cissoko_sync_map.json \
