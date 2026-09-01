@@ -1,0 +1,33 @@
+{
+  "game_id": "0022500527",
+  "event_id": 18,
+  "purpose": "Lock the two provisional forearm chains to distinct source-labeled shoulders in three calibrated locked-state views.",
+  "shoulders": {
+    "adams_block_shoulder": {
+      "player": "Steven Adams",
+      "joint": "blocking_shoulder",
+      "elbow_point": "adams_block_elbow",
+      "views": {
+        "In Arena": {"pixel_xy_selected_frame": [457.0, 279.0], "uncertainty_px": 9.0},
+        "Left Slash": {"pixel_xy_selected_frame": [538.0, 415.0], "uncertainty_px": 9.0},
+        "Left HandHeld": {"pixel_xy_selected_frame": [740.0, 521.0], "uncertainty_px": 11.0}
+      }
+    },
+    "cissoko_ball_shoulder": {
+      "player": "Sidy Cissoko",
+      "joint": "ball_side_shoulder",
+      "elbow_point": "cissoko_ball_elbow",
+      "views": {
+        "In Arena": {"pixel_xy_selected_frame": [485.0, 272.0], "uncertainty_px": 11.0},
+        "Left Slash": {"pixel_xy_selected_frame": [567.0, 403.0], "uncertainty_px": 11.0},
+        "Left HandHeld": {"pixel_xy_selected_frame": [837.0, 521.0], "uncertainty_px": 13.0}
+      }
+    }
+  },
+  "identity_views": {
+    "In Arena": {"visual_identity_check": true, "note": "The source-labeled red #12 blocking shoulder and separate white dunker shoulder are independently visible."},
+    "Left Slash": {"visual_identity_check": true, "note": "The red #12 shoulder and white dunker shoulder are spatially separate and individually visible."},
+    "Left HandHeld": {"visual_identity_check": true, "note": "The red blocking-arm shoulder and white dunker shoulder are widely separated at the bottom of frame."}
+  },
+  "guardrail": "This locks block-arm identity only. It is not yet a complete two-player body reconstruction."
+}
