@@ -1,0 +1,75 @@
+name: Right Slash calibration prep
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/right-slash-calibration-prep.yml"
+      - "freeze_spin/export_visual_state_candidates.py"
+      - "freeze_spin/sidy_cissoko_request.json"
+      - "freeze_spin/sidy_cissoko_sync_map.json"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic video runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Retrieve validated official NBA angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 2 \
+          || {
+            echo "Concurrent retrieval did not validate all feeds; retrying serially with fresh signed URLs."
+            sleep 3
+            python build_kd_top10_all_angles.py \
+              --request freeze_spin/sidy_cissoko_request.json \
+              --out source_output \
+              --workers 1
+          }
+
+      - name: Synchronize and export contact windows
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/export_visual_state_candidates.py \
+            --windows contact_windows \
+            --out visual_state_candidates \
+            --start 23 --end 32 \
+            --reference-frame 28
+
+      - name: Package native Right Slash candidates
+        run: |
+          mkdir -p delivery/right_slash_native
+          cp visual_state_candidates/07_Right_Slash/f*.png delivery/right_slash_native/
+          cp visual_state_candidates/07_Right_Slash_F23_F32_sheet.png delivery/
+          cp visual_state_candidates/07_Right_Slash_F28_reference_sheet.png delivery/
+          cp visual_state_candidates/visual_state_candidates.json delivery/
+          cp diagnostics/audio_sync_graph.json delivery/
+          cp source_output/qa.json delivery/source_video_qa.json
+          test "$(find delivery/right_slash_native -name 'f*.png' | wc -l)" -eq 10
+
+      - name: Upload Right Slash calibration prep
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-right-slash-calibration-prep-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
