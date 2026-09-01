@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Audit whether independently calibrated frames support a reusable physical camera centre.
 
-This is deliberately narrower than a homography/pose transfer.  Pan, tilt and zoom may
+This is deliberately narrower than a homography/pose transfer. Pan, tilt and zoom may
 change between frames; only the recovered optical centre is tested for stability.
 
 Inputs must be calibration reports produced from fixed, regulation/arena geometry only.
-Player, pose and ball anchors are forbidden.  A report that was not independently
+Player, pose and ball anchors are forbidden. A report that was not independently
 promoted by its own source-pixel reprojection gate cannot contribute to this audit.
 
-The script never promotes an impact camera.  It only decides whether a *centre prior*
+The script never promotes an impact camera. It only decides whether a *centre prior*
 is admissible for a later impact-frame solve, which must still pass its own withheld
 fixed-geometry validation.
 """
@@ -41,12 +41,15 @@ def _as_vec3(value: Any, label: str) -> list[float]:
 
 
 def _extract_center(report: dict[str, Any]) -> list[float]:
+    qa = report.get("qa") if isinstance(report.get("qa"), dict) else {}
     candidates = [
         report.get("camera_center_cm"),
         report.get("center_cm"),
         report.get("camera", {}).get("center_cm") if isinstance(report.get("camera"), dict) else None,
         report.get("solution", {}).get("camera_center_cm") if isinstance(report.get("solution"), dict) else None,
         report.get("solution", {}).get("center_cm") if isinstance(report.get("solution"), dict) else None,
+        qa.get("camera_center_world_cm"),
+        qa.get("camera_center_cm"),
     ]
     for candidate in candidates:
         if candidate is not None:
@@ -55,12 +58,16 @@ def _extract_center(report: dict[str, Any]) -> list[float]:
 
 
 def _extract_rms(report: dict[str, Any]) -> float:
+    qa = report.get("qa") if isinstance(report.get("qa"), dict) else {}
     candidates = [
         report.get("source_curve_rms_px"),
         report.get("source_rms_px"),
         report.get("reprojection_rms_px"),
         report.get("metrics", {}).get("source_curve_rms_px") if isinstance(report.get("metrics"), dict) else None,
         report.get("metrics", {}).get("reprojection_rms_px") if isinstance(report.get("metrics"), dict) else None,
+        qa.get("combined_curve_rms_px"),
+        qa.get("source_curve_rms_px"),
+        qa.get("reprojection_rms_px"),
     ]
     for candidate in candidates:
         if candidate is not None:
@@ -77,7 +84,7 @@ def _promotion_passed(report: dict[str, Any]) -> bool:
             return bool(report[key])
     gate = report.get("gate")
     if isinstance(gate, dict):
-        for key in ("promotion_allowed", "passed"):
+        for key in ("promotion_allowed", "passed", "pass"):
             if key in gate:
                 return bool(gate[key])
     return False
