@@ -53,7 +53,7 @@ jobs:
           python freeze_spin/export_visual_state_candidates.py \
             --windows contact_windows \
             --out visual_state_candidates \
-            --start 18 --end 32 \
+            --start 5 --end 32 \
             --reference-frame 28
 
       - name: Run annotation-only pose assistant on Right Slash
@@ -78,9 +78,9 @@ jobs:
           cp visual_state_candidates/11_Right_Above_Rim/f*.png delivery/right_above_rim_native/
           cp pose_assist/right_slash/* delivery/right_slash_pose_assist/
 
-          cp visual_state_candidates/07_Right_Slash_F18_F32_sheet.png delivery/
-          cp visual_state_candidates/09_Right_HandHeld_F18_F32_sheet.png delivery/
-          cp visual_state_candidates/11_Right_Above_Rim_F18_F32_sheet.png delivery/
+          cp visual_state_candidates/07_Right_Slash_F5_F32_sheet.png delivery/
+          cp visual_state_candidates/09_Right_HandHeld_F5_F32_sheet.png delivery/
+          cp visual_state_candidates/11_Right_Above_Rim_F5_F32_sheet.png delivery/
           cp visual_state_candidates/07_Right_Slash_F28_reference_sheet.png delivery/
           cp visual_state_candidates/09_Right_HandHeld_F28_reference_sheet.png delivery/
           cp visual_state_candidates/11_Right_Above_Rim_F28_reference_sheet.png delivery/
@@ -89,8 +89,8 @@ jobs:
           cp source_output/qa.json delivery/source_video_qa.json
 
           for d in right_slash_native right_handheld_native right_above_rim_native; do
-            test "$(find "delivery/${d}" -name 'f*.png' | wc -l)" -eq 15 || {
-              echo "Expected 15 native candidate frames in ${d}" >&2
+            test "$(find "delivery/${d}" -name 'f*.png' | wc -l)" -eq 28 || {
+              echo "Expected 28 native candidate frames in ${d}" >&2
               exit 2
             }
           done
