@@ -1,10 +1,11 @@
-name: Multi-angle joint SfM static POC
+name: Multi-angle joint SfM temporal-bridge POC
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "freeze_spin/analyze_colmap_static.py"
+      - "freeze_spin/analyze_colmap_multiframe_gate.py"
+      - "freeze_spin/select_colmap_crossfeed_init.py"
       - "freeze_spin/prepare_colmap_multiframe_inputs.py"
       - ".github/workflows/multi-angle-colmap-static-poc.yml"
 
@@ -33,7 +34,7 @@ jobs:
             --out source_output \
             --workers 8
 
-      - name: Synchronize all angles from audio graph
+      - name: Synchronize angles and build true temporal bridge
         run: |
           python freeze_spin/estimate_audio_sync_graph.py \
             --config freeze_spin/sidy_cissoko_sync_map.json \
@@ -45,37 +46,72 @@ jobs:
             --clips source_output/clips \
             --before 0.50 --after 1.10 \
             --out contact_windows
+          python freeze_spin/prepare_colmap_multiframe_inputs.py \
+            --windows contact_windows \
+            --out temporal_images
           python freeze_spin/prepare_kalicalib_inputs.py \
             --windows contact_windows \
             --out impact_images
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('temporal_images/mapping.json').read_text())
+          assert p['view_count'] == 12, p
+          assert p['images_per_view'] == 5, p
+          assert p['image_count'] == 60, p
+          print('Verified temporal bridge:', p['view_count'], 'feeds x', p['images_per_view'], 'frames =', p['image_count'])
+          PY
 
-      - name: Extract SIFT features independently per physical feed
+      - name: Extract SIFT with one intrinsic model per physical feed
         run: |
           mkdir -p sfm
           colmap feature_extractor \
             --database_path sfm/database.db \
-            --image_path impact_images \
+            --image_path temporal_images \
             --ImageReader.camera_model SIMPLE_RADIAL \
             --ImageReader.single_camera 0 \
+            --ImageReader.single_camera_per_folder 1 \
             --ImageReader.default_focal_length_factor 1.2 \
             --SiftExtraction.use_gpu 0 \
             --SiftExtraction.max_num_features 16000
+          python - <<'PY'
+          import sqlite3
+          con=sqlite3.connect('sfm/database.db')
+          n_images=con.execute('select count(*) from images').fetchone()[0]
+          n_cameras=con.execute('select count(*) from cameras').fetchone()[0]
+          print('COLMAP database:', n_images, 'images,', n_cameras, 'camera intrinsic groups')
+          assert n_images == 60, n_images
+          assert n_cameras == 12, n_cameras
+          PY
 
-      - name: Exhaustively match synchronized views
+      - name: Exhaustively verify cross-feed feature geometry
         run: |
           colmap exhaustive_matcher \
             --database_path sfm/database.db \
             --SiftMatching.use_gpu 0 \
             --SiftMatching.max_num_matches 32768
 
-      - name: Jointly solve all camera poses and sparse scene
+      - name: Select strongest nondegenerate cross-feed initialization pair
+        run: |
+          mkdir -p diagnostics
+          read INIT1 INIT2 <<< "$(python freeze_spin/select_colmap_crossfeed_init.py \
+            --database sfm/database.db \
+            --mapping temporal_images/mapping.json \
+            --out diagnostics/crossfeed_init.json)"
+          echo "INIT1=$INIT1" >> "$GITHUB_ENV"
+          echo "INIT2=$INIT2" >> "$GITHUB_ENV"
+          cat diagnostics/crossfeed_init.json
+
+      - name: Jointly solve physical camera poses and sparse scene
         run: |
           mkdir -p sfm/sparse
           colmap mapper \
             --database_path sfm/database.db \
-            --image_path impact_images \
+            --image_path temporal_images \
             --output_path sfm/sparse \
             --Mapper.min_num_matches 10 \
+            --Mapper.init_image_id1 "$INIT1" \
+            --Mapper.init_image_id2 "$INIT2" \
             --Mapper.init_min_num_inliers 12 \
             --Mapper.abs_pose_min_num_inliers 10 \
             --Mapper.ba_refine_focal_length 1 \
@@ -98,11 +134,11 @@ jobs:
           done
           find sfm/models_txt -maxdepth 2 -type f -print
 
-      - name: Apply strict joint-camera quality gate
+      - name: Enforce physical-camera 3D quality gate
         run: |
-          python freeze_spin/analyze_colmap_static.py \
+          python freeze_spin/analyze_colmap_multiframe_gate.py \
             --models sfm/models_txt \
-            --mapping impact_images/mapping.json \
+            --mapping temporal_images/mapping.json \
             --out sfm_qa
 
       - name: Package diagnostics whether pass or fail
@@ -110,16 +146,18 @@ jobs:
         run: |
           mkdir -p delivery
           cp diagnostics/audio_sync_graph.json delivery/ || true
-          cp impact_images/mapping.json delivery/ || true
-          cp impact_images/[0-9]*.png delivery/ || true
+          cp diagnostics/crossfeed_init.json delivery/ || true
+          cp temporal_images/mapping.json delivery/temporal_mapping.json || true
+          cp impact_images/mapping.json delivery/impact_mapping.json || true
+          cp impact_images/[0-9]*.png delivery/ 2>/dev/null || true
           cp sfm_qa/* delivery/ 2>/dev/null || true
           cp sfm/models_txt/*/*.txt delivery/ 2>/dev/null || true
 
-      - name: Upload joint SfM experiment
+      - name: Upload temporal-bridge joint SfM experiment
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sidy-cissoko-joint-sfm-${{ github.run_id }}
+          name: sidy-cissoko-temporal-joint-sfm-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
