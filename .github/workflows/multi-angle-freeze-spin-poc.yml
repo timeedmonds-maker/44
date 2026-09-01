@@ -29,16 +29,33 @@ jobs:
             --out source_output \
             --workers 8
 
-      - name: Synchronize and diagnose
+      - name: Build audio synchronization timelines
         run: |
           python freeze_spin/estimate_audio_offsets.py \
             --config freeze_spin/sidy_cissoko_sync_map.json \
             --clips source_output/clips \
             --out diagnostics/audio_offsets.json
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+
+      - name: Extract manual and graph-synchronized freeze frames
+        run: |
           python freeze_spin/extract_synced_frames.py \
             --config freeze_spin/sidy_cissoko_sync_map.json \
             --clips source_output/clips \
             --out synchronized_frames
+          python freeze_spin/extract_graph_synced_frames.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --out audio_synced_frames
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --out contact_windows
           python freeze_spin/diagnose_view_overlap.py \
             --config freeze_spin/sidy_cissoko_sync_map.json \
             --frames synchronized_frames \
@@ -53,19 +70,23 @@ jobs:
             --work render_work \
             --out delivery/sidy_cissoko_block_freeze_spin_poc_native.mp4
 
-      - name: Package QA and delivery
+      - name: Package QA and diagnostics
         run: |
           cp source_output/qa.json delivery/source_video_qa.json
           cp diagnostics/audio_offsets.json delivery/audio_offsets.json
+          cp diagnostics/audio_sync_graph.json delivery/audio_sync_graph.json
           cp diagnostics/view_overlap.json delivery/view_overlap.json
           cp freeze_spin/sidy_cissoko_sync_map.json delivery/sync_map.json
-          mkdir -p delivery/synchronized_frames
+          mkdir -p delivery/synchronized_frames delivery/audio_synced_frames delivery/contact_windows
           cp synchronized_frames/*.png synchronized_frames/manifest.json delivery/synchronized_frames/
+          cp audio_synced_frames/*.png audio_synced_frames/manifest.json delivery/audio_synced_frames/
+          cp contact_windows/*.mp4 contact_windows/manifest.json delivery/contact_windows/
           cd delivery
           zip -9 sidy_cissoko_block_freeze_spin_poc_native.zip \
             sidy_cissoko_block_freeze_spin_poc_native.mp4 \
             sidy_cissoko_block_freeze_spin_poc_native.qa.json \
-            source_video_qa.json audio_offsets.json view_overlap.json sync_map.json
+            source_video_qa.json audio_offsets.json audio_sync_graph.json \
+            view_overlap.json sync_map.json
 
       - name: Upload proof of concept
         uses: actions/upload-artifact@v4
