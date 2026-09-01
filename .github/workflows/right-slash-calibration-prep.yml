@@ -40,7 +40,10 @@ jobs:
               --workers 1
           }
 
-      - name: Synchronize and export early right-side contact windows
+      # Right Slash is a roaming camera designation in this game.  Preserve a
+      # local F5-F32 window so later metric work can solve a same-event camera
+      # trajectory rather than assuming one fixed arena camera centre.
+      - name: Synchronize and export F5-F32 right-side trajectory window
         run: |
           python freeze_spin/estimate_audio_sync_graph.py \
             --config freeze_spin/sidy_cissoko_sync_map.json \
