@@ -1,0 +1,32 @@
+{
+  "game_id": "0022500527",
+  "event_id": 18,
+  "view": "Right Above Rim",
+  "camera_index": 11,
+  "reference_frame": 28,
+  "image_geometry": "960x540 native NBA frame",
+  "purpose": "Identity-independent metric camera calibration using only regulation NBA basket/court geometry",
+  "status": "provisional_source_curve_observations_strict_gate_required",
+  "geometry": {
+    "rim_inner_radius_in": 9.0,
+    "rim_center_from_backboard_in": 15.0,
+    "rim_height_ft": 10.0,
+    "restricted_area_radius_ft": 4.0,
+    "restricted_area_center": "floor point vertically below rim center"
+  },
+  "rim_inner_edge_samples_px": [
+    [410.0, 252.0], [443.0, 218.0], [488.0, 203.0], [535.0, 212.0],
+    [577.0, 244.0], [598.0, 283.0], [594.0, 323.0], [570.0, 349.0],
+    [531.0, 365.0], [489.0, 365.0], [451.0, 352.0], [419.0, 329.0], [405.0, 292.0]
+  ],
+  "restricted_area_centerline_samples_px": [
+    [255.0, 309.0], [268.0, 282.0], [282.0, 251.0], [303.0, 222.0],
+    [331.0, 199.0], [363.0, 182.0], [400.0, 171.0], [442.0, 165.0],
+    [483.0, 164.0], [526.0, 172.0], [563.0, 186.0], [600.0, 205.0],
+    [633.0, 229.0], [660.0, 255.0], [683.0, 286.0], [702.0, 319.0], [718.0, 354.0]
+  ],
+  "strict_max_combined_curve_rms_px": 3.0,
+  "strict_max_combined_curve_p95_px": 6.0,
+  "strict_max_half_pixel_camera_center_shift_cm": 75.0,
+  "guardrail": "No player, ball, shoulder, forearm, silhouette, pose-model or novel-view output may contribute to this camera solve. Player/ball observations are reserved for independent downstream validation only."
+}
