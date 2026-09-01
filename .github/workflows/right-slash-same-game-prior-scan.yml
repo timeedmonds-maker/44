@@ -1,0 +1,45 @@
+name: Right Slash same-game camera-prior scan
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/right-slash-same-game-prior-scan.yml"
+      - "freeze_spin/scan_same_game_right_slash_priors.py"
+      - "nba_video_worker.py"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lean video runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Scan same-game Right Slash events for clean geometry
+        run: |
+          python freeze_spin/scan_same_game_right_slash_priors.py \
+            --game-id 0022500527 \
+            --count 8 \
+            --out right_slash_prior_scan
+
+      - name: Package scan
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp right_slash_prior_scan/same_game_right_slash_prior_scan.json delivery/ || true
+          cp right_slash_prior_scan/*_sheet.png delivery/ || true
+
+      - name: Upload scan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-right-slash-same-game-prior-scan-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
