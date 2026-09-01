@@ -24,9 +24,7 @@ COURT_LENGTH_CM = 94.0 * FOOT_CM
 COURT_WIDTH_CM = 50.0 * FOOT_CM
 COURT_CENTER_Y_CM = COURT_WIDTH_CM / 2.0
 
-# NBA Rule No. 1: backboard face is represented on the official court diagram
-# 4 ft inside the baseline.  Rule No. 1 also specifies the free-throw line as
-# 15 ft from the plane of the board.
+# NBA Rule No. 1 / official court diagram.
 BACKBOARD_FACE_X_NEAR_CM = 4.0 * FOOT_CM
 BACKBOARD_FACE_X_FAR_CM = COURT_LENGTH_CM - BACKBOARD_FACE_X_NEAR_CM
 BACKBOARD_WIDTH_CM = 6.0 * FOOT_CM
@@ -43,6 +41,13 @@ RIM_CENTER_FROM_BOARD_CM = RIM_NEAREST_INSIDE_EDGE_FROM_BOARD_CM + RIM_INSIDE_RA
 RIM_CENTER_X_NEAR_CM = BACKBOARD_FACE_X_NEAR_CM + RIM_CENTER_FROM_BOARD_CM
 RIM_CENTER_X_FAR_CM = COURT_LENGTH_CM - RIM_CENTER_X_NEAR_CM
 RIM_TOP_HEIGHT_CM = 10.0 * FOOT_CM
+
+# The 24 x 18 in target rectangle is centered horizontally behind the ring.
+# Its lower edge is level with the top of the ring; therefore it spans from
+# 10 ft to 11 ft 6 in above the playing floor. This relationship is also a
+# strong visual anchor in the NBA source frames.
+INNER_RECT_BOTTOM_Z_CM = RIM_TOP_HEIGHT_CM
+INNER_RECT_TOP_Z_CM = RIM_TOP_HEIGHT_CM + BACKBOARD_INNER_RECT_HEIGHT_CM
 
 FREE_THROW_LINE_BOARD_DISTANCE_CM = 15.0 * FOOT_CM
 PAINT_WIDTH_CM = 16.0 * FOOT_CM
@@ -83,29 +88,22 @@ def basket(side: str = "near") -> BasketGeometry:
 
 
 def inner_rectangle_corners(side: str = "near") -> dict[str, np.ndarray]:
-    """Corners of the 24 x 18 in white rectangle centered behind the ring.
-
-    NBA Rule No. 1 states that the transparent board rectangle is centered
-    behind the ring.  This provides a metrically known vertical plane that is
-    extremely useful for calibrating tight basket cameras.
-    """
+    """Corners of the regulation 24 x 18 in white target rectangle."""
     b = basket(side)
     hw = BACKBOARD_INNER_RECT_WIDTH_CM / 2.0
-    hh = BACKBOARD_INNER_RECT_HEIGHT_CM / 2.0
     return {
-        "inner_rect_top_left": np.array([b.board_x_cm, b.y_cm - hw, b.z_cm + hh], dtype=np.float64),
-        "inner_rect_top_right": np.array([b.board_x_cm, b.y_cm + hw, b.z_cm + hh], dtype=np.float64),
-        "inner_rect_bottom_right": np.array([b.board_x_cm, b.y_cm + hw, b.z_cm - hh], dtype=np.float64),
-        "inner_rect_bottom_left": np.array([b.board_x_cm, b.y_cm - hw, b.z_cm - hh], dtype=np.float64),
+        "inner_rect_top_left": np.array([b.board_x_cm, b.y_cm - hw, INNER_RECT_TOP_Z_CM], dtype=np.float64),
+        "inner_rect_top_right": np.array([b.board_x_cm, b.y_cm + hw, INNER_RECT_TOP_Z_CM], dtype=np.float64),
+        "inner_rect_bottom_right": np.array([b.board_x_cm, b.y_cm + hw, INNER_RECT_BOTTOM_Z_CM], dtype=np.float64),
+        "inner_rect_bottom_left": np.array([b.board_x_cm, b.y_cm - hw, INNER_RECT_BOTTOM_Z_CM], dtype=np.float64),
     }
 
 
 def rim_cardinal_points(side: str = "near") -> dict[str, np.ndarray]:
-    """Four points on the *inside edge* of the regulation ring."""
+    """Four points on the inside edge of the regulation ring plus its centre."""
     b = basket(side)
     r = RIM_INSIDE_RADIUS_CM
     d = float(b.attacking_direction)
-    # 'board_side' is the point of the inside edge nearest the backboard.
     return {
         "rim_center": np.array([b.rim_center_x_cm, b.y_cm, b.z_cm], dtype=np.float64),
         "rim_board_side": np.array([b.rim_center_x_cm - d * r, b.y_cm, b.z_cm], dtype=np.float64),
@@ -119,8 +117,6 @@ def rim_circle(side: str = "near", samples: int = 96) -> np.ndarray:
     b = basket(side)
     d = float(b.attacking_direction)
     theta = np.linspace(0.0, 2.0 * math.pi, samples, endpoint=False)
-    # Horizontal ring plane.  X radius is oriented along the court length;
-    # sign only controls naming/orientation, not the circle itself.
     x = b.rim_center_x_cm + d * RIM_INSIDE_RADIUS_CM * np.cos(theta)
     y = b.y_cm + RIM_INSIDE_RADIUS_CM * np.sin(theta)
     z = np.full_like(theta, b.z_cm)
