@@ -1,0 +1,102 @@
+name: Right Slash same-game transfer audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/right-slash-same-game-transfer-audit.yml"
+      - "freeze_spin/audit_right_slash_same_game_transfer.py"
+      - "freeze_spin/scan_same_game_right_slash_priors.py"
+      - "freeze_spin/diagnose_right_slash_projective_transfer_v1.py"
+      - "freeze_spin/export_visual_state_candidates.py"
+      - "freeze_spin/sidy_cissoko_request.json"
+      - "freeze_spin/sidy_cissoko_sync_map.json"
+      - "nba_video_worker.py"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lean video and geometry runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+
+      - name: Acquire clean same-game Right Slash native candidates
+        run: |
+          python freeze_spin/scan_same_game_right_slash_priors.py \
+            --game-id 0022500527 \
+            --count 8 \
+            --out right_slash_prior_scan
+
+      - name: Acquire and synchronize exact target event
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 2 \
+          || {
+            echo "Concurrent retrieval did not validate all feeds; retrying serially with fresh signed URLs."
+            sleep 3
+            python build_kd_top10_all_angles.py \
+              --request freeze_spin/sidy_cissoko_request.json \
+              --out source_output \
+              --workers 1
+          }
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/export_visual_state_candidates.py \
+            --windows contact_windows \
+            --out visual_state_candidates \
+            --start 5 --end 32 \
+            --reference-frame 28
+
+      - name: Audit clean-frame transfer without weakening gates
+        run: |
+          python freeze_spin/audit_right_slash_same_game_transfer.py \
+            --target visual_state_candidates/07_Right_Slash/f018.png \
+            --candidate-root right_slash_prior_scan \
+            --out diagnostics/right_slash_same_game_transfer_audit.json
+
+      - name: Assert promotion semantics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('diagnostics/right_slash_same_game_transfer_audit.json').read_text())
+          assert p['promotion_allowed'] == (p['pass_count'] > 0)
+          print('AUDIT STATUS:', p['status'])
+          print('CANDIDATES:', p['candidate_count'], 'PASS:', p['pass_count'])
+          print('This job passing means the audit executed correctly; camera promotion is governed only by promotion_allowed in the report.')
+          PY
+
+      - name: Package strict audit evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp diagnostics/right_slash_same_game_transfer_audit.json delivery/ || true
+          cp visual_state_candidates/07_Right_Slash/f018.png delivery/Right_Slash_F18.png || true
+          cp right_slash_prior_scan/same_game_right_slash_prior_scan.json delivery/ || true
+          cp right_slash_prior_scan/event_55_frames/*.png delivery/ || true
+          cp right_slash_prior_scan/event_85_frames/*.png delivery/ || true
+
+      - name: Upload audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-right-slash-same-game-transfer-audit-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
