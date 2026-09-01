@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 import cv2
@@ -28,13 +29,19 @@ def extract_frame(cap: cv2.VideoCapture, frame_index: int) -> np.ndarray:
 
 
 def make_sheet(frames: list[tuple[int, np.ndarray]], label: str) -> np.ndarray:
+    if not frames:
+        raise ValueError("No frames supplied for QA sheet")
     thumb_w, thumb_h = 480, 270
     tile_h = thumb_h + 34
-    sheet = np.zeros((tile_h * 3, thumb_w * 3, 3), dtype=np.uint8)
+    # Use up to four columns so candidate windows can expand without a hard-coded
+    # 3x3 / nine-frame assumption. Rows are derived from the requested range.
+    cols = min(4, len(frames))
+    rows = int(math.ceil(len(frames) / cols))
+    sheet = np.zeros((tile_h * rows, thumb_w * cols, 3), dtype=np.uint8)
     for k, (fi, frame) in enumerate(frames):
         thumb = cv2.resize(frame, (thumb_w, thumb_h), interpolation=cv2.INTER_AREA)
-        y = (k // 3) * tile_h
-        x = (k % 3) * thumb_w
+        y = (k // cols) * tile_h
+        x = (k % cols) * thumb_w
         sheet[y:y + thumb_h, x:x + thumb_w] = thumb
         cv2.putText(sheet, f"{label}  F{fi}", (x + 10, y + thumb_h + 24),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
@@ -45,14 +52,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--windows", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--start", type=int, default=24)
+    ap.add_argument("--start", type=int, default=23)
     ap.add_argument("--end", type=int, default=32)
     args = ap.parse_args()
     if args.end < args.start:
         raise SystemExit("--end must be >= --start")
-    expected = args.end - args.start + 1
-    if expected != 9:
-        raise SystemExit("This QA exporter expects exactly nine candidate frames for a 3x3 sheet")
 
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = []
@@ -73,19 +77,33 @@ def main() -> None:
                 target = view_dir / f"f{fi:03d}.png"
                 if not cv2.imwrite(str(target), frame):
                     raise RuntimeError(f"Could not write {target}")
-                rows.append({"frame_index": fi, "timestamp_seconds": round(fi / 30.0, 6), "image": str(target.relative_to(args.out))})
+                rows.append({
+                    "frame_index": fi,
+                    "timestamp_seconds": round(fi / 30.0, 6),
+                    "image": str(target.relative_to(args.out)),
+                })
                 sheet_frames.append((fi, frame))
         finally:
             cap.release()
         sheet = make_sheet(sheet_frames, label)
-        sheet_path = args.out / f"{index:02d}_{safe_name(label)}_F24_F32_sheet.png"
-        cv2.imwrite(str(sheet_path), sheet)
-        manifest.append({"index": index, "label": label, "source": filename, "center_legacy_frame": 28, "preferred_reference_candidate": 27, "candidates": rows, "sheet": sheet_path.name})
+        sheet_path = args.out / f"{index:02d}_{safe_name(label)}_F{args.start}_F{args.end}_sheet.png"
+        if not cv2.imwrite(str(sheet_path), sheet):
+            raise RuntimeError(f"Could not write {sheet_path}")
+        manifest.append({
+            "index": index,
+            "label": label,
+            "source": filename,
+            "center_legacy_frame": 28,
+            "preferred_reference_candidate": 27,
+            "candidates": rows,
+            "sheet": sheet_path.name,
+        })
 
     payload = {
         "purpose": "Exact visual-state refinement after strict four-camera metric calibration",
         "rule": "Choose the same physical basketball state independently per camera; do not assume equal local frame index.",
         "candidate_range": [args.start, args.end],
+        "candidate_count_per_view": args.end - args.start + 1,
         "views": manifest,
     }
     (args.out / "visual_state_candidates.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
