@@ -9,6 +9,7 @@ on:
       - "freeze_spin/segment_action_bodies_v1.py"
       - "freeze_spin/build_small_angle_body_masked_prototype_v3.py"
       - "freeze_spin/build_visual_hull_free_view_v4.py"
+      - "freeze_spin/build_dense_depth_sheet_free_view_v5.py"
       - ".github/workflows/small-angle-real-pixel-prototype.yml"
 
 jobs:
@@ -87,23 +88,24 @@ jobs:
             --ball-report foreground_v1/ball_triangulation_v1.json \
             --out body_masks
 
-      - name: Build calibrated identity-free visual hull 0/3/5/8-degree prototype
+      - name: Build dense real-pixel 0/3/5/8-degree depth-sheet prototype
         run: |
-          python freeze_spin/build_visual_hull_free_view_v4.py \
+          python freeze_spin/build_dense_depth_sheet_free_view_v5.py \
             --cameras geometry_proof_v3/calibrated_cameras_v3.json \
             --locked-images locked_exact_state \
             --ball-report foreground_v1/ball_triangulation_v1.json \
             --masks body_masks \
-            --out visual_hull_prototype \
-            --voxel-cm 2.5 --min-views 3
+            --out dense_depth_sheet_prototype \
+            --depth-steps 150
 
       - name: Package prototype
         if: always()
         run: |
           mkdir -p delivery
-          cp visual_hull_prototype/* delivery/ 2>/dev/null || true
+          cp dense_depth_sheet_prototype/* delivery/ 2>/dev/null || true
           cp body_masks/* delivery/ 2>/dev/null || true
-          cp locked_exact_state/locked_exact_state_montage.png delivery/ 2>/dev/null || true
+          cp locked_exact_state/*.png delivery/ 2>/dev/null || true
+          cp locked_exact_state/locked_exact_state.json delivery/ 2>/dev/null || true
           cp foreground_v1/ball_triangulation_v1.json delivery/ 2>/dev/null || true
           cp geometry_proof_v3/calibrated_cameras_v3.json delivery/ 2>/dev/null || true
           cp diagnostics/audio_sync_graph.json delivery/ 2>/dev/null || true
@@ -112,7 +114,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sidy-visual-hull-free-view-${{ github.run_id }}
+          name: sidy-dense-depth-sheet-free-view-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
