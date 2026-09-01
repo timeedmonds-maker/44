@@ -1,0 +1,32 @@
+{
+  "game_id": "0022500527",
+  "event_id": 18,
+  "state_file": "freeze_spin/sidy_exact_state_v1.json",
+  "purpose": "Source-image foreground observations for the locked initial-deflection freeze state",
+  "ball": {
+    "observation_method": "ball centre selected from the real locked source frames using local circle/colour evidence and visual QA; uncertainty reflects blur/occlusion and apparent source size",
+    "views": {
+      "In Arena": {
+        "pixel_xy_selected_frame": [511.5, 168.5],
+        "uncertainty_px": 2.5,
+        "approx_visible_radius_px": 15.0
+      },
+      "Left Slash": {
+        "pixel_xy_selected_frame": [626.5, 242.5],
+        "uncertainty_px": 3.0,
+        "approx_visible_radius_px": 27.0
+      },
+      "Left HandHeld": {
+        "pixel_xy_selected_frame": [861.5, 302.5],
+        "uncertainty_px": 4.5,
+        "approx_visible_radius_px": 34.0
+      },
+      "Left Above Rim": {
+        "pixel_xy_selected_frame": [531.9, 154.0],
+        "uncertainty_px": 6.0,
+        "approx_visible_radius_px": 7.0,
+        "note": "low-weight validation view because the blurred ball is only roughly a dozen pixels across"
+      }
+    }
+  }
+}
