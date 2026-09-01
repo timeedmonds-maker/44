@@ -8,15 +8,17 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# Keep the original four calibrated proof cameras first, then export the
-# complementary right-side views as diagnostics for the next body-coverage
+# Keep the original four calibrated proof cameras first, then export additional
+# official views as diagnostics for the next body-coverage / fifth-camera
 # milestone. Downstream four-camera geometry code keys by label and therefore
-# continues to use only the calibrated views until the new cameras are solved.
+# continues to use only the calibrated views until a diagnostic camera passes
+# its own independent metric promotion gate.
 VIEWS = [
     (4, "In Arena", "05_In_Arena_contact.mp4"),
     (6, "Left Slash", "07_Left_Slash_contact.mp4"),
     (8, "Left HandHeld", "09_Left_HandHeld_contact.mp4"),
     (10, "Left Above Rim", "11_Left_Above_Rim_contact.mp4"),
+    (5, "High Tight", "06_High_Tight_contact.mp4"),
     (7, "Right Slash", "08_Right_Slash_contact.mp4"),
     (9, "Right HandHeld", "10_Right_HandHeld_contact.mp4"),
     (11, "Right Above Rim", "12_Right_Above_Rim_contact.mp4"),
@@ -101,9 +103,8 @@ def main() -> None:
         sheet_path = args.out / f"{index:02d}_{safe_name(label)}_F{args.start}_F{args.end}_sheet.png"
         if not cv2.imwrite(str(sheet_path), sheet):
             raise RuntimeError(f"Could not write {sheet_path}")
-        # The packaging workflow already collects *_sheet.png files. Store a
-        # single native-resolution reference as a one-frame QA sheet so camera
-        # calibration can be annotated against the original 960x540 pixels.
+        # Store a single native-resolution reference as a one-frame QA sheet so
+        # camera calibration can be annotated against the original 960x540 pixels.
         reference_path = args.out / f"{index:02d}_{safe_name(label)}_F{args.reference_frame}_reference_sheet.png"
         if reference_image is None or not cv2.imwrite(str(reference_path), reference_image):
             raise RuntimeError(f"Could not write {reference_path}")
@@ -121,8 +122,8 @@ def main() -> None:
         })
 
     payload = {
-        "purpose": "Exact visual-state refinement plus complementary right-side coverage diagnostics after strict four-camera metric calibration",
-        "rule": "Choose the same physical basketball state independently per camera; do not assume equal local frame index. Diagnostic right-side views are not metric cameras until independently calibrated.",
+        "purpose": "Exact visual-state refinement plus complementary fifth-camera coverage diagnostics after strict four-camera metric calibration",
+        "rule": "Choose the same physical basketball state independently per camera; do not assume equal local frame index. Diagnostic views are not metric cameras until independently calibrated.",
         "candidate_range": [args.start, args.end],
         "candidate_count_per_view": args.end - args.start + 1,
         "native_reference_frame": args.reference_frame,
