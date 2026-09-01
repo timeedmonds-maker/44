@@ -79,26 +79,37 @@ def main() -> None:
         c = np.asarray(points["cissoko_ball_shoulder"]["views"][label]["predicted_selected_px"], dtype=np.float64)
         pixel_separation[label] = float(np.linalg.norm(a - c))
 
-    gate = {
+    numerical_gate = {
         "upstream_forearm_metric_gate_passed": bool(semantic["metric_gate"]["pass"]),
         "both_shoulders_use_three_views": all(len(row["views"]) >= 3 for row in points.values()),
         "both_shoulders_within_1_5_sigma": all(row["max_normalized_error_sigma"] <= 1.5 for row in points.values()),
         "upper_arm_lengths_plausible": all(20.0 <= row["elbow_to_shoulder_cm"] <= 60.0 for row in points.values()),
         "shoulders_distinct_in_world": world_separation >= 25.0,
         "shoulders_distinct_in_each_identity_view": all(value >= 20.0 for value in pixel_separation.values()),
-        "manual_visual_identity_checks_recorded": all(
-            spec["identity_views"][label]["visual_identity_check"] is True
-            for label in ("In Arena", "Left Slash", "Left HandHeld")
-        ),
     }
-    gate["pass"] = bool(all(gate.values()))
+    numerical_gate["pass"] = bool(all(numerical_gate.values()))
+
+    # IMPORTANT: numerical consistency is necessary but not sufficient for identity.
+    # The source-pixel validator owns promotion because it checks independently visible
+    # player identity and border/crop validity in the actual locked frames.  This script
+    # must never emit a completed identity lock on residuals alone.
+    gate = {
+        "numerical_triangulation_passed": bool(numerical_gate["pass"]),
+        "source_pixel_visual_identity_gate_passed": False,
+        "pass": False,
+    }
 
     payload = {
-        "status": "block_arm_identity_locked" if gate["pass"] else "block_arm_identity_failed",
-        "interpretation": "The two overlapping forearm chains are connected to distinct source-labeled shoulders in three calibrated views. Full-body reconstruction remains open.",
+        "status": "candidate_block_arm_geometry_requires_visual_identity_gate",
+        "interpretation": (
+            "The two provisional forearm chains have numerically consistent candidate shoulders, "
+            "but identity is intentionally not promoted here. The independent source-pixel visual "
+            "gate must pass before any coarse full-body or novel-view stage may consume these joints."
+        ),
         "shoulder_points": points,
         "shoulder_world_separation_cm": round(world_separation, 4),
         "shoulder_selected_frame_separation_px": {key: round(value, 3) for key, value in pixel_separation.items()},
+        "numerical_gate": numerical_gate,
         "gate": gate,
         "coarse_full_body_gate": {"pass": False},
     }
@@ -106,7 +117,7 @@ def main() -> None:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(json.dumps(payload, indent=2), flush=True)
-    if not gate["pass"]:
+    if not numerical_gate["pass"]:
         raise SystemExit(2)
 
 
