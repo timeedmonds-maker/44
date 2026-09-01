@@ -47,5 +47,5 @@
     }
   },
   "gate_interpretation": "Run 33530307947 remains a valid numerical triangulation diagnostic, but its block_arm_identity_locked status is a false green under the required visual identity criterion. Do not use it to declare the semantic skeleton complete.",
-  "next_route": "Acquire at least one additional metric identity-bearing view. Right Slash F18-F32 is the current priority because Adams and Cissoko separate clearly there; calibrate it without weakening basket/court gates, potentially by audited static 3D calibration transfer if direct basket geometry is underconstrained."
+  "next_route": "Adams currently has one visually valid calibrated shoulder view and therefore needs two additional independent metric identity-bearing views to reach the three-view minimum; Cissoko currently has two and needs one. Right Slash, Right HandHeld and Right Above Rim are the current candidate feeds. Calibrate new cameras without weakening basket/court gates or using the disputed shoulder observations as calibration inputs; audited static/fixed-geometry transfer is preferred where direct basket geometry is underconstrained."
 }
