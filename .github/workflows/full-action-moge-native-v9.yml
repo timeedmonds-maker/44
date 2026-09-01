@@ -1,0 +1,135 @@
+name: Full-action MoGe native free-view v9
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "freeze_spin/build_full_action_moge_free_view_v9.py"
+      - ".github/workflows/full-action-moge-native-v9.yml"
+
+jobs:
+  prototype:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native geometry and MoGe runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve official NBA angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 2 \
+          || {
+            sleep 3
+            python build_kd_top10_all_angles.py \
+              --request freeze_spin/sidy_cissoko_request.json \
+              --out source_output \
+              --workers 1
+          }
+
+      - name: Synchronize and export exact-state metric inputs
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/prepare_kalicalib_inputs.py \
+            --windows contact_windows \
+            --out impact_images
+          python -m freeze_spin.solve_nba_geometry_proof_v3 \
+            --landmarks freeze_spin/sidy_basket_landmarks_v3.json \
+            --images impact_images \
+            --out geometry_proof_v3
+          python -m freeze_spin.export_calibrated_cameras_v3 \
+            --landmarks freeze_spin/sidy_basket_landmarks_v3.json \
+            --out geometry_proof_v3/calibrated_cameras_v3.json
+          python freeze_spin/export_locked_exact_state.py \
+            --windows contact_windows \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --out locked_exact_state
+
+      - name: Triangulate locked basketball
+        run: |
+          mkdir -p foreground_v1
+          python -m freeze_spin.triangulate_locked_ball_v1 \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --foreground freeze_spin/sidy_foreground_landmarks_v1.json \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --anchor-images impact_images \
+            --locked-images locked_exact_state \
+            --out foreground_v1/ball_triangulation_v1.json
+
+      - name: Segment complete action foreground
+        run: |
+          python freeze_spin/segment_action_bodies_v1.py \
+            --locked-images locked_exact_state \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --max-action-instances 3 \
+            --out body_masks
+
+      - name: Infer smooth reference geometry
+        run: |
+          python freeze_spin/infer_moge_reference_v1.py \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --locked-images locked_exact_state \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --out moge_reference \
+            --pretrained Ruicheng/moge-2-vits-normal \
+            --num-tokens 1400
+
+      - name: Solve full-action depth and render native 0-to-5-to-0
+        run: |
+          python freeze_spin/build_full_action_moge_free_view_v9.py \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --locked-images locked_exact_state \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --body-masks body_masks \
+            --moge-dir moge_reference \
+            --out full_action_v9 \
+            --frames 61 --max-degree 5.0
+          ffmpeg -y -framerate 30 -i full_action_v9/motion_%03d.png \
+            -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p \
+            full_action_v9/sidy_full_action_0_to_5_to_0_native.mp4
+          ffprobe -v error -show_entries stream=width,height,r_frame_rate,nb_frames \
+            -show_entries format=duration,size -of json \
+            full_action_v9/sidy_full_action_0_to_5_to_0_native.mp4 \
+            > full_action_v9/native_video_probe.json
+
+      - name: Package native prototype
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp full_action_v9/* delivery/ 2>/dev/null || true
+          cp body_masks/* delivery/ 2>/dev/null || true
+          cp locked_exact_state/*.png delivery/ 2>/dev/null || true
+          cp locked_exact_state/locked_exact_state.json delivery/ 2>/dev/null || true
+          cp foreground_v1/ball_triangulation_v1.json delivery/ 2>/dev/null || true
+          cp geometry_proof_v3/calibrated_cameras_v3.json delivery/ 2>/dev/null || true
+          cp diagnostics/audio_sync_graph.json delivery/ 2>/dev/null || true
+
+      - name: Upload native prototype
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-full-action-moge-native-v9-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
