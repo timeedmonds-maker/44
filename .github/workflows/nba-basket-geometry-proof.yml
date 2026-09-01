@@ -15,6 +15,7 @@ on:
       - "freeze_spin/sidy_block_interaction_landmarks_v1.json"
       - "freeze_spin/triangulate_semantic_points_v1.py"
       - "freeze_spin/build_dynamic_sparse_player_cloud_v1.py"
+      - "freeze_spin/validate_dynamic_player_cloud_multiview.py"
       - ".github/workflows/nba-basket-geometry-proof.yml"
 
 jobs:
@@ -125,6 +126,12 @@ jobs:
             --candidates visual_state_candidates \
             --out foreground_v1/player_cloud
 
+      - name: Validate genuine multi-view player-cloud consensus
+        run: |
+          python -m freeze_spin.validate_dynamic_player_cloud_multiview \
+            --cloud foreground_v1/player_cloud/dynamic_sparse_player_cloud_v1.json \
+            --out foreground_v1/player_cloud/multiview_consensus_qa.json
+
       - name: Package strict four-camera proof
         if: always()
         run: |
@@ -145,6 +152,7 @@ jobs:
           cp freeze_spin/sidy_block_interaction_landmarks_v1.json delivery/ || true
           cp freeze_spin/triangulate_semantic_points_v1.py delivery/ || true
           cp freeze_spin/build_dynamic_sparse_player_cloud_v1.py delivery/ || true
+          cp freeze_spin/validate_dynamic_player_cloud_multiview.py delivery/ || true
           cp visual_state_candidates/*_sheet.png delivery/ 2>/dev/null || true
           cp visual_state_candidates/visual_state_candidates.json delivery/ 2>/dev/null || true
           cp locked_exact_state/* delivery/ 2>/dev/null || true
