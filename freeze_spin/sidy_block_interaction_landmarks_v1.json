@@ -1,0 +1,72 @@
+{
+  "game_id": "0022500527",
+  "event_id": 18,
+  "state_file": "freeze_spin/sidy_exact_state_v1.json",
+  "purpose": "Manual source-image semantic observations for first Adams/Cissoko block-interaction 3D proof",
+  "status": "provisional_forearm_interaction_only_identity_not_yet_locked_by_shoulders",
+  "landmarks": {
+    "adams_block_hand": {
+      "player": "Steven Adams",
+      "joint": "blocking_hand_center",
+      "views": {
+        "In Arena": {"pixel_xy_selected_frame": [512.0, 179.0], "uncertainty_px": 7.0},
+        "Left Slash": {"pixel_xy_selected_frame": [622.0, 259.0], "uncertainty_px": 8.0},
+        "Left HandHeld": {"pixel_xy_selected_frame": [846.0, 327.0], "uncertainty_px": 10.0},
+        "Left Above Rim": {"pixel_xy_selected_frame": [523.0, 171.0], "uncertainty_px": 10.0}
+      }
+    },
+    "adams_block_wrist": {
+      "player": "Steven Adams",
+      "joint": "blocking_wrist",
+      "views": {
+        "In Arena": {"pixel_xy_selected_frame": [501.0, 196.0], "uncertainty_px": 9.0},
+        "Left Slash": {"pixel_xy_selected_frame": [607.0, 281.0], "uncertainty_px": 10.0},
+        "Left HandHeld": {"pixel_xy_selected_frame": [825.0, 349.0], "uncertainty_px": 12.0}
+      }
+    },
+    "adams_block_elbow": {
+      "player": "Steven Adams",
+      "joint": "blocking_elbow",
+      "views": {
+        "In Arena": {"pixel_xy_selected_frame": [482.0, 242.0], "uncertainty_px": 14.0},
+        "Left Slash": {"pixel_xy_selected_frame": [585.0, 334.0], "uncertainty_px": 12.0},
+        "Left HandHeld": {"pixel_xy_selected_frame": [790.0, 410.0], "uncertainty_px": 16.0}
+      }
+    },
+    "cissoko_ball_hand": {
+      "player": "Sidy Cissoko",
+      "joint": "ball_side_hand_center",
+      "views": {
+        "In Arena": {"pixel_xy_selected_frame": [510.0, 178.0], "uncertainty_px": 8.0},
+        "Left Slash": {"pixel_xy_selected_frame": [620.0, 260.0], "uncertainty_px": 10.0},
+        "Left HandHeld": {"pixel_xy_selected_frame": [850.0, 326.0], "uncertainty_px": 12.0},
+        "Left Above Rim": {"pixel_xy_selected_frame": [526.0, 169.0], "uncertainty_px": 10.0}
+      }
+    },
+    "cissoko_ball_wrist": {
+      "player": "Sidy Cissoko",
+      "joint": "ball_side_wrist",
+      "views": {
+        "In Arena": {"pixel_xy_selected_frame": [496.0, 200.0], "uncertainty_px": 10.0},
+        "Left Slash": {"pixel_xy_selected_frame": [600.0, 285.0], "uncertainty_px": 12.0},
+        "Left HandHeld": {"pixel_xy_selected_frame": [830.0, 352.0], "uncertainty_px": 15.0},
+        "Left Above Rim": {"pixel_xy_selected_frame": [512.0, 180.0], "uncertainty_px": 14.0}
+      }
+    },
+    "cissoko_ball_elbow": {
+      "player": "Sidy Cissoko",
+      "joint": "ball_side_elbow",
+      "views": {
+        "In Arena": {"pixel_xy_selected_frame": [476.0, 245.0], "uncertainty_px": 15.0},
+        "Left Slash": {"pixel_xy_selected_frame": [565.0, 345.0], "uncertainty_px": 14.0},
+        "Left HandHeld": {"pixel_xy_selected_frame": [780.0, 420.0], "uncertainty_px": 18.0},
+        "Left Above Rim": {"pixel_xy_selected_frame": [495.0, 195.0], "uncertainty_px": 16.0}
+      }
+    }
+  },
+  "chains": {
+    "adams_block_arm": ["adams_block_hand", "adams_block_wrist", "adams_block_elbow"],
+    "cissoko_ball_arm": ["cissoko_ball_hand", "cissoko_ball_wrist", "cissoko_ball_elbow"]
+  },
+  "interpretation_guardrail": "A forearm metric pass is not full player identity proof because the two arms overlap strongly around the ball. Shoulders/torso or an additional separated viewpoint must lock identity before the player-semantic milestone is closed."
+}
