@@ -6,6 +6,7 @@ on:
     paths:
       - "freeze_spin/prepare_kalicalib_inputs.py"
       - "freeze_spin/validate_kalicalib_predictions.py"
+      - "freeze_spin/build_plane_sweep_static_test.py"
       - ".github/workflows/multi-angle-camera-calibration-poc.yml"
 
 jobs:
@@ -21,7 +22,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg git
           python -m pip install --upgrade pip
-          python -m pip install 'numpy<2' opencv-python-headless==4.10.0.84
+          python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84
 
       - name: Retrieve all validated native angles
         run: |
@@ -49,14 +50,18 @@ jobs:
             --windows contact_windows \
             --out kalicalib_input
 
-      - name: Install KaliCalib with its 2022 dependency generation
+      - name: Install and patch KaliCalib for CPU inference
         run: |
           git clone --depth 1 https://github.com/CEA-LIST/KaliCalib.git kalicalib_repo
           python -m pip install 'torch<2.7' 'torchvision<0.22' --index-url https://download.pytorch.org/whl/cpu
           python -m pip install 'deepsport-utilities==4.0.9' tqdm yacs 'pytorch-ignite<0.5'
+          # DeepSport 4.0.9's transitive dependencies otherwise upgrade NumPy/OpenCV beyond
+          # the generation this 2022 research stack was tested against.
+          python -m pip install numpy==1.26.4 opencv-python==4.10.0.84 opencv-python-headless==4.10.0.84
           python - <<'PY'
           from pathlib import Path
           import site
+
           candidates = [Path(site.getusersitepackages()), *map(Path, site.getsitepackages())]
           target = next((p / 'deepsport_utilities' / 'utils.py' for p in candidates if (p / 'deepsport_utilities' / 'utils.py').exists()), None)
           if target is None:
@@ -67,10 +72,17 @@ jobs:
           if old in text:
               target.write_text(text.replace(old, new), encoding='utf-8')
               print('PATCHED color cycle', target)
-          else:
-              print('Color-cycle shim not required for pinned dependency')
           from deepsport_utilities.utils import Subset, SubsetType
           print('DeepSport API OK', Subset, SubsetType)
+
+          evaluator = Path('kalicalib_repo/tools/evaluate_net.py')
+          source = evaluator.read_text(encoding='utf-8')
+          needle = 'model.load_state_dict(torch.load(cfg.TEST.WEIGHT))'
+          replacement = "model.load_state_dict(torch.load(cfg.TEST.WEIGHT, map_location=torch.device(cfg.MODEL.DEVICE)))"
+          if needle not in source:
+              raise RuntimeError('Expected KaliCalib checkpoint load line not found')
+          evaluator.write_text(source.replace(needle, replacement), encoding='utf-8')
+          print('PATCHED CPU checkpoint loading', evaluator)
           PY
 
       - name: Run KaliCalib challenge model on NBA impact views
@@ -84,7 +96,6 @@ jobs:
             DATALOADER.NUM_WORKERS 0
 
       - name: Validate predicted camera geometry
-        if: success()
         run: |
           python freeze_spin/validate_kalicalib_predictions.py \
             --predictions kalicalib_repo/predictions.json \
@@ -92,7 +103,17 @@ jobs:
             --images kalicalib_input \
             --out calibration_qa
 
-      - name: Package calibration diagnostics
+      - name: Build no-blur calibrated static 3D orbit test
+        run: |
+          python freeze_spin/build_plane_sweep_static_test.py \
+            --predictions kalicalib_repo/predictions.json \
+            --mapping kalicalib_input/mapping.json \
+            --images kalicalib_input \
+            --out static_reconstruction \
+            --stride 2 \
+            --depth-steps 88
+
+      - name: Package calibration and reconstruction diagnostics
         if: always()
         run: |
           mkdir -p calibration_delivery
@@ -101,13 +122,14 @@ jobs:
           if [ -f kalicalib_repo/predictions.json ]; then cp kalicalib_repo/predictions.json calibration_delivery/kalicalib_predictions.json; fi
           if [ -d kalicalib_repo/output/evaluation_images ]; then cp -R kalicalib_repo/output/evaluation_images calibration_delivery/; fi
           if [ -d calibration_qa ]; then cp -R calibration_qa calibration_delivery/; fi
+          if [ -d static_reconstruction ]; then cp -R static_reconstruction calibration_delivery/; fi
           cp kalicalib_input/[0-9]*.png calibration_delivery/
 
       - name: Upload calibration experiment
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sidy-cissoko-kalicalib-${{ github.run_id }}
+          name: sidy-cissoko-calibrated-static-orbit-${{ github.run_id }}
           path: calibration_delivery/
           retention-days: 14
           if-no-files-found: error
