@@ -5,12 +5,15 @@ on:
   push:
     paths:
       - "freeze_spin/analyze_colmap_static.py"
+      - "freeze_spin/prepare_colmap_multiframe_inputs.py"
       - ".github/workflows/multi-angle-colmap-static-poc.yml"
 
 jobs:
   reconstruct:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      QT_QPA_PLATFORM: offscreen
 
     steps:
       - uses: actions/checkout@v4
