@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "freeze_spin/build_small_angle_real_pixel_prototype_v1.py"
+      - "freeze_spin/build_small_angle_real_pixel_prototype_v2.py"
       - ".github/workflows/small-angle-real-pixel-prototype.yml"
 
 jobs:
@@ -72,9 +73,9 @@ jobs:
             --locked-images locked_exact_state \
             --out foreground_v1/ball_triangulation_v1.json
 
-      - name: Build real-pixel 3/5/8-degree prototype
+      - name: Build exact-state-aligned real-pixel 3/5/8-degree prototype
         run: |
-          python freeze_spin/build_small_angle_real_pixel_prototype_v1.py \
+          python freeze_spin/build_small_angle_real_pixel_prototype_v2.py \
             --cameras geometry_proof_v3/calibrated_cameras_v3.json \
             --locked-images locked_exact_state \
             --ball-report foreground_v1/ball_triangulation_v1.json \
