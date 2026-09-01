@@ -6,7 +6,10 @@ on:
     paths:
       - "freeze_spin/sidy_basket_landmarks_v3.json"
       - "freeze_spin/solve_nba_geometry_proof_v3.py"
+      - "freeze_spin/export_calibrated_cameras_v3.py"
       - "freeze_spin/export_visual_state_candidates.py"
+      - "freeze_spin/sidy_exact_state_v1.json"
+      - "freeze_spin/export_locked_exact_state.py"
       - ".github/workflows/nba-basket-geometry-proof.yml"
 
 jobs:
@@ -66,12 +69,25 @@ jobs:
             --images impact_images \
             --out geometry_proof_v3
 
+      - name: Export full calibrated camera matrices
+        run: |
+          python -m freeze_spin.export_calibrated_cameras_v3 \
+            --landmarks freeze_spin/sidy_basket_landmarks_v3.json \
+            --out geometry_proof_v3/calibrated_cameras_v3.json
+
       - name: Export exact visual-state candidates
         run: |
           python freeze_spin/export_visual_state_candidates.py \
             --windows contact_windows \
             --out visual_state_candidates \
             --start 24 --end 32
+
+      - name: Export locked exact visual state
+        run: |
+          python freeze_spin/export_locked_exact_state.py \
+            --windows contact_windows \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --out locked_exact_state
 
       - name: Package strict four-camera proof
         if: always()
@@ -84,9 +100,13 @@ jobs:
           cp source_output/qa.json delivery/source_video_qa.json 2>/dev/null || true
           cp freeze_spin/sidy_basket_landmarks_v3.json delivery/ || true
           cp freeze_spin/solve_nba_geometry_proof_v3.py delivery/ || true
+          cp freeze_spin/export_calibrated_cameras_v3.py delivery/ || true
           cp freeze_spin/export_visual_state_candidates.py delivery/ || true
+          cp freeze_spin/sidy_exact_state_v1.json delivery/ || true
+          cp freeze_spin/export_locked_exact_state.py delivery/ || true
           cp visual_state_candidates/*_sheet.png delivery/ 2>/dev/null || true
           cp visual_state_candidates/visual_state_candidates.json delivery/ 2>/dev/null || true
+          cp locked_exact_state/* delivery/ 2>/dev/null || true
 
       - name: Upload strict proof
         if: always()
