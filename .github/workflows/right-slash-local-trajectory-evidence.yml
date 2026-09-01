@@ -59,17 +59,17 @@ jobs:
             --start 5 --end 32 \
             --reference-frame 28
           test "$(find visual_state_candidates/07_Right_Slash -name 'f*.png' | wc -l)" -eq 28
-          test "$(find visual_state_candidates/06_High_Tight -name 'f*.png' | wc -l)" -eq 28
+          test "$(find visual_state_candidates/05_High_Tight -name 'f*.png' | wc -l)" -eq 28
 
       - name: Package fifth-camera evidence
         run: |
           mkdir -p delivery/right_slash_native delivery/high_tight_native
           cp visual_state_candidates/07_Right_Slash/f*.png delivery/right_slash_native/
-          cp visual_state_candidates/06_High_Tight/f*.png delivery/high_tight_native/
+          cp visual_state_candidates/05_High_Tight/f*.png delivery/high_tight_native/
           cp visual_state_candidates/07_Right_Slash_F5_F32_sheet.png delivery/
           cp visual_state_candidates/07_Right_Slash_F28_reference_sheet.png delivery/
-          cp visual_state_candidates/06_High_Tight_F5_F32_sheet.png delivery/
-          cp visual_state_candidates/06_High_Tight_F28_reference_sheet.png delivery/
+          cp visual_state_candidates/05_High_Tight_F5_F32_sheet.png delivery/
+          cp visual_state_candidates/05_High_Tight_F28_reference_sheet.png delivery/
           cp visual_state_candidates/visual_state_candidates.json delivery/
           cp diagnostics/audio_sync_graph.json delivery/
           cp source_output/qa.json delivery/source_video_qa.json
