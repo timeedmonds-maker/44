@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from freeze_spin import build_small_angle_real_pixel_prototype_v1 as v1
+import build_small_angle_real_pixel_prototype_v1 as v1
 
 WIDTH = 960
 HEIGHT = 540
