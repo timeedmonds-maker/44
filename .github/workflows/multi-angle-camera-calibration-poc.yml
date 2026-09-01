@@ -50,17 +50,42 @@ jobs:
             --windows contact_windows \
             --out kalicalib_input
 
-      - name: Install and patch KaliCalib for CPU inference
+      - name: Install and patch frozen KaliCalib CPU stack
         run: |
           git clone --depth 1 https://github.com/CEA-LIST/KaliCalib.git kalicalib_repo
-          python -m pip install 'torch<2.7' 'torchvision<0.22' --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install 'deepsport-utilities==4.0.9' tqdm yacs 'pytorch-ignite<0.5'
-          # DeepSport 4.0.9's transitive dependencies otherwise upgrade NumPy/OpenCV beyond
-          # the generation this 2022 research stack was tested against.
-          python -m pip install numpy==1.26.4 opencv-python==4.10.0.84 opencv-python-headless==4.10.0.84
+          python -m pip install 'torch==2.6.0+cpu' 'torchvision==0.21.0+cpu' --index-url https://download.pytorch.org/whl/cpu
+          # Do not allow the 2022 DeepSport package to resolve against 2026 numerical
+          # libraries. Install its API package without dependencies, then provide a
+          # Python-3.12-compatible numerical generation explicitly.
+          python -m pip install 'deepsport-utilities==4.0.9' --no-deps
+          python -m pip install \
+            numpy==1.26.4 \
+            scipy==1.12.0 \
+            opencv-python==4.10.0.84 \
+            opencv-python-headless==4.10.0.84 \
+            scikit-image==0.22.0 \
+            tifffile==2024.2.12 \
+            imageio==2.34.0 \
+            matplotlib==3.8.4 \
+            shapely==2.0.4 \
+            m3u8==4.0.0 \
+            calib3d==2.13.0 \
+            mlworkflow==0.6.0 \
+            python-dotenv==1.0.1 \
+            aleatorpy==0.3.0 \
+            tqdm==4.66.5 \
+            yacs==0.1.8 \
+            pytorch-ignite==0.4.13
           python - <<'PY'
           from pathlib import Path
           import site
+          import numpy as np
+          import scipy
+          import cv2
+
+          print('NUMERICAL STACK', np.__version__, scipy.__version__, cv2.__version__)
+          assert np.__version__ == '1.26.4'
+          assert scipy.__version__.startswith('1.12.')
 
           candidates = [Path(site.getusersitepackages()), *map(Path, site.getsitepackages())]
           target = next((p / 'deepsport_utilities' / 'utils.py' for p in candidates if (p / 'deepsport_utilities' / 'utils.py').exists()), None)
@@ -73,7 +98,8 @@ jobs:
               target.write_text(text.replace(old, new), encoding='utf-8')
               print('PATCHED color cycle', target)
           from deepsport_utilities.utils import Subset, SubsetType
-          print('DeepSport API OK', Subset, SubsetType)
+          from scipy.spatial import ConvexHull
+          print('DeepSport + SciPy API OK', Subset, SubsetType, ConvexHull)
 
           evaluator = Path('kalicalib_repo/tools/evaluate_net.py')
           source = evaluator.read_text(encoding='utf-8')
