@@ -10,6 +10,8 @@ on:
       - "freeze_spin/export_visual_state_candidates.py"
       - "freeze_spin/sidy_exact_state_v1.json"
       - "freeze_spin/export_locked_exact_state.py"
+      - "freeze_spin/sidy_foreground_landmarks_v1.json"
+      - "freeze_spin/triangulate_locked_ball_v1.py"
       - ".github/workflows/nba-basket-geometry-proof.yml"
 
 jobs:
@@ -89,6 +91,17 @@ jobs:
             --state freeze_spin/sidy_exact_state_v1.json \
             --out locked_exact_state
 
+      - name: Triangulate locked-state basketball
+        run: |
+          mkdir -p foreground_v1
+          python -m freeze_spin.triangulate_locked_ball_v1 \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --foreground freeze_spin/sidy_foreground_landmarks_v1.json \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --anchor-images impact_images \
+            --locked-images locked_exact_state \
+            --out foreground_v1/ball_triangulation_v1.json
+
       - name: Package strict four-camera proof
         if: always()
         run: |
@@ -104,9 +117,12 @@ jobs:
           cp freeze_spin/export_visual_state_candidates.py delivery/ || true
           cp freeze_spin/sidy_exact_state_v1.json delivery/ || true
           cp freeze_spin/export_locked_exact_state.py delivery/ || true
+          cp freeze_spin/sidy_foreground_landmarks_v1.json delivery/ || true
+          cp freeze_spin/triangulate_locked_ball_v1.py delivery/ || true
           cp visual_state_candidates/*_sheet.png delivery/ 2>/dev/null || true
           cp visual_state_candidates/visual_state_candidates.json delivery/ 2>/dev/null || true
           cp locked_exact_state/* delivery/ 2>/dev/null || true
+          cp foreground_v1/* delivery/ 2>/dev/null || true
 
       - name: Upload strict proof
         if: always()
