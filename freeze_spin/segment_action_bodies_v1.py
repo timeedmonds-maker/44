@@ -41,6 +41,9 @@ def main() -> None:
     ap.add_argument("--score-threshold", type=float, default=0.28)
     ap.add_argument("--mask-threshold", type=float, default=0.42)
     ap.add_argument("--max-box-distance-from-ball", type=float, default=150.0)
+    ap.add_argument("--min-box-height", type=float, default=105.0)
+    ap.add_argument("--min-box-bottom-below-ball", type=float, default=85.0)
+    ap.add_argument("--min-mask-pixels", type=int, default=650)
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -52,12 +55,18 @@ def main() -> None:
     model = maskrcnn_resnet50_fpn_v2(weights=weights, progress=True).eval()
 
     report = {
-        "purpose": "Identity-free foreground support for free-view reconstruction. Segmentation selects body pixels only; metric cameras remain authoritative for 3D.",
+        "purpose": "Identity-free foreground support for free-view reconstruction. Segmentation selects court-body pixels only; metric cameras remain authoritative for 3D.",
         "model": "torchvision MaskRCNN ResNet50 FPN V2 default COCO weights",
         "person_class": 1,
         "score_threshold": args.score_threshold,
         "mask_threshold": args.mask_threshold,
         "max_box_distance_from_ball_px": args.max_box_distance_from_ball,
+        "court_player_gate": {
+            "min_box_height_px": args.min_box_height,
+            "min_box_bottom_below_ball_px": args.min_box_bottom_below_ball,
+            "min_mask_pixels": args.min_mask_pixels,
+            "reason": "At these four validated basket-facing views, action players extend down into the court below the airborne ball; nearby spectator false positives do not. This is geometry/context filtering, not identity matching.",
+        },
         "views": {},
     }
 
@@ -85,29 +94,51 @@ def main() -> None:
                 if int(labels[i]) != 1 or float(scores[i]) < args.score_threshold:
                     continue
                 dist = box_distance_to_point(boxes[i], ball_px)
+                x1, y1, x2, y2 = [float(v) for v in boxes[i]]
+                box_h = y2 - y1
+                binary = (masks[i] >= args.mask_threshold).astype(np.uint8) * 255
+                mask_pixels = int((binary > 0).sum())
                 row = {
                     "det_index": int(i),
                     "score": round(float(scores[i]), 6),
                     "box_xyxy": [round(float(v), 2) for v in boxes[i]],
+                    "box_height_px": round(box_h, 3),
+                    "box_bottom_minus_ball_y_px": round(y2 - float(ball_px[1]), 3),
+                    "mask_pixels": mask_pixels,
                     "box_distance_to_ball_px": round(dist, 3),
                 }
                 all_persons.append(row)
                 if dist > args.max_box_distance_from_ball:
                     continue
-                binary = (masks[i] >= args.mask_threshold).astype(np.uint8) * 255
+                if box_h < args.min_box_height:
+                    continue
+                if y2 < float(ball_px[1]) + args.min_box_bottom_below_ball:
+                    continue
+                if mask_pixels < args.min_mask_pixels:
+                    continue
                 union = cv2.bitwise_or(union, binary)
                 selected.append(row)
 
-            # Preserve thin limbs and close small holes without substantially expanding the silhouettes.
+            # Preserve thin limbs and close small holes without substantially expanding silhouettes.
             kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             union = cv2.morphologyEx(union, cv2.MORPH_CLOSE, kernel_close, iterations=1)
             kernel_dilate = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             union = cv2.dilate(union, kernel_dilate, iterations=1)
 
+            # Drop residual tiny disconnected islands after unioning accepted court-player instances.
+            count, comp, stats, _ = cv2.connectedComponentsWithStats((union > 0).astype(np.uint8), 8)
+            clean = np.zeros_like(union)
+            component_areas = []
+            for ci in range(1, count):
+                area = int(stats[ci, cv2.CC_STAT_AREA])
+                component_areas.append(area)
+                if area >= 500:
+                    clean[comp == ci] = 255
+            union = clean
+
             if int((union > 0).sum()) < 1200:
                 raise RuntimeError(f"Action-body mask too small for {label}: {(union > 0).sum()} px")
 
-            # Warp the selected-frame mask into the accepted F28 metric-camera coordinate system.
             H = np.asarray(ball_views[label]["camera_motion_homography_selected_to_anchor"], dtype=np.float64)
             aligned = cv2.warpPerspective(union, H, (image.shape[1], image.shape[0]), flags=cv2.INTER_NEAREST,
                                           borderMode=cv2.BORDER_CONSTANT, borderValue=0)
@@ -131,6 +162,7 @@ def main() -> None:
                 "all_person_detections": all_persons,
                 "selected_action_persons": selected,
                 "selected_person_count": len(selected),
+                "post_union_component_areas_px": sorted(component_areas, reverse=True),
                 "native_mask_pixels": int((union > 0).sum()),
                 "anchor_mask_pixels": int((aligned > 0).sum()),
                 "native_mask": native_path.name,
