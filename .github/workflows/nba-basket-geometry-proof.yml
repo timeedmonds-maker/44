@@ -16,6 +16,8 @@ on:
       - "freeze_spin/triangulate_semantic_points_v1.py"
       - "freeze_spin/sidy_block_identity_shoulders_v2.json"
       - "freeze_spin/triangulate_block_identity_v2.py"
+      - "freeze_spin/sidy_block_identity_visual_audit_v3.json"
+      - "freeze_spin/validate_block_identity_visual_v3.py"
       - "freeze_spin/build_dynamic_sparse_player_cloud_v1.py"
       - "freeze_spin/validate_dynamic_player_cloud_multiview.py"
       - ".github/workflows/nba-basket-geometry-proof.yml"
@@ -119,7 +121,7 @@ jobs:
             --locked-images locked_exact_state \
             --out foreground_v1/semantic_points
 
-      - name: Lock block-arm identity to distinct shoulders
+      - name: Triangulate candidate block-arm shoulders
         run: |
           mkdir -p foreground_v2
           python -m freeze_spin.triangulate_block_identity_v2 \
@@ -128,6 +130,14 @@ jobs:
             --ball-report foreground_v1/ball_triangulation_v1.json \
             --shoulders freeze_spin/sidy_block_identity_shoulders_v2.json \
             --out foreground_v2/block_identity_v2.json
+
+      - name: Enforce source-pixel shoulder identity gate
+        run: |
+          python -m freeze_spin.validate_block_identity_visual_v3 \
+            --audit freeze_spin/sidy_block_identity_visual_audit_v3.json \
+            --shoulders freeze_spin/sidy_block_identity_shoulders_v2.json \
+            --locked-images locked_exact_state \
+            --out foreground_v2/visual_identity_v3
 
       - name: Build dynamic sparse player cloud
         run: |
@@ -166,6 +176,8 @@ jobs:
           cp freeze_spin/triangulate_semantic_points_v1.py delivery/ || true
           cp freeze_spin/sidy_block_identity_shoulders_v2.json delivery/ || true
           cp freeze_spin/triangulate_block_identity_v2.py delivery/ || true
+          cp freeze_spin/sidy_block_identity_visual_audit_v3.json delivery/ || true
+          cp freeze_spin/validate_block_identity_visual_v3.py delivery/ || true
           cp freeze_spin/build_dynamic_sparse_player_cloud_v1.py delivery/ || true
           cp freeze_spin/validate_dynamic_player_cloud_multiview.py delivery/ || true
           cp visual_state_candidates/*_sheet.png delivery/ 2>/dev/null || true
@@ -175,6 +187,7 @@ jobs:
           cp foreground_v1/semantic_points/* delivery/ 2>/dev/null || true
           cp foreground_v1/player_cloud/* delivery/ 2>/dev/null || true
           cp foreground_v2/* delivery/ 2>/dev/null || true
+          cp foreground_v2/visual_identity_v3/* delivery/ 2>/dev/null || true
 
       - name: Upload strict proof
         if: always()
