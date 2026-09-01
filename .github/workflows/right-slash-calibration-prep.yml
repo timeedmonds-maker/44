@@ -6,21 +6,22 @@ on:
     paths:
       - ".github/workflows/right-slash-calibration-prep.yml"
       - "freeze_spin/export_visual_state_candidates.py"
+      - "freeze_spin/pose_assist_right_slash.py"
       - "freeze_spin/sidy_cissoko_request.json"
       - "freeze_spin/sidy_cissoko_sync_map.json"
 
 jobs:
   export:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install deterministic video runtime
+      - name: Install video and pose-assist runtime
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
-          python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84
+          python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 ultralytics==8.3.0
 
       - name: Retrieve validated official NBA angles
         run: |
@@ -55,10 +56,20 @@ jobs:
             --start 23 --end 32 \
             --reference-frame 28
 
+      - name: Run annotation-only pose assistant
+        run: |
+          python freeze_spin/pose_assist_right_slash.py \
+            --images visual_state_candidates/07_Right_Slash \
+            --out pose_assist/right_slash \
+            --model yolo11n-pose.pt \
+            --conf 0.20
+          test -s pose_assist/right_slash/right_slash_pose_assist.json
+
       - name: Package native Right Slash candidates
         run: |
-          mkdir -p delivery/right_slash_native
+          mkdir -p delivery/right_slash_native delivery/right_slash_pose_assist
           cp visual_state_candidates/07_Right_Slash/f*.png delivery/right_slash_native/
+          cp pose_assist/right_slash/* delivery/right_slash_pose_assist/
           cp visual_state_candidates/07_Right_Slash_F23_F32_sheet.png delivery/
           cp visual_state_candidates/07_Right_Slash_F28_reference_sheet.png delivery/
           cp visual_state_candidates/visual_state_candidates.json delivery/
