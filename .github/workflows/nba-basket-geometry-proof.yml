@@ -1,0 +1,72 @@
+name: NBA basket geometry camera proof
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "freeze_spin/nba_geometry.py"
+      - "freeze_spin/sidy_basket_landmarks.json"
+      - "freeze_spin/solve_nba_geometry_proof.py"
+      - ".github/workflows/nba-basket-geometry-proof.yml"
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic geometry runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+
+      - name: Retrieve all validated native NBA angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 8
+
+      - name: Synchronize and extract impact frames
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/prepare_kalicalib_inputs.py \
+            --windows contact_windows \
+            --out impact_images
+
+      - name: Solve metric cameras from regulation basket geometry
+        run: |
+          python -m freeze_spin.solve_nba_geometry_proof \
+            --landmarks freeze_spin/sidy_basket_landmarks.json \
+            --images impact_images \
+            --out geometry_proof
+
+      - name: Package proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp geometry_proof/* delivery/ 2>/dev/null || true
+          cp impact_images/4.png impact_images/6.png delivery/ 2>/dev/null || true
+          cp impact_images/mapping.json delivery/impact_mapping.json || true
+          cp diagnostics/audio_sync_graph.json delivery/ || true
+          cp freeze_spin/sidy_basket_landmarks.json delivery/ || true
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-nba-basket-geometry-proof-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
