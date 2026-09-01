@@ -5,11 +5,18 @@ import html as htmlmod
 import json
 import re
 import subprocess
+import sys
 import urllib.request
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+# The scanner lives under freeze_spin/, while nba_video_worker.py is repo-root.
+# Add repo root explicitly so GitHub Actions and local invocations behave identically.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import nba_video_worker as w
 
@@ -76,7 +83,6 @@ def make_sheet(frames: list[Path], event: dict, out: Path) -> None:
         cells.append(im)
     if not cells:
         return
-    h, wd = cells[0].shape[:2]
     rows=[]
     for r in range(3):
         row=cells[r*3:(r+1)*3]
