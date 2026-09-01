@@ -1,0 +1,28 @@
+{
+  "frame_geometry": "960x540 impact frames from prepare_kalicalib_inputs.py at current F28 anchor",
+  "purpose": "Deterministic metric-camera proof before automating landmark detection",
+  "views": [
+    {
+      "index": 6,
+      "label": "Left Slash",
+      "image": "6.png",
+      "inner_rect_top_left": [399.0, 146.0],
+      "inner_rect_top_right": [514.0, 146.0],
+      "inner_rect_bottom_right": [514.0, 234.0],
+      "inner_rect_bottom_left": [399.0, 234.0],
+      "rim_left": [386.0, 229.0],
+      "rim_right": [480.0, 229.0]
+    },
+    {
+      "index": 4,
+      "label": "In Arena",
+      "image": "4.png",
+      "inner_rect_top_left": [359.0, 116.0],
+      "inner_rect_top_right": [428.0, 114.0],
+      "inner_rect_bottom_right": [430.0, 170.0],
+      "inner_rect_bottom_left": [352.0, 171.0],
+      "rim_left": [353.0, 166.0],
+      "rim_right": [417.0, 164.0]
+    }
+  ]
+}
