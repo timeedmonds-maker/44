@@ -1,0 +1,23 @@
+{
+  "player": "Steven Adams",
+  "player_id": 203500,
+  "season": "2025-26",
+  "selection": "Multi-angle freeze-spin proof of concept",
+  "expected_count": 1,
+  "events": [
+    {
+      "rank": 1,
+      "game_date": "2026-01-07",
+      "game_id": "0022500527",
+      "event_id": 18,
+      "period": 1,
+      "clock": "10:35.00",
+      "team_home": "POR",
+      "team_away": "HOU",
+      "shooter": "1631321 Sidy Cissoko",
+      "blocker": "203500 Steven Adams",
+      "description": "MISS S. Cissoko driving DUNK - blocked",
+      "video_anchor": "blocked shot event_id"
+    }
+  ]
+}
