@@ -8,11 +8,18 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# Keep the original four calibrated proof cameras first, then export the
+# complementary right-side views as diagnostics for the next body-coverage
+# milestone. Downstream four-camera geometry code keys by label and therefore
+# continues to use only the calibrated views until the new cameras are solved.
 VIEWS = [
     (4, "In Arena", "05_In_Arena_contact.mp4"),
     (6, "Left Slash", "07_Left_Slash_contact.mp4"),
     (8, "Left HandHeld", "09_Left_HandHeld_contact.mp4"),
     (10, "Left Above Rim", "11_Left_Above_Rim_contact.mp4"),
+    (7, "Right Slash", "08_Right_Slash_contact.mp4"),
+    (9, "Right HandHeld", "10_Right_HandHeld_contact.mp4"),
+    (11, "Right Above Rim", "12_Right_Above_Rim_contact.mp4"),
 ]
 
 
@@ -93,6 +100,7 @@ def main() -> None:
             "index": index,
             "label": label,
             "source": filename,
+            "calibration_status": "calibrated" if label in {"In Arena", "Left Slash", "Left HandHeld", "Left Above Rim"} else "diagnostic_unscaled",
             "center_legacy_frame": 28,
             "preferred_reference_candidate": 27,
             "candidates": rows,
@@ -100,8 +108,8 @@ def main() -> None:
         })
 
     payload = {
-        "purpose": "Exact visual-state refinement after strict four-camera metric calibration",
-        "rule": "Choose the same physical basketball state independently per camera; do not assume equal local frame index.",
+        "purpose": "Exact visual-state refinement plus complementary right-side coverage diagnostics after strict four-camera metric calibration",
+        "rule": "Choose the same physical basketball state independently per camera; do not assume equal local frame index. Diagnostic right-side views are not metric cameras until independently calibrated.",
         "candidate_range": [args.start, args.end],
         "candidate_count_per_view": args.end - args.start + 1,
         "views": manifest,
