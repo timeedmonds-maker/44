@@ -8,6 +8,7 @@ on:
       - "freeze_spin/build_small_angle_real_pixel_prototype_v2.py"
       - "freeze_spin/segment_action_bodies_v1.py"
       - "freeze_spin/build_small_angle_body_masked_prototype_v3.py"
+      - "freeze_spin/build_visual_hull_free_view_v4.py"
       - ".github/workflows/small-angle-real-pixel-prototype.yml"
 
 jobs:
@@ -79,28 +80,28 @@ jobs:
             --locked-images locked_exact_state \
             --out foreground_v1/ball_triangulation_v1.json
 
-      - name: Segment action bodies without identity matching
+      - name: Segment court action bodies without identity matching
         run: |
           python freeze_spin/segment_action_bodies_v1.py \
             --locked-images locked_exact_state \
             --ball-report foreground_v1/ball_triangulation_v1.json \
             --out body_masks
 
-      - name: Build dense body-masked 3/5/8-degree prototype
+      - name: Build calibrated identity-free visual hull 0/3/5/8-degree prototype
         run: |
-          python freeze_spin/build_small_angle_body_masked_prototype_v3.py \
+          python freeze_spin/build_visual_hull_free_view_v4.py \
             --cameras geometry_proof_v3/calibrated_cameras_v3.json \
             --locked-images locked_exact_state \
             --ball-report foreground_v1/ball_triangulation_v1.json \
             --masks body_masks \
-            --out body_masked_prototype \
-            --stride 1 --depth-steps 140
+            --out visual_hull_prototype \
+            --voxel-cm 2.5 --min-views 3
 
       - name: Package prototype
         if: always()
         run: |
           mkdir -p delivery
-          cp body_masked_prototype/* delivery/ 2>/dev/null || true
+          cp visual_hull_prototype/* delivery/ 2>/dev/null || true
           cp body_masks/* delivery/ 2>/dev/null || true
           cp locked_exact_state/locked_exact_state_montage.png delivery/ 2>/dev/null || true
           cp foreground_v1/ball_triangulation_v1.json delivery/ 2>/dev/null || true
@@ -111,7 +112,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sidy-body-masked-free-view-${{ github.run_id }}
+          name: sidy-visual-hull-free-view-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
