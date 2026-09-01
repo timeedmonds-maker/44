@@ -7,9 +7,11 @@ on:
       - "freeze_spin/build_small_angle_real_pixel_prototype_v1.py"
       - "freeze_spin/build_small_angle_real_pixel_prototype_v2.py"
       - "freeze_spin/segment_action_bodies_v1.py"
+      - "freeze_spin/segment_reference_instances_v2.py"
       - "freeze_spin/build_small_angle_body_masked_prototype_v3.py"
       - "freeze_spin/build_visual_hull_free_view_v4.py"
       - "freeze_spin/build_dense_depth_sheet_free_view_v5.py"
+      - "freeze_spin/build_layered_body_planes_free_view_v6.py"
       - ".github/workflows/small-angle-real-pixel-prototype.yml"
 
 jobs:
@@ -87,22 +89,27 @@ jobs:
             --locked-images locked_exact_state \
             --ball-report foreground_v1/ball_triangulation_v1.json \
             --out body_masks
+          python freeze_spin/segment_reference_instances_v2.py \
+            --locked-images locked_exact_state \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --out reference_instances
 
-      - name: Build dense real-pixel 0/3/5/8-degree depth-sheet prototype
+      - name: Build stable real-pixel 0/2/3/5/8-degree body-layer prototype
         run: |
-          python freeze_spin/build_dense_depth_sheet_free_view_v5.py \
+          python freeze_spin/build_layered_body_planes_free_view_v6.py \
             --cameras geometry_proof_v3/calibrated_cameras_v3.json \
             --locked-images locked_exact_state \
             --ball-report foreground_v1/ball_triangulation_v1.json \
-            --masks body_masks \
-            --out dense_depth_sheet_prototype \
-            --depth-steps 150
+            --body-masks body_masks \
+            --reference-instances reference_instances \
+            --out layered_body_planes_prototype
 
       - name: Package prototype
         if: always()
         run: |
           mkdir -p delivery
-          cp dense_depth_sheet_prototype/* delivery/ 2>/dev/null || true
+          cp layered_body_planes_prototype/* delivery/ 2>/dev/null || true
+          cp reference_instances/* delivery/ 2>/dev/null || true
           cp body_masks/* delivery/ 2>/dev/null || true
           cp locked_exact_state/*.png delivery/ 2>/dev/null || true
           cp locked_exact_state/locked_exact_state.json delivery/ 2>/dev/null || true
@@ -114,7 +121,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sidy-dense-depth-sheet-free-view-${{ github.run_id }}
+          name: sidy-layered-body-planes-free-view-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
