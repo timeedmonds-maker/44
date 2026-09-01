@@ -78,6 +78,14 @@ jobs:
             --work refined_render_work \
             --out delivery/sidy_cissoko_block_refined_layered_orbit_native.mp4
 
+      - name: Assemble refined full replay
+        run: |
+          python freeze_spin/build_refined_full_replay.py \
+            --windows contact_windows \
+            --orbit delivery/sidy_cissoko_block_refined_layered_orbit_native.mp4 \
+            --work refined_full_work \
+            --out delivery/sidy_cissoko_block_refined_freeze_spin_full_native.mp4
+
       - name: Package QA and diagnostics
         run: |
           cp source_output/qa.json delivery/source_video_qa.json
@@ -95,6 +103,7 @@ jobs:
             sidy_cissoko_block_freeze_spin_poc_native.qa.json \
             sidy_cissoko_block_refined_layered_orbit_native.mp4 \
             sidy_cissoko_block_refined_layered_orbit_native.qa.json \
+            sidy_cissoko_block_refined_freeze_spin_full_native.mp4 \
             source_video_qa.json audio_offsets.json audio_sync_graph.json \
             view_overlap.json sync_map.json
 
