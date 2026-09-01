@@ -1,0 +1,68 @@
+name: Right Slash expanded fixed-geometry scan
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/right-slash-expanded-fixed-geometry-scan.yml"
+      - "freeze_spin/scan_same_game_right_slash_priors.py"
+      - "nba_video_worker.py"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lean native-frame runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Acquire 24 distinct same-game Right Slash clips
+        run: |
+          python freeze_spin/scan_same_game_right_slash_priors.py \
+            --game-id 0022500527 \
+            --count 24 \
+            --event-start 5 \
+            --event-stop 1205 \
+            --event-step 10 \
+            --out right_slash_expanded_scan
+
+      - name: Assert independent event namespaces
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('right_slash_expanded_scan')
+          p = json.loads((root/'same_game_right_slash_prior_scan.json').read_text())
+          good = [e for e in p['events'] if e.get('status') == 'ok']
+          dirs = sorted(root.glob('event_*_frames'))
+          assert len(good) >= 12, f'only {len(good)} successful clips'
+          assert len(dirs) == len(good), (len(dirs), len(good))
+          assert all(len(list(d.glob('f*.png'))) == 9 for d in dirs)
+          print('DISTINCT CLIPS:', len(good))
+          print('NATIVE FRAME SETS:', len(dirs))
+          PY
+
+      - name: Package native fixed-geometry search evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp right_slash_expanded_scan/same_game_right_slash_prior_scan.json delivery/ || true
+          cp right_slash_expanded_scan/event_*_Right_Slash_sheet.png delivery/ || true
+          for d in right_slash_expanded_scan/event_*_frames; do
+            [ -d "$d" ] || continue
+            cp -a "$d" delivery/
+          done
+
+      - name: Upload expanded scan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-right-slash-expanded-fixed-geometry-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
