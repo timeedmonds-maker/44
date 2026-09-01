@@ -33,6 +33,16 @@ def box_distance_to_point(box: np.ndarray, point: np.ndarray) -> float:
     return float(np.hypot(dx, dy))
 
 
+def mask_distance_to_point(binary: np.ndarray, point: np.ndarray) -> float:
+    x = int(np.clip(round(float(point[0])), 0, binary.shape[1] - 1))
+    y = int(np.clip(round(float(point[1])), 0, binary.shape[0] - 1))
+    if binary[y, x] > 0:
+        return 0.0
+    inv = (binary == 0).astype(np.uint8)
+    dist = cv2.distanceTransform(inv, cv2.DIST_L2, 3)
+    return float(dist[y, x])
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--locked-images", type=Path, required=True)
@@ -44,6 +54,7 @@ def main() -> None:
     ap.add_argument("--min-box-height", type=float, default=105.0)
     ap.add_argument("--min-box-bottom-below-ball", type=float, default=85.0)
     ap.add_argument("--min-mask-pixels", type=int, default=650)
+    ap.add_argument("--max-action-instances", type=int, default=3)
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -55,7 +66,7 @@ def main() -> None:
     model = maskrcnn_resnet50_fpn_v2(weights=weights, progress=True).eval()
 
     report = {
-        "purpose": "Identity-free foreground support for free-view reconstruction. Segmentation selects court-body pixels only; metric cameras remain authoritative for 3D.",
+        "purpose": "Identity-free foreground support for free-view reconstruction. Select the compact court-body cluster physically nearest the known ball; metric cameras remain authoritative for 3D.",
         "model": "torchvision MaskRCNN ResNet50 FPN V2 default COCO weights",
         "person_class": 1,
         "score_threshold": args.score_threshold,
@@ -65,7 +76,11 @@ def main() -> None:
             "min_box_height_px": args.min_box_height,
             "min_box_bottom_below_ball_px": args.min_box_bottom_below_ball,
             "min_mask_pixels": args.min_mask_pixels,
-            "reason": "At these four validated basket-facing views, action players extend down into the court below the airborne ball; nearby spectator false positives do not. This is geometry/context filtering, not identity matching.",
+        },
+        "action_cluster_rule": {
+            "max_instances": args.max_action_instances,
+            "ranking": "minimum actual silhouette-pixel distance to known ball, then greater overlap with a 90px ball neighbourhood, then larger mask",
+            "identity_matching": false
         },
         "views": {},
     }
@@ -79,6 +94,8 @@ def main() -> None:
             if label not in ball_views:
                 raise KeyError(f"Ball report missing {label}")
             ball_px = np.asarray(ball_views[label]["observed_ball_selected_px"], dtype=np.float64)
+            circle = np.zeros(image.shape[:2], dtype=np.uint8)
+            cv2.circle(circle, tuple(int(round(v)) for v in ball_px), 90, 1, -1)
 
             rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             out = model([to_tensor(rgb)])[0]
@@ -87,17 +104,18 @@ def main() -> None:
             boxes = out["boxes"].detach().cpu().numpy()
             masks = out["masks"].detach().cpu().numpy()[:, 0]
 
-            union = np.zeros(image.shape[:2], dtype=np.uint8)
-            selected = []
+            candidates = []
             all_persons = []
             for i in range(len(scores)):
                 if int(labels[i]) != 1 or float(scores[i]) < args.score_threshold:
                     continue
-                dist = box_distance_to_point(boxes[i], ball_px)
+                dist_box = box_distance_to_point(boxes[i], ball_px)
                 x1, y1, x2, y2 = [float(v) for v in boxes[i]]
                 box_h = y2 - y1
                 binary = (masks[i] >= args.mask_threshold).astype(np.uint8) * 255
                 mask_pixels = int((binary > 0).sum())
+                dist_mask = mask_distance_to_point(binary, ball_px)
+                overlap90 = int(((binary > 0) & (circle > 0)).sum())
                 row = {
                     "det_index": int(i),
                     "score": round(float(scores[i]), 6),
@@ -105,10 +123,12 @@ def main() -> None:
                     "box_height_px": round(box_h, 3),
                     "box_bottom_minus_ball_y_px": round(y2 - float(ball_px[1]), 3),
                     "mask_pixels": mask_pixels,
-                    "box_distance_to_ball_px": round(dist, 3),
+                    "box_distance_to_ball_px": round(dist_box, 3),
+                    "mask_distance_to_ball_px": round(dist_mask, 3),
+                    "mask_overlap_ball90_px": overlap90,
                 }
                 all_persons.append(row)
-                if dist > args.max_box_distance_from_ball:
+                if dist_box > args.max_box_distance_from_ball:
                     continue
                 if box_h < args.min_box_height:
                     continue
@@ -116,16 +136,23 @@ def main() -> None:
                     continue
                 if mask_pixels < args.min_mask_pixels:
                     continue
+                candidates.append((dist_mask, -overlap90, -mask_pixels, -float(scores[i]), row, binary))
+
+            if len(candidates) < 2:
+                raise RuntimeError(f"Fewer than two defensible court action-body instances for {label}: {len(candidates)}")
+            candidates.sort(key=lambda x: x[:4])
+            chosen = candidates[:args.max_action_instances]
+            union = np.zeros(image.shape[:2], dtype=np.uint8)
+            selected = []
+            for _, _, _, _, row, binary in chosen:
                 union = cv2.bitwise_or(union, binary)
                 selected.append(row)
 
-            # Preserve thin limbs and close small holes without substantially expanding silhouettes.
             kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             union = cv2.morphologyEx(union, cv2.MORPH_CLOSE, kernel_close, iterations=1)
             kernel_dilate = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             union = cv2.dilate(union, kernel_dilate, iterations=1)
 
-            # Drop residual tiny disconnected islands after unioning accepted court-player instances.
             count, comp, stats, _ = cv2.connectedComponentsWithStats((union > 0).astype(np.uint8), 8)
             clean = np.zeros_like(union)
             component_areas = []
@@ -160,6 +187,7 @@ def main() -> None:
                 "image": filename,
                 "observed_ball_selected_px": [round(float(v), 3) for v in ball_px],
                 "all_person_detections": all_persons,
+                "court_action_candidates": [x[4] for x in candidates],
                 "selected_action_persons": selected,
                 "selected_person_count": len(selected),
                 "post_union_component_areas_px": sorted(component_areas, reverse=True),
