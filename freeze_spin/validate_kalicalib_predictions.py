@@ -8,12 +8,16 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from freeze_spin.nba_geometry import (
+    COURT_LENGTH_CM,
+    COURT_WIDTH_CM,
+    RIM_CENTER_X_FAR_CM,
+    RIM_CENTER_X_NEAR_CM,
+    RIM_TOP_HEIGHT_CM,
+)
+
 WIDTH = 960
 HEIGHT = 540
-COURT_LENGTH_CM = 2800.0
-COURT_WIDTH_CM = 1500.0
-BASKET_X_SHIFT_CM = 157.5
-BASKET_HEIGHT_CM = -305.0
 
 
 def safe_name(value: str) -> str:
@@ -21,16 +25,15 @@ def safe_name(value: str) -> str:
 
 
 def field_points() -> np.ndarray:
+    """NBA court sanity grid in KaliCalib's historical -Z-up convention."""
     points = []
-    u = 175.0
-    s = 0.0
-    for _ in range(7):
-        for i in range(13):
-            points.append([i * COURT_LENGTH_CM / 12.0, COURT_WIDTH_CM - s, 0.0])
-        s += u
-        u += 30.0
-    points.append([BASKET_X_SHIFT_CM, COURT_WIDTH_CM / 2.0, BASKET_HEIGHT_CM])
-    points.append([COURT_LENGTH_CM - BASKET_X_SHIFT_CM, COURT_WIDTH_CM / 2.0, BASKET_HEIGHT_CM])
+    # Keep the old diagnostic density, but scale it to the actual NBA floor.
+    bands = np.linspace(0.0, COURT_WIDTH_CM, 7)
+    for y in bands:
+        for x in np.linspace(0.0, COURT_LENGTH_CM, 13):
+            points.append([x, y, 0.0])
+    points.append([RIM_CENTER_X_NEAR_CM, COURT_WIDTH_CM / 2.0, -RIM_TOP_HEIGHT_CM])
+    points.append([RIM_CENTER_X_FAR_CM, COURT_WIDTH_CM / 2.0, -RIM_TOP_HEIGHT_CM])
     return np.asarray(points, dtype=np.float64)
 
 
@@ -123,12 +126,20 @@ def main() -> None:
             if np.isfinite(x) and np.isfinite(y) and -250 <= x < WIDTH + 250 and -250 <= y < HEIGHT + 250:
                 cv2.circle(image, (int(round(x)), int(round(y))), 8, (255, 0, 255), 2, cv2.LINE_AA)
                 cv2.putText(image, f"B{basket_index}", (int(x) + 10, int(y) - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 0, 255), 2, cv2.LINE_AA)
-        cv2.putText(image, f"{label} | {status} | grid={inside_court}", (16, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0) if status == "candidate" else (0, 0, 255), 2, cv2.LINE_AA)
+        cv2.putText(image, f"{label} | {status} | NBA grid={inside_court}", (16, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0) if status == "candidate" else (0, 0, 255), 2, cv2.LINE_AA)
         cv2.imwrite(str(args.out / f"{index:02d}_{safe_name(label)}.png"), image)
 
     payload = {
         "model": "CEA-LIST/KaliCalib model_challenge.pth",
         "image_size": [WIDTH, HEIGHT],
+        "world_geometry": {
+            "standard": "NBA",
+            "court_length_cm": COURT_LENGTH_CM,
+            "court_width_cm": COURT_WIDTH_CM,
+            "near_rim_center_x_cm": RIM_CENTER_X_NEAR_CM,
+            "rim_top_height_cm": RIM_TOP_HEIGHT_CM,
+            "note": "Corrected from the original prototype's FIBA 28m x 15m court model.",
+        },
         "criteria": {
             "min_inside_projected_court_grid_points": 4,
             "intrinsic_abs_focal_px_range": [100, 20000],
