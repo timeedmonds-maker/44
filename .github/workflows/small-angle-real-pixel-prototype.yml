@@ -14,6 +14,7 @@ on:
       - "freeze_spin/build_layered_body_planes_free_view_v6.py"
       - "freeze_spin/infer_moge_reference_v1.py"
       - "freeze_spin/build_moge_depth_free_view_v7.py"
+      - "freeze_spin/build_moge_motion_ball_preview_v8.py"
       - ".github/workflows/small-angle-real-pixel-prototype.yml"
 
 jobs:
@@ -118,7 +119,7 @@ jobs:
             --pretrained Ruicheng/moge-2-vits-normal \
             --num-tokens 1400
 
-      - name: Build MoGe-smoothed real-pixel 0/1/2/3/5/8-degree prototype
+      - name: Build MoGe-smoothed real-pixel still prototype
         run: |
           python freeze_spin/build_moge_depth_free_view_v7.py \
             --cameras geometry_proof_v3/calibrated_cameras_v3.json \
@@ -130,10 +131,26 @@ jobs:
             --out moge_free_view_prototype \
             --max-layers 2
 
+      - name: Build metric-ball 0-to-5-to-0 motion preview
+        run: |
+          python freeze_spin/build_moge_motion_ball_preview_v8.py \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --locked-images locked_exact_state \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --reference-instances reference_instances \
+            --layered-qa layered_body_planes_prototype/layered_body_planes_qa_v6.json \
+            --moge-dir moge_reference \
+            --out moge_motion_preview \
+            --frames 61 --max-degree 5.0
+          ffmpeg -y -framerate 30 -i moge_motion_preview/motion_%03d.png \
+            -vf "scale=3840:2160:flags=lanczos" -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p \
+            moge_motion_preview/sidy_moge_metric_ball_0_to_5_to_0_uhd.mp4
+
       - name: Package prototype
         if: always()
         run: |
           mkdir -p delivery
+          cp moge_motion_preview/* delivery/ 2>/dev/null || true
           cp moge_free_view_prototype/* delivery/ 2>/dev/null || true
           cp moge_reference/*.png delivery/ 2>/dev/null || true
           cp moge_reference/*.json delivery/ 2>/dev/null || true
@@ -150,7 +167,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sidy-moge-real-pixel-free-view-${{ github.run_id }}
+          name: sidy-moge-motion-metric-ball-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
