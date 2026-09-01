@@ -62,7 +62,7 @@ jobs:
             --frames synchronized_frames \
             --out diagnostics/view_overlap.json
 
-      - name: Render native proof of concept
+      - name: Render original Level-C proof of concept
         run: |
           python freeze_spin/build_freeze_spin_poc.py \
             --config freeze_spin/sidy_cissoko_sync_map.json \
@@ -70,6 +70,13 @@ jobs:
             --clips source_output/clips \
             --work render_work \
             --out delivery/sidy_cissoko_block_freeze_spin_poc_native.mp4
+
+      - name: Render refined layered no-warp orbit
+        run: |
+          python freeze_spin/build_refined_layered_orbit.py \
+            --windows contact_windows \
+            --work refined_render_work \
+            --out delivery/sidy_cissoko_block_refined_layered_orbit_native.mp4
 
       - name: Package QA and diagnostics
         run: |
@@ -86,6 +93,8 @@ jobs:
           zip -9 sidy_cissoko_block_freeze_spin_poc_native.zip \
             sidy_cissoko_block_freeze_spin_poc_native.mp4 \
             sidy_cissoko_block_freeze_spin_poc_native.qa.json \
+            sidy_cissoko_block_refined_layered_orbit_native.mp4 \
+            sidy_cissoko_block_refined_layered_orbit_native.qa.json \
             source_video_qa.json audio_offsets.json audio_sync_graph.json \
             view_overlap.json sync_map.json
 
