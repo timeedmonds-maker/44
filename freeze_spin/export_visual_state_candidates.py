@@ -40,8 +40,6 @@ def make_sheet(frames: list[tuple[int, np.ndarray]], label: str) -> np.ndarray:
         raise ValueError("No frames supplied for QA sheet")
     thumb_w, thumb_h = 480, 270
     tile_h = thumb_h + 34
-    # Use up to four columns so candidate windows can expand without a hard-coded
-    # 3x3 / nine-frame assumption. Rows are derived from the requested range.
     cols = min(4, len(frames))
     rows = int(math.ceil(len(frames) / cols))
     sheet = np.zeros((tile_h * rows, thumb_w * cols, 3), dtype=np.uint8)
@@ -61,12 +59,16 @@ def main() -> None:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--start", type=int, default=23)
     ap.add_argument("--end", type=int, default=32)
+    ap.add_argument("--reference-frame", type=int, default=28)
     args = ap.parse_args()
     if args.end < args.start:
         raise SystemExit("--end must be >= --start")
+    if not (args.start <= args.reference_frame <= args.end):
+        raise SystemExit("--reference-frame must lie inside the exported candidate range")
 
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = []
+    calibrated_labels = {"In Arena", "Left Slash", "Left HandHeld", "Left Above Rim"}
     for index, label, filename in VIEWS:
         source = args.windows / filename
         if not source.exists():
@@ -76,6 +78,7 @@ def main() -> None:
             raise RuntimeError(f"Could not open {source}")
         rows = []
         sheet_frames = []
+        reference_image = None
         view_dir = args.out / f"{index:02d}_{safe_name(label)}"
         view_dir.mkdir(parents=True, exist_ok=True)
         try:
@@ -90,19 +93,29 @@ def main() -> None:
                     "image": str(target.relative_to(args.out)),
                 })
                 sheet_frames.append((fi, frame))
+                if fi == args.reference_frame:
+                    reference_image = frame.copy()
         finally:
             cap.release()
         sheet = make_sheet(sheet_frames, label)
         sheet_path = args.out / f"{index:02d}_{safe_name(label)}_F{args.start}_F{args.end}_sheet.png"
         if not cv2.imwrite(str(sheet_path), sheet):
             raise RuntimeError(f"Could not write {sheet_path}")
+        # The packaging workflow already collects *_sheet.png files. Store a
+        # single native-resolution reference as a one-frame QA sheet so camera
+        # calibration can be annotated against the original 960x540 pixels.
+        reference_path = args.out / f"{index:02d}_{safe_name(label)}_F{args.reference_frame}_reference_sheet.png"
+        if reference_image is None or not cv2.imwrite(str(reference_path), reference_image):
+            raise RuntimeError(f"Could not write {reference_path}")
         manifest.append({
             "index": index,
             "label": label,
             "source": filename,
-            "calibration_status": "calibrated" if label in {"In Arena", "Left Slash", "Left HandHeld", "Left Above Rim"} else "diagnostic_unscaled",
+            "calibration_status": "calibrated" if label in calibrated_labels else "diagnostic_unscaled",
             "center_legacy_frame": 28,
             "preferred_reference_candidate": 27,
+            "native_reference_frame": args.reference_frame,
+            "native_reference_image": reference_path.name,
             "candidates": rows,
             "sheet": sheet_path.name,
         })
@@ -112,6 +125,7 @@ def main() -> None:
         "rule": "Choose the same physical basketball state independently per camera; do not assume equal local frame index. Diagnostic right-side views are not metric cameras until independently calibrated.",
         "candidate_range": [args.start, args.end],
         "candidate_count_per_view": args.end - args.start + 1,
+        "native_reference_frame": args.reference_frame,
         "views": manifest,
     }
     (args.out / "visual_state_candidates.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
