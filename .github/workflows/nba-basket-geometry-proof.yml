@@ -1,18 +1,17 @@
-name: NBA basket geometry camera proof
+name: NBA strict four-camera geometry proof V3
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "freeze_spin/nba_geometry.py"
-      - "freeze_spin/sidy_basket_landmarks.json"
-      - "freeze_spin/solve_nba_geometry_proof.py"
+      - "freeze_spin/sidy_basket_landmarks_v3.json"
+      - "freeze_spin/solve_nba_geometry_proof_v3.py"
       - ".github/workflows/nba-basket-geometry-proof.yml"
 
 jobs:
   solve:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -45,28 +44,35 @@ jobs:
             --windows contact_windows \
             --out impact_images
 
-      - name: Solve metric cameras from regulation basket and court geometry
+      - name: Assert four proof cameras are present
         run: |
-          python -m freeze_spin.solve_nba_geometry_proof \
-            --landmarks freeze_spin/sidy_basket_landmarks.json \
-            --images impact_images \
-            --out geometry_proof
+          for i in 4 6 8 10; do
+            test -s "impact_images/${i}.png" || { echo "Missing impact_images/${i}.png"; exit 2; }
+          done
 
-      - name: Package proof
+      - name: Solve strict metric cameras from NBA basket and court geometry
+        run: |
+          python -m freeze_spin.solve_nba_geometry_proof_v3 \
+            --landmarks freeze_spin/sidy_basket_landmarks_v3.json \
+            --images impact_images \
+            --out geometry_proof_v3
+
+      - name: Package strict four-camera proof
         if: always()
         run: |
           mkdir -p delivery
-          cp geometry_proof/* delivery/ 2>/dev/null || true
-          cp impact_images/4.png impact_images/6.png impact_images/10.png delivery/ 2>/dev/null || true
+          cp geometry_proof_v3/* delivery/ 2>/dev/null || true
+          cp impact_images/4.png impact_images/6.png impact_images/8.png impact_images/10.png delivery/ 2>/dev/null || true
           cp impact_images/mapping.json delivery/impact_mapping.json || true
           cp diagnostics/audio_sync_graph.json delivery/ || true
-          cp freeze_spin/sidy_basket_landmarks.json delivery/ || true
+          cp freeze_spin/sidy_basket_landmarks_v3.json delivery/ || true
+          cp freeze_spin/solve_nba_geometry_proof_v3.py delivery/ || true
 
-      - name: Upload proof
+      - name: Upload strict proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sidy-nba-basket-geometry-proof-${{ github.run_id }}
+          name: sidy-nba-strict-four-camera-geometry-v3-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
