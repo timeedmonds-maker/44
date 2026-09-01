@@ -1,0 +1,74 @@
+name: Multi-angle freeze-spin POC
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "freeze_spin/**"
+      - ".github/workflows/multi-angle-freeze-spin-poc.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg zip
+          python -m pip install --upgrade pip
+          python -m pip install numpy opencv-python-headless==4.10.0.84
+
+      - name: Retrieve all validated native angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 8
+
+      - name: Synchronize and diagnose
+        run: |
+          python freeze_spin/estimate_audio_offsets.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_offsets.json
+          python freeze_spin/extract_synced_frames.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out synchronized_frames
+          python freeze_spin/diagnose_view_overlap.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --frames synchronized_frames \
+            --out diagnostics/view_overlap.json
+
+      - name: Render native proof of concept
+        run: |
+          python freeze_spin/build_freeze_spin_poc.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --frames synchronized_frames \
+            --clips source_output/clips \
+            --work render_work \
+            --out delivery/sidy_cissoko_block_freeze_spin_poc_native.mp4
+
+      - name: Package QA and delivery
+        run: |
+          cp source_output/qa.json delivery/source_video_qa.json
+          cp diagnostics/audio_offsets.json delivery/audio_offsets.json
+          cp diagnostics/view_overlap.json delivery/view_overlap.json
+          cp freeze_spin/sidy_cissoko_sync_map.json delivery/sync_map.json
+          cd delivery
+          zip -9 sidy_cissoko_block_freeze_spin_poc_native.zip \
+            sidy_cissoko_block_freeze_spin_poc_native.mp4 \
+            sidy_cissoko_block_freeze_spin_poc_native.qa.json \
+            source_video_qa.json audio_offsets.json view_overlap.json sync_map.json
+
+      - name: Upload proof of concept
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-cissoko-freeze-spin-poc-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
