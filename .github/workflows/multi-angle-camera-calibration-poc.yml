@@ -6,6 +6,7 @@ on:
     paths:
       - "freeze_spin/prepare_kalicalib_inputs.py"
       - "freeze_spin/validate_kalicalib_predictions.py"
+      - "freeze_spin/nba_geometry.py"
       - "freeze_spin/build_plane_sweep_static_test.py"
       - ".github/workflows/multi-angle-camera-calibration-poc.yml"
 
@@ -54,9 +55,6 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/CEA-LIST/KaliCalib.git kalicalib_repo
           python -m pip install 'torch==2.6.0+cpu' 'torchvision==0.21.0+cpu' --index-url https://download.pytorch.org/whl/cpu
-          # Do not allow the 2022 DeepSport package to resolve against 2026 numerical
-          # libraries. Install its API package without dependencies, then provide a
-          # Python-3.12-compatible numerical generation explicitly.
           python -m pip install 'deepsport-utilities==4.0.9' --no-deps
           python -m pip install \
             numpy==1.26.4 \
@@ -123,7 +121,7 @@ jobs:
 
       - name: Validate predicted camera geometry
         run: |
-          python freeze_spin/validate_kalicalib_predictions.py \
+          python -m freeze_spin.validate_kalicalib_predictions \
             --predictions kalicalib_repo/predictions.json \
             --mapping kalicalib_input/mapping.json \
             --images kalicalib_input \
