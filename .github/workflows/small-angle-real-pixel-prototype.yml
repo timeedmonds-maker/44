@@ -12,16 +12,18 @@ on:
       - "freeze_spin/build_visual_hull_free_view_v4.py"
       - "freeze_spin/build_dense_depth_sheet_free_view_v5.py"
       - "freeze_spin/build_layered_body_planes_free_view_v6.py"
+      - "freeze_spin/infer_moge_reference_v1.py"
+      - "freeze_spin/build_moge_depth_free_view_v7.py"
       - ".github/workflows/small-angle-real-pixel-prototype.yml"
 
 jobs:
   prototype:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install geometry and segmentation runtime
+      - name: Install geometry, segmentation and MoGe runtime
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
@@ -30,6 +32,7 @@ jobs:
           import torch, torchvision
           print(torch.__version__, torchvision.__version__)
           PY
+          python -m pip install git+https://github.com/microsoft/MoGe.git
 
       - name: Retrieve official NBA angles
         run: |
@@ -92,9 +95,10 @@ jobs:
           python freeze_spin/segment_reference_instances_v2.py \
             --locked-images locked_exact_state \
             --ball-report foreground_v1/ball_triangulation_v1.json \
+            --max-action-instances 2 \
             --out reference_instances
 
-      - name: Build stable real-pixel 0/2/3/5/8-degree body-layer prototype
+      - name: Build stable two-layer metric baseline
         run: |
           python freeze_spin/build_layered_body_planes_free_view_v6.py \
             --cameras geometry_proof_v3/calibrated_cameras_v3.json \
@@ -104,10 +108,35 @@ jobs:
             --reference-instances reference_instances \
             --out layered_body_planes_prototype
 
+      - name: Infer MoGe-2 smooth reference geometry
+        run: |
+          python freeze_spin/infer_moge_reference_v1.py \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --locked-images locked_exact_state \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --out moge_reference \
+            --pretrained Ruicheng/moge-2-vits-normal \
+            --num-tokens 1400
+
+      - name: Build MoGe-smoothed real-pixel 0/1/2/3/5/8-degree prototype
+        run: |
+          python freeze_spin/build_moge_depth_free_view_v7.py \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --locked-images locked_exact_state \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --reference-instances reference_instances \
+            --layered-qa layered_body_planes_prototype/layered_body_planes_qa_v6.json \
+            --moge-dir moge_reference \
+            --out moge_free_view_prototype \
+            --max-layers 2
+
       - name: Package prototype
         if: always()
         run: |
           mkdir -p delivery
+          cp moge_free_view_prototype/* delivery/ 2>/dev/null || true
+          cp moge_reference/*.png delivery/ 2>/dev/null || true
+          cp moge_reference/*.json delivery/ 2>/dev/null || true
           cp layered_body_planes_prototype/* delivery/ 2>/dev/null || true
           cp reference_instances/* delivery/ 2>/dev/null || true
           cp body_masks/* delivery/ 2>/dev/null || true
@@ -121,7 +150,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sidy-layered-body-planes-free-view-${{ github.run_id }}
+          name: sidy-moge-real-pixel-free-view-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
