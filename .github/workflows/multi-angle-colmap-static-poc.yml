@@ -91,32 +91,63 @@ jobs:
             --SiftMatching.use_gpu 0 \
             --SiftMatching.max_num_matches 32768
 
-      - name: Select strongest nondegenerate cross-feed initialization pair
+      - name: Rank distinct non-planar cross-feed initialization pairs
         run: |
           mkdir -p diagnostics
-          read INIT1 INIT2 <<< "$(python freeze_spin/select_colmap_crossfeed_init.py \
+          python freeze_spin/select_colmap_crossfeed_init.py \
             --database sfm/database.db \
             --mapping temporal_images/mapping.json \
-            --out diagnostics/crossfeed_init.json)"
-          echo "INIT1=$INIT1" >> "$GITHUB_ENV"
-          echo "INIT2=$INIT2" >> "$GITHUB_ENV"
+            --out diagnostics/crossfeed_init.json > diagnostics/selected_pair.txt
           cat diagnostics/crossfeed_init.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('diagnostics/crossfeed_init.json').read_text())
+          with Path('diagnostics/init_candidates.tsv').open('w', encoding='utf-8') as f:
+              for i,c in enumerate(p['top_nonplanar_feed_pairs'][:8],1):
+                  f.write(f"{i}\t{c['image_id1']}\t{c['image_id2']}\t{c['label1']}\t{c['label2']}\t{c['verified_inliers']}\t{c['config_name']}\n")
+          print(Path('diagnostics/init_candidates.tsv').read_text())
+          PY
 
-      - name: Jointly solve physical camera poses and sparse scene
+      - name: Try multiple genuine cross-feed SfM seeds
         run: |
-          mkdir -p sfm/sparse
-          colmap mapper \
-            --database_path sfm/database.db \
-            --image_path temporal_images \
-            --output_path sfm/sparse \
-            --Mapper.min_num_matches 10 \
-            --Mapper.init_image_id1 "$INIT1" \
-            --Mapper.init_image_id2 "$INIT2" \
-            --Mapper.init_min_num_inliers 12 \
-            --Mapper.abs_pose_min_num_inliers 10 \
-            --Mapper.ba_refine_focal_length 1 \
-            --Mapper.ba_refine_principal_point 0 \
-            --Mapper.ba_refine_extra_params 1
+          mkdir -p sfm/sparse sfm/attempts diagnostics/mapper_attempts
+          success=0
+          while IFS=$'\t' read -r idx init1 init2 label1 label2 inliers config_name; do
+            echo "=== attempt $idx: $label1 <-> $label2 | inliers=$inliers | config=$config_name | ids=$init1,$init2 ==="
+            out="sfm/attempts/a${idx}"
+            mkdir -p "$out"
+            set +e
+            colmap mapper \
+              --database_path sfm/database.db \
+              --image_path temporal_images \
+              --output_path "$out" \
+              --Mapper.min_num_matches 10 \
+              --Mapper.init_image_id1 "$init1" \
+              --Mapper.init_image_id2 "$init2" \
+              --Mapper.init_min_num_inliers 12 \
+              --Mapper.abs_pose_min_num_inliers 10 \
+              --Mapper.ba_refine_focal_length 1 \
+              --Mapper.ba_refine_principal_point 0 \
+              --Mapper.ba_refine_extra_params 1 \
+              > "diagnostics/mapper_attempts/a${idx}.log" 2>&1
+            rc=$?
+            set -e
+            model_dir=$(find "$out" -mindepth 1 -maxdepth 1 -type d | head -1 || true)
+            if [ "$rc" -eq 0 ] && [ -n "$model_dir" ] && [ -f "$model_dir/cameras.bin" ] && [ -f "$model_dir/images.bin" ]; then
+              echo "SUCCESS attempt $idx: $label1 <-> $label2" | tee diagnostics/chosen_mapper_seed.txt
+              echo "ids=$init1,$init2 inliers=$inliers config=$config_name" >> diagnostics/chosen_mapper_seed.txt
+              cp -a "$out"/* sfm/sparse/
+              success=1
+              break
+            fi
+            echo "FAILED attempt $idx rc=$rc"
+            tail -25 "diagnostics/mapper_attempts/a${idx}.log" || true
+          done < diagnostics/init_candidates.tsv
+          if [ "$success" -ne 1 ]; then
+            echo "No distinct non-planar cross-feed seed initialized a joint model." | tee diagnostics/chosen_mapper_seed.txt
+            exit 1
+          fi
           find sfm/sparse -maxdepth 2 -type f -print
 
       - name: Convert every recovered model to text
@@ -147,6 +178,9 @@ jobs:
           mkdir -p delivery
           cp diagnostics/audio_sync_graph.json delivery/ || true
           cp diagnostics/crossfeed_init.json delivery/ || true
+          cp diagnostics/init_candidates.tsv delivery/ || true
+          cp diagnostics/chosen_mapper_seed.txt delivery/ || true
+          cp diagnostics/mapper_attempts/*.log delivery/ 2>/dev/null || true
           cp temporal_images/mapping.json delivery/temporal_mapping.json || true
           cp impact_images/mapping.json delivery/impact_mapping.json || true
           cp impact_images/[0-9]*.png delivery/ 2>/dev/null || true
