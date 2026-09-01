@@ -80,7 +80,7 @@ def main() -> None:
         "action_cluster_rule": {
             "max_instances": args.max_action_instances,
             "ranking": "minimum actual silhouette-pixel distance to known ball, then greater overlap with a 90px ball neighbourhood, then larger mask",
-            "identity_matching": false
+            "identity_matching": False
         },
         "views": {},
     }
