@@ -59,6 +59,8 @@ jobs:
           cp diagnostics/audio_offsets.json delivery/audio_offsets.json
           cp diagnostics/view_overlap.json delivery/view_overlap.json
           cp freeze_spin/sidy_cissoko_sync_map.json delivery/sync_map.json
+          mkdir -p delivery/synchronized_frames
+          cp synchronized_frames/*.png synchronized_frames/manifest.json delivery/synchronized_frames/
           cd delivery
           zip -9 sidy_cissoko_block_freeze_spin_poc_native.zip \
             sidy_cissoko_block_freeze_spin_poc_native.mp4 \
