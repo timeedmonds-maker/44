@@ -1,0 +1,83 @@
+name: Multi-angle basketball camera calibration POC
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "freeze_spin/prepare_kalicalib_inputs.py"
+      - ".github/workflows/multi-angle-camera-calibration-poc.yml"
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install NBA video runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg git
+          python -m pip install --upgrade pip
+          python -m pip install numpy opencv-python-headless==4.10.0.84
+
+      - name: Retrieve all validated native angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 8
+
+      - name: Solve global audio synchronization
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+
+      - name: Prepare corrected impact frames
+        run: |
+          python freeze_spin/prepare_kalicalib_inputs.py \
+            --windows contact_windows \
+            --out kalicalib_input
+
+      - name: Install KaliCalib
+        run: |
+          git clone --depth 1 https://github.com/CEA-LIST/KaliCalib.git kalicalib_repo
+          python -m pip install -r kalicalib_repo/requirements.txt
+
+      - name: Run KaliCalib challenge model on NBA impact views
+        run: |
+          mkdir -p kalicalib_repo/CHALLENGE
+          cp kalicalib_input/[0-9]*.png kalicalib_repo/CHALLENGE/
+          cd kalicalib_repo
+          python tools/evaluate_net.py \
+            --config_file configs/eval_challenge.yml \
+            MODEL.DEVICE cpu \
+            DATALOADER.NUM_WORKERS 0
+
+      - name: Package calibration diagnostics
+        if: always()
+        run: |
+          mkdir -p calibration_delivery
+          cp kalicalib_input/mapping.json calibration_delivery/input_mapping.json
+          cp diagnostics/audio_sync_graph.json calibration_delivery/audio_sync_graph.json
+          if [ -f kalicalib_repo/predictions.json ]; then cp kalicalib_repo/predictions.json calibration_delivery/kalicalib_predictions.json; fi
+          if [ -d kalicalib_repo/output/evaluation_images ]; then cp -R kalicalib_repo/output/evaluation_images calibration_delivery/; fi
+          cp kalicalib_input/[0-9]*.png calibration_delivery/
+
+      - name: Upload calibration experiment
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-cissoko-kalicalib-${{ github.run_id }}
+          path: calibration_delivery/
+          retention-days: 14
+          if-no-files-found: error
