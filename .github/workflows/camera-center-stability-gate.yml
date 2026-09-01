@@ -1,0 +1,105 @@
+name: Camera centre stability gate semantics
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/camera-center-stability-gate.yml"
+      - "freeze_spin/audit_camera_center_stability.py"
+
+jobs:
+  semantics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build independent fixed-geometry calibration fixtures
+        run: |
+          mkdir -p diagnostics/fixtures
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('diagnostics/fixtures')
+          centers = ([100.0, -800.0, 620.0], [103.0, -797.0, 621.0], [98.0, -803.0, 618.0])
+          for i, center in enumerate(centers):
+              p = {
+                  'anchor_family': 'fixed_regulation_geometry',
+                  'anchors': ['backboard_target', 'rim', 'court_line'],
+                  'promotion_allowed': True,
+                  'source_rms_px': 2.2 + 0.1 * i,
+                  'camera_center_cm': center,
+              }
+              (root / f'good_{i}.json').write_text(json.dumps(p))
+          bad = {
+              'anchor_family': 'fixed_regulation_geometry',
+              'anchors': ['backboard_target', 'ball'],
+              'promotion_allowed': True,
+              'source_rms_px': 1.0,
+              'camera_center_cm': [100.0, -800.0, 620.0],
+          }
+          (root / 'forbidden_ball.json').write_text(json.dumps(bad))
+          unstable = {
+              'anchor_family': 'fixed_regulation_geometry',
+              'anchors': ['backboard_target', 'rim', 'court_line'],
+              'promotion_allowed': True,
+              'source_rms_px': 2.0,
+              'camera_center_cm': [140.0, -760.0, 660.0],
+          }
+          (root / 'unstable.json').write_text(json.dumps(unstable))
+          PY
+
+      - name: Stable fixed-geometry inputs may authorize only a centre prior
+        run: |
+          python freeze_spin/audit_camera_center_stability.py \
+            diagnostics/fixtures/good_0.json \
+            diagnostics/fixtures/good_1.json \
+            diagnostics/fixtures/good_2.json \
+            --max-center-deviation-cm 10 \
+            --out diagnostics/center_stable.json
+          python - <<'PY'
+          import json
+          p = json.load(open('diagnostics/center_stable.json'))
+          assert p['status'] == 'PASS_CENTER_PRIOR_ONLY'
+          assert p['center_prior_allowed'] is True
+          assert p['promotion_allowed'] is False
+          PY
+
+      - name: Player or ball anchors fail closed
+        run: |
+          python freeze_spin/audit_camera_center_stability.py \
+            diagnostics/fixtures/good_0.json \
+            diagnostics/fixtures/good_1.json \
+            diagnostics/fixtures/forbidden_ball.json \
+            --max-center-deviation-cm 10 \
+            --out diagnostics/center_forbidden.json
+          python - <<'PY'
+          import json
+          p = json.load(open('diagnostics/center_forbidden.json'))
+          assert p['status'] == 'FAIL_INSUFFICIENT_INDEPENDENT_FIXED_GEOMETRY_CALIBRATIONS'
+          assert p['center_prior_allowed'] is False
+          assert p['promotion_allowed'] is False
+          PY
+
+      - name: Geometrically inconsistent centres fail closed
+        run: |
+          python freeze_spin/audit_camera_center_stability.py \
+            diagnostics/fixtures/good_0.json \
+            diagnostics/fixtures/good_1.json \
+            diagnostics/fixtures/unstable.json \
+            --max-center-deviation-cm 10 \
+            --out diagnostics/center_unstable.json
+          python - <<'PY'
+          import json
+          p = json.load(open('diagnostics/center_unstable.json'))
+          assert p['status'] == 'FAIL_CENTER_UNSTABLE'
+          assert p['center_prior_allowed'] is False
+          assert p['promotion_allowed'] is False
+          PY
+
+      - name: Upload gate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: camera-centre-stability-gate-${{ github.run_id }}
+          path: diagnostics/center_*.json
+          if-no-files-found: error
+          retention-days: 14
