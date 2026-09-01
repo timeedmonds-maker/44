@@ -7,6 +7,8 @@ on:
       - ".github/workflows/right-slash-calibration-prep.yml"
       - "freeze_spin/export_visual_state_candidates.py"
       - "freeze_spin/pose_assist_right_slash.py"
+      - "freeze_spin/sidy_right_above_rim_fixed_geometry_v1.json"
+      - "freeze_spin/solve_right_above_rim_fixed_geometry_v1.py"
       - "freeze_spin/sidy_cissoko_request.json"
       - "freeze_spin/sidy_cissoko_sync_map.json"
 
@@ -17,11 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install video and pose-assist runtime
+      - name: Install video, geometry and pose-assist runtime
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
-          python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 ultralytics==8.3.0
+          python -m pip install numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 ultralytics==8.3.0
 
       - name: Retrieve validated official NBA angles
         run: |
@@ -56,6 +58,15 @@ jobs:
             --start 5 --end 32 \
             --reference-frame 28
 
+      - name: Solve independent Right Above Rim fixed geometry
+        run: |
+          python freeze_spin/solve_right_above_rim_fixed_geometry_v1.py \
+            --observations freeze_spin/sidy_right_above_rim_fixed_geometry_v1.json \
+            --image visual_state_candidates/11_Right_Above_Rim/f028.png \
+            --out right_above_rim_geometry
+          test -s right_above_rim_geometry/right_above_rim_fixed_geometry_v1.json
+          test -s right_above_rim_geometry/right_above_rim_fixed_geometry_overlay_v1.png
+
       - name: Run annotation-only pose assistant on Right Slash
         run: |
           python freeze_spin/pose_assist_right_slash.py \
@@ -71,12 +82,14 @@ jobs:
             delivery/right_slash_native \
             delivery/right_handheld_native \
             delivery/right_above_rim_native \
-            delivery/right_slash_pose_assist
+            delivery/right_slash_pose_assist \
+            delivery/right_above_rim_geometry
 
           cp visual_state_candidates/07_Right_Slash/f*.png delivery/right_slash_native/
           cp visual_state_candidates/09_Right_HandHeld/f*.png delivery/right_handheld_native/
           cp visual_state_candidates/11_Right_Above_Rim/f*.png delivery/right_above_rim_native/
           cp pose_assist/right_slash/* delivery/right_slash_pose_assist/
+          cp right_above_rim_geometry/* delivery/right_above_rim_geometry/
 
           cp visual_state_candidates/07_Right_Slash_F5_F32_sheet.png delivery/
           cp visual_state_candidates/09_Right_HandHeld_F5_F32_sheet.png delivery/
@@ -87,6 +100,8 @@ jobs:
           cp visual_state_candidates/visual_state_candidates.json delivery/
           cp diagnostics/audio_sync_graph.json delivery/
           cp source_output/qa.json delivery/source_video_qa.json
+          cp freeze_spin/sidy_right_above_rim_fixed_geometry_v1.json delivery/
+          cp freeze_spin/solve_right_above_rim_fixed_geometry_v1.py delivery/
 
           for d in right_slash_native right_handheld_native right_above_rim_native; do
             test "$(find "delivery/${d}" -name 'f*.png' | wc -l)" -eq 28 || {
@@ -96,9 +111,22 @@ jobs:
           done
 
       - name: Upload right-side identity calibration prep
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sidy-right-side-identity-calibration-prep-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
+
+      - name: Enforce strict Right Above Rim metric promotion gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('right_above_rim_geometry/right_above_rim_fixed_geometry_v1.json').read_text())
+          print(json.dumps(p['qa'], indent=2))
+          print(json.dumps(p['gate'], indent=2))
+          if not p['gate']['pass']:
+              raise SystemExit('Right Above Rim remains diagnostic_unscaled; strict metric promotion gate did not pass.')
+          PY
