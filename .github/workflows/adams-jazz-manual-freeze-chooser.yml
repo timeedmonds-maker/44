@@ -22,49 +22,79 @@ jobs:
         run: |
           FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
             --request freeze_spin/adams_jazz_dunk_request.json --out jazz_dunk_source --workers 8
-      - name: Export Right Slash manual chooser
+      - name: Export full one-second Right Slash manual chooser
         run: |
           mkdir -p manual_freeze_chooser
           python - <<'PY'
           import cv2, json
+          import numpy as np
           from pathlib import Path
 
           clips=list(Path('jazz_dunk_source/clips').glob('*_489_Right_Slash_SOURCE.mp4'))
           if len(clips)!=1: raise RuntimeError(f'Expected one Right Slash clip, got {clips}')
           p=clips[0]
-          # Fresh v21 audio impact maps to Right Slash local ~9.61122 s.
-          # Give the user a dense pre-impact sequence wide enough to cover the ball apex.
-          times=[9.210,9.243,9.276,9.309,9.342,9.375,9.408,9.441,9.474,9.507,9.540,9.573]
-          labels=list('ABCDEFGHIJKL')
+
+          fps=29.97003
+          end_time=9.210000
+          # Exactly 31 consecutive source-time samples ending at the old A frame.
+          # 30 intervals at 29.97003 fps = 1.001 seconds.
+          times=[end_time-(30-i)/fps for i in range(31)]
+          labels=list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')+['AA','AB','AC','AD','AE']
+          assert len(labels)==len(times)==31
+
           cap=cv2.VideoCapture(str(p))
-          rows=[]; thumbs=[]
+          rows=[]; previews=[]
           for lab,t in zip(labels,times):
-              cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0)
+              cap.set(cv2.CAP_PROP_POS_MSEC,float(t)*1000.0)
               ok,im=cap.read()
-              if not ok: raise RuntimeError(f'Could not decode {lab} at {t}')
+              if not ok: raise RuntimeError(f'Could not decode {lab} at {t:.6f}')
               if im.shape[:2]!=(540,960): raise RuntimeError(f'Unexpected native shape {im.shape}')
-              out=Path('manual_freeze_chooser')/f'{lab}_{t:.3f}s.png'
+              fi=int(round(cap.get(cv2.CAP_PROP_POS_FRAMES)-1))
+              out=Path('manual_freeze_chooser')/f'{lab}_{t:.6f}s_frame{fi:04d}.png'
               cv2.imwrite(str(out),im)
-              show=im.copy()
-              cv2.rectangle(show,(0,0),(960,64),(0,0,0),-1)
-              cv2.putText(show,f'{lab}   Right Slash   {t:.3f}s',(18,43),cv2.FONT_HERSHEY_SIMPLEX,1.05,(255,255,255),2,cv2.LINE_AA)
-              thumbs.append(show)
-              rows.append({'option':lab,'right_slash_local_time':t,'file':out.name})
+
+              # Phone-friendly preview tile at half native resolution.
+              show=cv2.resize(im,(480,270),interpolation=cv2.INTER_AREA)
+              cv2.rectangle(show,(0,0),(480,42),(0,0,0),-1)
+              cv2.putText(show,f'{lab}   {t:.3f}s   f{fi}',(10,29),cv2.FONT_HERSHEY_SIMPLEX,.70,(255,255,255),2,cv2.LINE_AA)
+              previews.append(show)
+              rows.append({'option':lab,'right_slash_local_time':round(float(t),6),'decoded_frame_index':fi,'file':out.name})
           cap.release()
-          # 3 x 4 contact sheet, still native pixels within each tile.
-          sheet=cv2.vconcat([cv2.hconcat(thumbs[i:i+3]) for i in range(0,12,3)])
-          cv2.imwrite('manual_freeze_chooser/Jazz_Dunk_Manual_Freeze_Chooser_A-L.png',sheet)
+
+          # Two readable sheets rather than one enormous 31-tile image.
+          def sheet(items, cols=4):
+              blank=np.zeros_like(items[0])
+              padded=list(items)
+              while len(padded)%cols: padded.append(blank.copy())
+              return cv2.vconcat([cv2.hconcat(padded[i:i+cols]) for i in range(0,len(padded),cols)])
+
+          cv2.imwrite('manual_freeze_chooser/Jazz_Dunk_Chooser_A-P.png',sheet(previews[:16],4))
+          cv2.imwrite('manual_freeze_chooser/Jazz_Dunk_Chooser_Q-AE.png',sheet(previews[16:],4))
+
+          # Also make a small deterministic reference MP4 that plays A -> AE at 3 fps.
+          writer=cv2.VideoWriter('manual_freeze_chooser/Jazz_Dunk_Chooser_A-AE.mp4',cv2.VideoWriter_fourcc(*'mp4v'),3.0,(960,540))
+          cap=cv2.VideoCapture(str(p))
+          for lab,t in zip(labels,times):
+              cap.set(cv2.CAP_PROP_POS_MSEC,float(t)*1000.0); ok,im=cap.read()
+              if not ok: raise RuntimeError(f'Could not re-decode {lab}')
+              cv2.rectangle(im,(0,0),(960,58),(0,0,0),-1)
+              cv2.putText(im,f'OPTION {lab}   {t:.3f}s',(18,39),cv2.FONT_HERSHEY_SIMPLEX,1.0,(255,255,255),2,cv2.LINE_AA)
+              writer.write(im)
+          cap.release(); writer.release()
+
           Path('manual_freeze_chooser/options.json').write_text(json.dumps({
               'event':{'game_id':'0022500301','event_id':489},
-              'camera':'Right Slash','impact_local_approx':9.61122,
-              'instruction':'User selects one letter. That exact Right Slash frame becomes the authoritative frozen player/ball state.',
+              'camera':'Right Slash',
+              'range':{'first_time':round(times[0],6),'last_time':round(times[-1],6),'span_seconds':round(times[-1]-times[0],6),'fps':fps},
+              'instruction':'User selects one option A-AE. That exact real Right Slash frame becomes the authoritative frozen player/ball state. No automatic apex selector is used.',
               'options':rows
           },indent=2))
+          print('OPTIONS',len(rows),'FIRST',rows[0],'LAST',rows[-1])
           PY
       - name: Upload chooser
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-manual-freeze-chooser-${{ github.run_id }}
+          name: adams-jazz-manual-freeze-chooser-extended-${{ github.run_id }}
           path: manual_freeze_chooser/
           retention-days: 14
           if-no-files-found: error
