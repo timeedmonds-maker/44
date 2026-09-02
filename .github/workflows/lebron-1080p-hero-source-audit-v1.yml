@@ -1,0 +1,93 @@
+name: LeBron 1080p hero source audit v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/lebron_1080p_hero_request.json'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+      - '.github/workflows/lebron-1080p-hero-source-audit-v1.yml'
+
+jobs:
+  audit-hero-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native-video runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Retrieve every official angle at highest native HLS rendition
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/lebron_1080p_hero_request.json \
+            --out hero_source --workers 8
+      - name: Audit resolution inventory and hero eligibility
+        run: |
+          python - <<'PY'
+          import json
+          from collections import Counter
+          q=json.load(open('hero_source/qa.json'))
+          clips=[c for c in q['clips'] if c['status']=='ok']
+          assert clips, 'No valid official clips'
+          rows=[]
+          for c in clips:
+              p=c['probe']
+              rows.append({
+                  'label':c['label'],
+                  'width':p['width'],
+                  'height':p['height'],
+                  'fps':p['avg_frame_rate'],
+                  'bit_rate':p['bit_rate'],
+                  'duration':p['duration'],
+                  'sha256':p['sha256'],
+                  'source_path':c['source_path'],
+              })
+          rows.sort(key=lambda x:(x['height'],x['width'],x['bit_rate'] or 0), reverse=True)
+          native_1080=[r for r in rows if r['height']>=1080 and r['width']>=1920]
+          inv=Counter((r['width'],r['height']) for r in rows)
+          report={
+              'schema_version':1,
+              'game_id':'0022501185',
+              'event_id':95,
+              'play':'LeBron James running dunk, assisted by Luke Kennard — Q1 4:53',
+              'source_policy':'highest native official NBA HLS rendition per angle; no scaling or re-encode',
+              'cross_resolution_guardrail':'This event may be used as 1080p hero/showcase footage, but it cannot replace lower-resolution validation. Core reconstruction must independently pass the 960x540 Adams/Jazz event.',
+              'angle_count':len(rows),
+              'resolution_inventory':[{'width':w,'height':h,'count':n} for (w,h),n in sorted(inv.items())],
+              'native_1080_angle_count':len(native_1080),
+              'hero_eligible':bool(native_1080),
+              'highest_native_angles':rows,
+          }
+          json.dump(report,open('hero_source/hero_source_audit_v1.json','w'),indent=2)
+          print(json.dumps(report,indent=2))
+          assert native_1080, 'User-supplied event did not expose a native 1920x1080 official angle in this fresh retrieval'
+          PY
+      - name: Build native 1080p-only hero source reel
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          q=json.load(open('hero_source/hero_source_audit_v1.json'))
+          clips=[r for r in q['highest_native_angles'] if r['height']>=1080 and r['width']>=1920]
+          p=pathlib.Path('hero_source/hero_1080_concat.txt')
+          p.write_text('\n'.join("file '"+str(pathlib.Path(r['source_path']).resolve()).replace("'","'\\''")+"'" for r in clips)+'\n')
+          subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-f','concat','-safe','0','-i',str(p),'-c','copy','-movflags','+faststart','hero_source/LEBRON_EVENT95_ALL_NATIVE_1080_ANGLES_SOURCE.mp4'],check=True)
+          PY
+      - name: Package source audit
+        run: |
+          mkdir -p delivery
+          cp hero_source/qa.json delivery/
+          cp hero_source/hero_source_audit_v1.json delivery/
+          cp hero_source/LEBRON_EVENT95_ALL_NATIVE_1080_ANGLES_SOURCE.mp4 delivery/
+          cp hero_source/clips/*_SOURCE.mp4 delivery/
+      - name: Upload hero audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: lebron-event95-native-source-audit-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
