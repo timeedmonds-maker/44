@@ -1,0 +1,80 @@
+name: Adams Jazz dunk impact freeze refinement v2
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/refine_jazz_predunk_audio_impact_v2.py'
+      - '.github/workflows/adams-jazz-audio-impact-v2.yml'
+  workflow_dispatch:
+
+jobs:
+  refine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install lightweight audio runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 requests
+      - name: Retrieve all native angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source --workers 8
+      - name: Build provisional sync config and audio graph
+        run: |
+          mkdir -p jazz_audio_v2
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('jazz_dunk_source/clips').glob('*_489_*_SOURCE.mp4')):
+              m=re.search(r'_489_(.+)_SOURCE\.mp4$',p.name)
+              if not m: continue
+              label=m.group(1).replace('_',' ')
+              rows.append({'label':label,'file':p.name,'freeze_time':9.57658})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 angles, found {len(rows)}')
+          cfg={'event':{'game_id':'0022500301','event_id':489},'source_fps':29.97003,'synchronization':'provisional reference for audio impact refinement','reference_angle':'Left Above Rim','angles':rows}
+          Path('jazz_audio_v2/sync_config.json').write_text(json.dumps(cfg,indent=2))
+          PY
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_audio_v2/sync_config.json \
+            --clips jazz_dunk_source/clips \
+            --reference 'Left Above Rim' --max-lag-seconds 2.0 \
+            --out jazz_audio_v2/audio_sync_graph.json
+      - name: Find synchronized dunk-impact transient and place freeze before it
+        run: |
+          python freeze_spin/refine_jazz_predunk_audio_impact_v2.py \
+            --clips jazz_dunk_source/clips \
+            --sync jazz_audio_v2/audio_sync_graph.json \
+            --config jazz_audio_v2/sync_config.json \
+            --pre-impact-seconds 0.12 \
+            --out jazz_audio_v2/predunk_audio_refinement_v2.json
+      - name: Export reference-frame candidates around recommended freeze
+        run: |
+          mkdir -p jazz_audio_v2/candidates
+          python - <<'PY'
+          import cv2,json
+          from pathlib import Path
+          cfg=json.load(open('jazz_audio_v2/sync_config.json'))
+          q=json.load(open('jazz_audio_v2/predunk_audio_refinement_v2.json'))
+          p=Path('jazz_dunk_source/clips')/next(r['file'] for r in cfg['angles'] if r['label']=='Left Above Rim')
+          t=float(q['recommended_predunk_reference_time'])
+          rows=[]
+          for dt in (-0.08,-0.04,0.0,0.04,0.08):
+              tt=t+dt; cap=cv2.VideoCapture(str(p)); cap.set(cv2.CAP_PROP_POS_MSEC,tt*1000); ok,im=cap.read(); cap.release()
+              if not ok: raise RuntimeError(tt)
+              out=Path('jazz_audio_v2/candidates')/f'predunk_{dt:+.2f}s.png'; cv2.imwrite(str(out),im)
+              rows.append({'offset_seconds':dt,'time':tt,'file':out.name})
+          Path('jazz_audio_v2/candidates/candidates.json').write_text(json.dumps(rows,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-audio-impact-v2-${{ github.run_id }}
+          path: jazz_audio_v2/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
