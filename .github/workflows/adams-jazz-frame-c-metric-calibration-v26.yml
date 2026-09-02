@@ -1,0 +1,109 @@
+name: Adams Jazz locked Frame C metric calibration v26
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json'
+      - 'freeze_spin/prepare_locked_frame_c_sources.py'
+      - 'freeze_spin/solve_nba_geometry_proof_v3.py'
+      - '.github/workflows/adams-jazz-frame-c-metric-calibration-v26.yml'
+
+jobs:
+  frame-c-metric-calibration-v26:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic geometry runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve and real-media QA all 12 official angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out jazz_dunk_source --workers 8
+
+      - name: Map immutable Right Slash Frame C to current camera timelines
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips jazz_dunk_source/clips --out frame_c_v26
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_v26/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          rows={r['camera']:r for r in q['options']}
+          assert rows['Left HandHeld']['file']=='I_Left_HandHeld_8.875603s_frame0266.png'
+          assert rows['Left Above Rim']['file']=='K_Left_Above_Rim_8.653093s_frame0259.png'
+          print('FRAME_C_LOCK', lock)
+          print('LEFT_HANDHELD', rows['Left HandHeld'])
+          print('LEFT_ABOVE_RIM', rows['Left Above Rim'])
+          PY
+
+      - name: Solve regulation NBA metric cameras
+        run: |
+          python freeze_spin/solve_nba_geometry_proof_v3.py \
+            --landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --images frame_c_v26/frames \
+            --out frame_c_metric_v26
+
+      - name: Enforce metric calibration gates and compute physical angular baseline
+        run: |
+          python - <<'PY'
+          import json, math, numpy as np
+          q=json.load(open('frame_c_metric_v26/nba_geometry_proof_v3.json'))
+          assert q['gate']['pass'] is True
+          assert q['passed_view_count']>=2
+          assert q['minimum_pairwise_camera_baseline_cm']>=250.0
+          rows={r['label']:r for r in q['views'] if r['passed']}
+          assert 'Left HandHeld' in rows and 'Left Above Rim' in rows
+          for label in ('Left HandHeld','Left Above Rim'):
+            r=rows[label]
+            assert r['landmark_rmse_px']<=3.0
+            assert r['max_half_pixel_camera_center_shift_cm']<=75.0
+            print('METRIC_CAMERA',label,r)
+          C0=np.asarray(rows['Left HandHeld']['camera_center_cm'],float)
+          C1=np.asarray(rows['Left Above Rim']['camera_center_cm'],float)
+          # Regulation rim centre in the exact world system used by the solver.
+          pivot=np.asarray([38.1,0.0,304.8],float)
+          a=C0-pivot; b=C1-pivot
+          ang=math.degrees(math.acos(float(np.clip(np.dot(a,b)/(np.linalg.norm(a)*np.linalg.norm(b)),-1,1))))
+          baseline=float(np.linalg.norm(C1-C0))
+          proof={'reference':'Left HandHeld','target':'Left Above Rim','camera_center_baseline_cm':baseline,
+                 'angular_baseline_about_regulation_rim_center_deg':ang,
+                 'policy':'calibration proof only; no rendering unless metric geometry passes'}
+          open('frame_c_metric_v26/frame_c_metric_baseline_v26.json','w').write(json.dumps(proof,indent=2))
+          print('BASELINE_PROOF',proof)
+          assert ang>=3.0
+          PY
+
+      - name: Package calibration overlays and exact source frames
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp frame_c_metric_v26/*.json delivery/ 2>/dev/null || true
+          cp frame_c_metric_v26/*.png delivery/ 2>/dev/null || true
+          cp frame_c_v26/options.json delivery/frame_c_synchronized_options.json 2>/dev/null || true
+          cp frame_c_v26/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
+          cp frame_c_v26/frames/I_Left_HandHeld_*.png delivery/ 2>/dev/null || true
+          cp frame_c_v26/frames/K_Left_Above_Rim_*.png delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json delivery/ 2>/dev/null || true
+          (cd delivery && zip -q adams_jazz_frame_c_metric_calibration_v26.zip ./* || true)
+
+      - name: Upload Frame C metric calibration proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-metric-calibration-v26-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
