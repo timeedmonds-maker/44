@@ -1,0 +1,97 @@
+name: Adams Jazz epipolar pose diagnostic v17
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/diagnose_epipolar_pnp_consistency_v17.py'
+      - '.github/workflows/adams-jazz-epipolar-pose-diagnostic-v17.yml'
+  workflow_dispatch:
+
+jobs:
+  epipolar-pose-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install geometry runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve accepted-apex locked frames from v16
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-reciprocal-camera-freeview-v16-33590681203
+          path: v16_artifact
+          github-token: ${{ github.token }}
+          run-id: 33590681203
+
+      - name: Verify native accepted-apex inputs
+        run: |
+          python - <<'PY'
+          import cv2
+          from pathlib import Path
+          labels=['In_Arena','Broadcast','Other_Broadcast','Right_Above_Rim']
+          for label in labels:
+              p=Path('v16_artifact')/f'{label}_apex.png'
+              im=cv2.imread(str(p))
+              if im is None: raise SystemExit(f'Missing {p}')
+              if im.shape[:2] != (540,960): raise SystemExit(f'Not native 960x540: {p} {im.shape}')
+              print('INPUT_OK',p,im.shape)
+          PY
+
+      - name: Run pose-only epipolar versus PnP diagnostic
+        run: |
+          python freeze_spin/diagnose_epipolar_pnp_consistency_v17.py \
+            --locked-dir v16_artifact \
+            --out jazz_epipolar_v17 \
+            --reference 'In Arena' \
+            --targets 'Broadcast' 'Other Broadcast' 'Right Above Rim' \
+            --tokens 1600
+
+      - name: Enforce positive control and print decision
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('jazz_epipolar_v17/epipolar_pnp_consistency_v17.json'))
+          b=q['results']['Broadcast']
+          o=q['results']['Other Broadcast']
+          r=q['results']['Right Above Rim']
+          print('BROADCAST_POSITIVE_CONTROL',json.dumps(b,indent=2))
+          print('OTHER_BROADCAST_POSE',json.dumps(o,indent=2))
+          print('RIGHT_ABOVE_RIM_POSE',json.dumps(r,indent=2))
+          if not b.get('passed'):
+              raise SystemExit('Positive-control Broadcast pose failed; v17 diagnostic is not trustworthy')
+          print('RAR_POSE_SUPPORTED',bool(r.get('passed')))
+          print('OTHER_BROADCAST_POSE_SUPPORTED',bool(o.get('passed')))
+          if r.get('passed'):
+              print('NEXT_DECISION','Keep Right Above Rim pose candidate; replace its independent monocular depth representation before any fusion.')
+          else:
+              print('NEXT_DECISION','Do not use Right Above Rim pose/cloud; improve wide-baseline correspondence/pose solve before reconstruction.')
+          PY
+
+      - name: Package diagnostic
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp jazz_epipolar_v17/epipolar_pnp_consistency_v17.json delivery/ 2>/dev/null || true
+          cp v16_artifact/In_Arena_apex.png delivery/ 2>/dev/null || true
+          cp v16_artifact/Broadcast_apex.png delivery/ 2>/dev/null || true
+          cp v16_artifact/Other_Broadcast_apex.png delivery/ 2>/dev/null || true
+          cp v16_artifact/Right_Above_Rim_apex.png delivery/ 2>/dev/null || true
+
+      - name: Upload pose diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-epipolar-pose-v17-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
