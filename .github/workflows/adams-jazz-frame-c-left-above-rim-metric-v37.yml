@@ -53,7 +53,7 @@ jobs:
           test "$(find target_clip_samples -name 'Left_Above_Rim_target_event__*.png' | wc -l)" -ge 10
       - name: Prove exact Frame C metric event camera v37
         run: |
-          python freeze_spin/run_v37_jsonsafe.py \
+          PYTHONPATH="$GITHUB_WORKSPACE" python freeze_spin/run_v37_jsonsafe.py \
             --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
             --samples target_clip_samples \
             --sample-manifest target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json \
