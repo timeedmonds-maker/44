@@ -8,7 +8,13 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from select_jazz_ball_apex_v1 import orange_components, nearest_rim, build_gap_tolerant_track, robust_quadratic_apex
+from select_jazz_ball_apex_v1 import (
+    orange_components,
+    nearest_rim,
+    dedupe_candidates,
+    build_gap_tolerant_track,
+    robust_quadratic_apex,
+)
 
 
 def label_from_name(path: Path) -> str:
@@ -32,11 +38,16 @@ def scan_view(path: Path, impact_local: float, fps: float) -> tuple[list[dict], 
         rim=nearest_rim(rims,frame.shape[1],frame.shape[0])
         if rim is None:
             continue
+        # build_gap_tolerant_track expects the normalized candidate schema used by
+        # the v1 detector fusion path, including detector_score/source. For this
+        # lightweight multiview pass we intentionally use color-only candidates,
+        # but normalize them through the same helper rather than weakening gates.
+        candidates=dedupe_candidates(compact, [])
         rows.append({
             "frame_index":i,
             "time":float(t),
             "rim":rim,
-            "candidates":compact,
+            "candidates":candidates,
         })
     cap.release()
     if len(rows)<10:
