@@ -1,0 +1,71 @@
+name: Adams Jazz manual freeze chooser
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-manual-freeze-chooser.yml'
+
+jobs:
+  chooser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg and OpenCV
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve all official Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out jazz_dunk_source --workers 8
+      - name: Export Right Slash manual chooser
+        run: |
+          mkdir -p manual_freeze_chooser
+          python - <<'PY'
+          import cv2, json
+          from pathlib import Path
+
+          clips=list(Path('jazz_dunk_source/clips').glob('*_489_Right_Slash_SOURCE.mp4'))
+          if len(clips)!=1: raise RuntimeError(f'Expected one Right Slash clip, got {clips}')
+          p=clips[0]
+          # Fresh v21 audio impact maps to Right Slash local ~9.61122 s.
+          # Give the user a dense pre-impact sequence wide enough to cover the ball apex.
+          times=[9.210,9.243,9.276,9.309,9.342,9.375,9.408,9.441,9.474,9.507,9.540,9.573]
+          labels=list('ABCDEFGHIJKL')
+          cap=cv2.VideoCapture(str(p))
+          rows=[]; thumbs=[]
+          for lab,t in zip(labels,times):
+              cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0)
+              ok,im=cap.read()
+              if not ok: raise RuntimeError(f'Could not decode {lab} at {t}')
+              if im.shape[:2]!=(540,960): raise RuntimeError(f'Unexpected native shape {im.shape}')
+              out=Path('manual_freeze_chooser')/f'{lab}_{t:.3f}s.png'
+              cv2.imwrite(str(out),im)
+              show=im.copy()
+              cv2.rectangle(show,(0,0),(960,64),(0,0,0),-1)
+              cv2.putText(show,f'{lab}   Right Slash   {t:.3f}s',(18,43),cv2.FONT_HERSHEY_SIMPLEX,1.05,(255,255,255),2,cv2.LINE_AA)
+              thumbs.append(show)
+              rows.append({'option':lab,'right_slash_local_time':t,'file':out.name})
+          cap.release()
+          # 3 x 4 contact sheet, still native pixels within each tile.
+          sheet=cv2.vconcat([cv2.hconcat(thumbs[i:i+3]) for i in range(0,12,3)])
+          cv2.imwrite('manual_freeze_chooser/Jazz_Dunk_Manual_Freeze_Chooser_A-L.png',sheet)
+          Path('manual_freeze_chooser/options.json').write_text(json.dumps({
+              'event':{'game_id':'0022500301','event_id':489},
+              'camera':'Right Slash','impact_local_approx':9.61122,
+              'instruction':'User selects one letter. That exact Right Slash frame becomes the authoritative frozen player/ball state.',
+              'options':rows
+          },indent=2))
+          PY
+      - name: Upload chooser
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-manual-freeze-chooser-${{ github.run_id }}
+          path: manual_freeze_chooser/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
