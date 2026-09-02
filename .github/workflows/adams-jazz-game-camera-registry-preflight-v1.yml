@@ -1,0 +1,99 @@
+name: Adams Jazz game-level camera registry preflight v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_same_game_calibration_manifest_v1.py'
+      - 'freeze_spin/audit_game_camera_registry_preflight_v1.py'
+      - '.github/workflows/adams-jazz-game-camera-registry-preflight-v1.yml'
+
+jobs:
+  game-camera-registry-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic video and vision runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Sample calibration events across the same game
+        run: |
+          python freeze_spin/build_same_game_calibration_manifest_v1.py \
+            --game-id 0022500301 --game-date 2025-11-30 --target-event 489 \
+            --per-period 2 --out same_game_calibration_manifest.json
+          cat same_game_calibration_manifest.json
+
+      - name: Retrieve official angles for all sampled events
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request same_game_calibration_manifest.json --out game_camera_source --workers 10
+          python - <<'PY'
+          import json
+          q=json.load(open('game_camera_source/qa.json'))
+          print('SOURCE_QA_KEYS', sorted(q)[:30])
+          print('VALID', q.get('valid_count'), 'ANGLE_CLIPS', q.get('angle_clip_count'))
+          PY
+
+      - name: Recreate immutable exact Frame C only from target event clips
+        run: |
+          mkdir -p target_event_clips
+          cp game_camera_source/clips/*_0022500301_489_*_SOURCE.mp4 target_event_clips/
+          test "$(find target_event_clips -name '*_SOURCE.mp4' | wc -l)" -ge 8
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_event_clips --out frame_c_registry_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_registry_target/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          print('FRAME_C_LOCK', lock)
+          PY
+
+      - name: Test same-game fixed optical-centre evidence against exact Frame C
+        run: |
+          python freeze_spin/audit_game_camera_registry_preflight_v1.py \
+            --clips game_camera_source/clips \
+            --target-frames frame_c_registry_target/frames \
+            --target-event 489 \
+            --out game_camera_registry_preflight
+          python - <<'PY'
+          import json
+          q=json.load(open('game_camera_registry_preflight/game_camera_registry_preflight_v1.json'))
+          assert q['target_event']==489
+          assert q['source_resolution']==[960,540]
+          assert len(q['labels']) >= 6
+          print('FIXED_CENTER_CANDIDATES', q['fixed_center_candidates'])
+          for label,r in q['labels'].items():
+              print('CAMERA',label,r['status'],'pass',r['target_transfer_pass_count'],'/',r['same_game_event_count'],'best',r['best_passing_event'])
+          PY
+
+      - name: Package game-level camera-registry evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp same_game_calibration_manifest.json delivery/ 2>/dev/null || true
+          cp game_camera_source/qa.json delivery/source_qa.json 2>/dev/null || true
+          cp frame_c_registry_target/options.json delivery/frame_c_synchronized_options.json 2>/dev/null || true
+          cp frame_c_registry_target/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp game_camera_registry_preflight/game_camera_registry_preflight_v1.json delivery/ 2>/dev/null || true
+          cp game_camera_registry_preflight/contact_*.jpg delivery/ 2>/dev/null || true
+          cp frame_c_registry_target/frames/*.png delivery/ 2>/dev/null || true
+          (cd delivery && zip -q adams_jazz_game_camera_registry_preflight_v1.zip ./* || true)
+
+      - name: Upload game-level camera-registry preflight
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-game-camera-registry-preflight-v1-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
