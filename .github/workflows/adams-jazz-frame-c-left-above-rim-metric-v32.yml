@@ -1,0 +1,148 @@
+name: Adams Jazz Frame C Left Above Rim metric camera v32
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/export_target_clip_intrinsics_samples_v31.py'
+      - 'freeze_spin/prove_left_above_rim_rotational_intrinsics_v32.py'
+      - 'freeze_spin/prove_frame_c_left_above_rim_metric_camera_v32.py'
+      - 'freeze_spin/adams_jazz_game_camera_registry_v1.json'
+      - 'freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json'
+      - '.github/workflows/adams-jazz-frame-c-left-above-rim-metric-v32.yml'
+
+jobs:
+  prove-rotational-intrinsics-and-event-camera:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native-video and metric runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve exact target event official angles fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+          LAR_CLIP="$(find target_source/clips -name '*_0022500301_489_Left_Above_Rim_SOURCE.mp4' | head -n1)"
+          test -n "$LAR_CLIP"
+          echo "$LAR_CLIP" > lar_clip_path.txt
+
+      - name: Recreate immutable Frame C synchronized views
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7
+          assert int(lar['decoded_frame_index'])==259
+          print('FRAME_C_LOCK',lock)
+          print('LEFT_ABOVE_RIM_FRAME',lar)
+          PY
+
+      - name: Export non-freeze frames from exact Left Above Rim target clip
+        run: |
+          python freeze_spin/export_target_clip_intrinsics_samples_v31.py \
+            --clip "$(cat lar_clip_path.txt)" \
+            --freeze-time 8.653093 \
+            --sample-count 19 \
+            --exclude-radius-seconds 0.75 \
+            --out target_clip_samples
+          python - <<'PY'
+          import json
+          q=json.load(open('target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json'))
+          assert q['source_resolution']==[960,540]
+          assert len(q['samples'])>=10
+          assert min(x['relative_to_freeze_seconds'] for x in q['samples'])<0
+          assert max(x['relative_to_freeze_seconds'] for x in q['samples'])>0
+          print('TARGET_CLIP_SAMPLES',len(q['samples']))
+          PY
+
+      - name: Self-calibrate exact Frame C intrinsics from static scene only
+        run: |
+          python -m freeze_spin.prove_left_above_rim_rotational_intrinsics_v32 \
+            --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --samples target_clip_samples \
+            --sample-manifest target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v1.json \
+            --camera-label 'Left Above Rim' --out rotational_intrinsics_v32 \
+            --min-accepted-frames 6 \
+            --max-frame-rmse-px 1.5 --max-frame-p95-px 2.5 \
+            --max-loo-pp-shift-px 5.0 --max-block-pp-shift-px 8.0 \
+            --perturbation-trials 24 \
+            --max-half-pixel-pp-shift-px 5.0 \
+            --max-half-pixel-target-focal-fraction 0.05 \
+            --min-source-focal-range-fraction 0.04
+          python - <<'PY'
+          import json
+          q=json.load(open('rotational_intrinsics_v32/left_above_rim_rotational_intrinsics_v32.json'))
+          assert q['status']=='PASS_ROTATIONAL_INTRINSICS_PRIOR'
+          assert q['principal_point_prior_allowed'] is True
+          assert q['target_focal_prior_allowed'] is True
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          print('ROTATIONAL_INTRINSICS_V32',q['accepted_frame_count'],q['target_principal_point_px'],q['target_focal_px'])
+          print('INTRINSICS_STABILITY',q['max_half_pixel_pp_shift_px'],q['max_half_pixel_target_focal_fraction_delta'])
+          PY
+
+      - name: Prove exact Frame C metric camera with fixed independent intrinsics
+        run: |
+          python -m freeze_spin.prove_frame_c_left_above_rim_metric_camera_v32 \
+            --frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v1.json \
+            --rotational-intrinsics rotational_intrinsics_v32/left_above_rim_rotational_intrinsics_v32.json \
+            --camera-label 'Left Above Rim' --out metric_event_v32 \
+            --max-fit-rmse-px 1.0 --max-fit-p95-px 1.5 \
+            --max-loo-median-px 2.0 --max-loo-max-px 4.0 \
+            --max-direct-center-disagreement-cm 10.0 \
+            --perturbation-trials 24 \
+            --max-projective-p95-px 1.5 --max-projective-max-px 3.0 \
+            --max-rotation-delta-deg 0.75
+          python - <<'PY'
+          import json
+          q=json.load(open('metric_event_v32/frame_c_left_above_rim_metric_camera_v32.json'))
+          assert q['status']=='PASS_METRIC_EVENT_CAMERA'
+          assert q['metric_event_camera_allowed'] is True
+          assert q['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          print('FRAME_C_METRIC_CAMERA_V32',q['camera']['camera_center_world_cm'],q['camera']['principal_point_px'],q['camera']['focal_px'])
+          print('PROJECTIVE_STABILITY',q['combined_half_pixel_perturbation']['max_dense_projective_p95_px'],q['combined_half_pixel_perturbation']['max_dense_projective_max_px'])
+          PY
+
+      - name: Package v32 proof and visual QA
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json delivery/ 2>/dev/null || true
+          cp rotational_intrinsics_v32/left_above_rim_rotational_intrinsics_v32.json delivery/ 2>/dev/null || true
+          cp metric_event_v32/frame_c_left_above_rim_metric_camera_v32.json delivery/ 2>/dev/null || true
+          cp metric_event_v32/frame_c_left_above_rim_metric_overlay_v32.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp freeze_spin/adams_jazz_game_camera_registry_v1.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json delivery/ 2>/dev/null || true
+
+      - name: Upload v32 proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-left-above-rim-metric-v32-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
