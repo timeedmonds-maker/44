@@ -2,49 +2,98 @@ from __future__ import annotations
 
 """Build a deterministic same-game event manifest for camera-registry evidence.
 
-The target event is always retained. Additional made field goals are sampled across
-periods so the same official camera labels can be observed under different pan/tilt/
-zoom states. This script does not calibrate or promote any camera.
+This calibration stage intentionally does not depend on play-by-play. GitHub-hosted
+runners may be blocked by the NBA live-data CDN, while the official clips.nba.com
+system is the durable video source already used by the project. We therefore probe
+candidate event numbers directly through the proven clips inventory endpoint, retain
+only real events with substantial multi-angle coverage, and sample them across the
+game timeline. The immutable target event is always retained.
 """
 
 import argparse
 import json
 from pathlib import Path
 
-import requests
-
-
-def fetch_actions(game_id: str) -> list[dict]:
-    url = f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game_id}.json"
-    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
-    r.raise_for_status()
-    payload = r.json()
-    return list(payload.get("game", {}).get("actions", []))
-
-
-def is_made_fg(a: dict) -> bool:
-    if str(a.get("shotResult", "")).lower() != "made":
-        return False
-    action = str(a.get("actionType", "")).lower()
-    return action in {"2pt", "3pt"}
+from build_kd_top10_all_angles import inventory
 
 
 def evenly_pick(rows: list[dict], n: int) -> list[dict]:
     if n <= 0 or not rows:
         return []
+    rows = sorted(rows, key=lambda r: int(r["event_id"]))
     if len(rows) <= n:
         return rows[:]
     if n == 1:
         return [rows[len(rows) // 2]]
     idx = [round(i * (len(rows) - 1) / (n - 1)) for i in range(n)]
-    out = []
-    seen = set()
+    out, seen = [], set()
     for i in idx:
-        event = int(rows[i].get("actionNumber", -1))
+        event = int(rows[i]["event_id"])
         if event not in seen:
             seen.add(event)
             out.append(rows[i])
     return out
+
+
+def probe_event(game_id: str, event_id: int, min_angles: int) -> dict | None:
+    try:
+        page, title, opts = inventory(game_id, event_id)
+    except Exception:
+        return None
+    if len(opts) < min_angles:
+        return None
+    return {
+        "event_id": int(event_id),
+        "angle_count": len(opts),
+        "angle_labels": [o["label"] for o in opts],
+        "clips_page": page,
+        "clips_page_title": title,
+    }
+
+
+def discover_video_events(game_id: str, target_event: int, *, min_angles: int, max_events: int) -> tuple[list[dict], dict]:
+    # A coarse pass keeps network load modest while still spanning the game. If it
+    # is too sparse, a denser pass fills the gaps. The target is always probed exactly.
+    probes = sorted(set([target_event] + list(range(20, 761, 20))))
+    found = []
+    tested = []
+    for eid in probes:
+        tested.append(eid)
+        row = probe_event(game_id, eid, min_angles)
+        if row is not None:
+            found.append(row)
+
+    if len(found) < max_events:
+        extra = [eid for eid in range(10, 771, 10) if eid not in set(tested)]
+        for eid in extra:
+            tested.append(eid)
+            row = probe_event(game_id, eid, min_angles)
+            if row is not None:
+                found.append(row)
+            if len(found) >= max_events * 2:
+                break
+
+    # Ensure target is present even if its exact angle count differs from min_angles.
+    if not any(int(r["event_id"]) == target_event for r in found):
+        target = probe_event(game_id, target_event, 1)
+        if target is None:
+            raise RuntimeError(f"Target event {target_event} has no official clips inventory")
+        found.append(target)
+
+    dedup = {int(r["event_id"]): r for r in found}
+    found = sorted(dedup.values(), key=lambda r: int(r["event_id"]))
+    target = dedup[target_event]
+    non_target = [r for r in found if int(r["event_id"]) != target_event]
+    selected_non_target = evenly_pick(non_target, max(0, max_events - 1))
+    selected = sorted(selected_non_target + [target], key=lambda r: int(r["event_id"]))
+    audit = {
+        "probe_count": len(tested),
+        "probe_event_ids": tested,
+        "qualified_event_count": len(found),
+        "qualified_event_ids": [int(r["event_id"]) for r in found],
+        "minimum_angles": min_angles,
+    }
+    return selected, audit
 
 
 def main() -> None:
@@ -52,63 +101,49 @@ def main() -> None:
     ap.add_argument("--game-id", required=True)
     ap.add_argument("--game-date", required=True)
     ap.add_argument("--target-event", type=int, required=True)
+    ap.add_argument("--event-count", type=int, default=9)
+    ap.add_argument("--min-angles", type=int, default=8)
+    # Retained as a no-op compatibility argument for the first workflow revision.
     ap.add_argument("--per-period", type=int, default=2)
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
-    actions = fetch_actions(args.game_id)
-    by_period: dict[int, list[dict]] = {}
-    for a in actions:
-        if not is_made_fg(a):
-            continue
-        p = int(a.get("period", 0) or 0)
-        if p <= 0:
-            continue
-        by_period.setdefault(p, []).append(a)
-
-    selected: list[dict] = []
-    for period in sorted(by_period):
-        selected.extend(evenly_pick(by_period[period], args.per_period))
-
-    target = next((a for a in actions if int(a.get("actionNumber", -1)) == args.target_event), None)
-    if target is None:
-        raise RuntimeError(f"Target event {args.target_event} not found in {args.game_id}")
-
-    rows_by_event = {int(a.get("actionNumber", -1)): a for a in selected}
-    rows_by_event[args.target_event] = target
-    selected = sorted(rows_by_event.values(), key=lambda a: int(a.get("actionNumber", -1)))
+    selected, discovery = discover_video_events(
+        args.game_id, args.target_event, min_angles=args.min_angles, max_events=args.event_count
+    )
 
     events = []
-    for rank, a in enumerate(selected, 1):
-        event_id = int(a.get("actionNumber", -1))
-        person_id = int(a.get("personId", 0) or 0)
-        desc = str(a.get("description") or a.get("actionType") or "same-game calibration sample")
+    for rank, row in enumerate(selected, 1):
+        event_id = int(row["event_id"])
         events.append({
             "rank": rank,
             "game_date": args.game_date,
             "game_id": args.game_id,
             "event_id": event_id,
-            "period": int(a.get("period", 0) or 0),
-            "clock": str(a.get("clock", "")),
-            "player_id": person_id,
-            "player": str(a.get("playerName", "")),
-            "description": desc,
-            "video_anchor": "made field goal event" if is_made_fg(a) else "locked target event",
+            "description": f"same-game camera calibration video event {event_id}",
+            "video_anchor": "official clips.nba.com event inventory",
             "camera_registry_role": "locked_target" if event_id == args.target_event else "same_game_calibration_evidence",
+            "discovered_angle_count": int(row["angle_count"]),
+            "discovered_angle_labels": row["angle_labels"],
         })
 
     payload = {
-        "selection": "same-game multi-frame physical-camera evidence",
+        "selection": "video-driven same-game multi-frame physical-camera evidence",
         "game_id": args.game_id,
         "game_date": args.game_date,
         "target_event": args.target_event,
-        "sampling": {"made_field_goals_per_period": args.per_period},
+        "sampling": {
+            "source": "official clips.nba.com event inventory",
+            "requested_event_count": args.event_count,
+            "minimum_angles_for_calibration_samples": args.min_angles,
+            "discovery": discovery,
+        },
         "expected_count": len(events),
         "events": events,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"event_count": len(events), "event_ids": [e["event_id"] for e in events]}, indent=2))
+    print(json.dumps({"event_count": len(events), "event_ids": [e["event_id"] for e in events], "discovery": discovery}, indent=2))
 
 
 if __name__ == "__main__":
