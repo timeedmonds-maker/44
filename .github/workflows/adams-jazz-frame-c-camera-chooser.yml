@@ -1,0 +1,120 @@
+name: Adams Jazz frame C synchronized camera chooser
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-frame-c-camera-chooser.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  camera-chooser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic video runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve and QA all 12 official Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out jazz_dunk_source --workers 8
+
+      - name: Establish fresh audio synchronization graph
+        run: |
+          mkdir -p frame_c_camera_chooser
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('jazz_dunk_source/clips').glob('*_489_*_SOURCE.mp4')):
+              m=re.search(r'_489_(.+)_SOURCE\\.mp4$',p.name)
+              if m: rows.append({'label':m.group(1).replace('_',' '),'file':p.name,'freeze_time':8.275733})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 angles, found {len(rows)}')
+          cfg={'event':{'game_id':'0022500301','event_id':489},'source_fps':29.97003,'reference_angle':'Left Above Rim','angles':rows}
+          Path('frame_c_camera_chooser/provisional_sync_map.json').write_text(json.dumps(cfg,indent=2))
+          PY
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config frame_c_camera_chooser/provisional_sync_map.json \
+            --clips jazz_dunk_source/clips --reference 'Left Above Rim' \
+            --max-lag-seconds 2.0 --out frame_c_camera_chooser/audio_sync_graph.json
+
+      - name: Export selected moment C from every synchronized camera
+        run: |
+          python - <<'PY'
+          import cv2,json,re
+          import numpy as np
+          from pathlib import Path
+
+          c_right_slash=8.275733
+          sync=json.load(open('frame_c_camera_chooser/audio_sync_graph.json'))
+          cfg=json.load(open('frame_c_camera_chooser/provisional_sync_map.json'))
+          offsets={r['label']:float(r['offset_seconds_vs_reference']) for r in sync['angles']}
+          files={r['label']:r['file'] for r in cfg['angles']}
+          if 'Right Slash' not in offsets: raise RuntimeError('Right Slash sync offset missing')
+          reference_time=c_right_slash-offsets['Right Slash']
+
+          ordered=['Broadcast','Other Broadcast','Mobile Broadcast','Play by Play','In Arena','High Tight',
+                   'Left Slash','Right Slash','Left HandHeld','Right HandHeld','Left Above Rim','Right Above Rim']
+          letters=list('ABCDEFGHIJKL')
+          previews=[]; rows=[]
+          outdir=Path('frame_c_camera_chooser')
+          for letter,label in zip(letters,ordered):
+              if label not in files or label not in offsets: raise RuntimeError(f'Missing {label}')
+              t=reference_time+offsets[label]
+              p=Path('jazz_dunk_source/clips')/files[label]
+              cap=cv2.VideoCapture(str(p)); cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0)
+              ok,im=cap.read(); fi=int(round(cap.get(cv2.CAP_PROP_POS_FRAMES)-1)); cap.release()
+              if not ok: raise RuntimeError(f'Cannot decode {label} at {t:.6f}')
+              if im.shape[:2]!=(540,960): raise RuntimeError(f'{label} unexpected shape {im.shape}')
+              fn=f'{letter}_{label.replace(" ","_")}_{t:.6f}s_frame{fi:04d}.png'
+              cv2.imwrite(str(outdir/fn),im)
+              show=im.copy()
+              cv2.rectangle(show,(0,0),(960,58),(0,0,0),-1)
+              cv2.putText(show,f'{letter}   {label}   same moment as chosen Right Slash C',(14,39),cv2.FONT_HERSHEY_SIMPLEX,.78,(255,255,255),2,cv2.LINE_AA)
+              previews.append(show)
+              rows.append({'option':letter,'camera':label,'requested_local_time':round(float(t),6),'decoded_frame_index':fi,'file':fn})
+
+          sheet=cv2.vconcat([cv2.hconcat(previews[i:i+3]) for i in range(0,12,3)])
+          cv2.imwrite(str(outdir/'Jazz_Frame_C_Same_Moment_All_12_Cameras.png'),sheet)
+          Path(outdir/'options.json').write_text(json.dumps({
+            'event':{'game_id':'0022500301','event_id':489},
+            'chosen_timing':{'source_camera':'Right Slash','option':'C','right_slash_local_time':c_right_slash,
+                             'decoded_frame_index_from_manual_chooser':248},
+            'common_reference_time_left_above_rim':reference_time,
+            'policy':'Timing C is authoritative. Camera may change because Right Slash crops the ball. Every option below is the same synchronized basketball instant.',
+            'options':rows
+          },indent=2))
+          print('CHOSEN_C_RIGHT_SLASH_LOCAL',c_right_slash)
+          print('COMMON_REFERENCE_TIME',reference_time)
+          for r in rows: print(r)
+          PY
+
+      - name: Publish synchronized camera chooser to branch
+        run: |
+          mkdir -p freeze_spin/frame_c_camera_chooser
+          cp frame_c_camera_chooser/Jazz_Frame_C_Same_Moment_All_12_Cameras.png freeze_spin/frame_c_camera_chooser/
+          cp frame_c_camera_chooser/options.json freeze_spin/frame_c_camera_chooser/
+          cp frame_c_camera_chooser/audio_sync_graph.json freeze_spin/frame_c_camera_chooser/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add freeze_spin/frame_c_camera_chooser/
+          git commit -m 'Publish synchronized camera options for selected Jazz frame C' || true
+          git push
+
+      - name: Upload synchronized chooser
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-${{ github.run_id }}
+          path: frame_c_camera_chooser/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
