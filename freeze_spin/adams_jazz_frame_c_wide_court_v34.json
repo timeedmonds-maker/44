@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "game_id": "0022500301",
+  "event_id": 489,
+  "date": "2025-11-30",
+  "camera_label": "Left Above Rim",
+  "image": "K_Left_Above_Rim_8.653093s_frame0259.png",
+  "freeze_lock": {
+    "authority_camera": "Right Slash",
+    "chooser_option": "C",
+    "right_slash_local_time": 8.275733,
+    "right_slash_decoded_frame_index": 248,
+    "left_above_rim_synchronized_time": 8.653093,
+    "left_above_rim_decoded_frame_index": 259
+  },
+  "annotation_policy": "Manual deterministic source-pixel samples on clearly visible static NBA court paint only. No player, ball, body, generated or inferred appearance points. Samples span substantially wider court geometry than the retired v26 four-floor-anchor subset.",
+  "observations_px": {
+    "three_point_arc": [[190,345],[210,354],[235,362],[260,369],[290,374],[320,379],[350,382],[380,385],[410,387],[440,388],[520,388],[550,387],[580,385],[640,379],[670,375],[700,369],[730,361],[760,351]],
+    "free_throw_front_semicircle": [[430,365],[450,367],[470,368],[490,368],[510,367],[530,365],[550,360],[565,355],[572,348]],
+    "left_corner_three_straight": [[245,283],[230,291],[215,299],[200,308],[185,318],[172,327]],
+    "right_corner_three_straight": [[714,284],[730,292],[745,300],[760,309],[777,318],[791,327]],
+    "free_throw_line": [[420,343],[450,343],[480,343],[510,343],[540,343]]
+  },
+  "held_out_indices": {
+    "three_point_arc": [2,5,8,11,14,17],
+    "free_throw_front_semicircle": [1,4,7],
+    "left_corner_three_straight": [1,4],
+    "right_corner_three_straight": [1,4],
+    "free_throw_line": [1,3]
+  },
+  "regulation_geometry": {
+    "coordinate_system": "basket-local centimetres: +X from backboard face toward court, +Y across court, Z=0 floor",
+    "basket_center_x_from_backboard_face_in": 15.0,
+    "baseline_x_from_backboard_face_ft": -4.0,
+    "free_throw_line_x_from_backboard_face_ft": 15.0,
+    "free_throw_circle_radius_ft": 6.0,
+    "three_point_arc_radius_ft": 23.75,
+    "corner_three_distance_from_basket_center_ft": 22.0,
+    "paint_width_ft": 16.0
+  },
+  "legacy_v26_floor_anchors_for_diagnostic_only": {
+    "baseline_left_lane": [405,282],
+    "baseline_right_lane": [555,282],
+    "ft_left_lane": [361,343],
+    "ft_right_lane": [600,343]
+  },
+  "notes": "v33 proved the v26 local floor model fails held-out wide geometry. v34 fits only wide visible regulation lines/curves, reserves spatially distributed observations for held-out validation, and reports where the retired v26 anchors would lie under the new model."
+}
