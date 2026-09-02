@@ -22,22 +22,23 @@ jobs:
           sudo apt-get install -y -qq ffmpeg
           python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
 
-      - name: Sample calibration events across the same game
+      - name: Discover calibration events from the proven official video system
         run: |
           python freeze_spin/build_same_game_calibration_manifest_v1.py \
             --game-id 0022500301 --game-date 2025-11-30 --target-event 489 \
-            --per-period 2 --out same_game_calibration_manifest.json
+            --event-count 9 --min-angles 8 --out same_game_calibration_manifest.json
           cat same_game_calibration_manifest.json
 
       - name: Retrieve official angles for all sampled events
         run: |
           FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
-            --request same_game_calibration_manifest.json --out game_camera_source --workers 10
+            --request same_game_calibration_manifest.json --out game_camera_source --workers 8
           python - <<'PY'
           import json
           q=json.load(open('game_camera_source/qa.json'))
-          print('SOURCE_QA_KEYS', sorted(q)[:30])
-          print('VALID', q.get('valid_count'), 'ANGLE_CLIPS', q.get('angle_clip_count'))
+          print('EXPANDED', q.get('expanded_clip_count'), 'VALID', q.get('valid_clip_count'))
+          for p in q.get('shot_plans',[]):
+              print('EVENT',p['event_id'],'ANGLES',p['angle_count'],p['angle_labels'])
           PY
 
       - name: Recreate immutable exact Frame C only from target event clips
