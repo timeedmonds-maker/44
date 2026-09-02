@@ -5,6 +5,7 @@
   "selection": "1080p hero-film and cross-resolution free-view validation event supplied by user",
   "expected_count": 1,
   "role": "HERO_1080P_VALIDATION_ONLY_NOT_GAME_INTRINSICS_PRIOR",
+  "source_audit_workflow": "lebron-1080p-hero-source-audit-v1",
   "events": [
     {
       "rank": 1,
