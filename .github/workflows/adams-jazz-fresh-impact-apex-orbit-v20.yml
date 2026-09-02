@@ -1,0 +1,162 @@
+name: Adams Jazz fresh-impact apex hardened orbit v20
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/select_jazz_ball_apex_from_fresh_impact_v7.py'
+      - 'freeze_spin/build_portable_moge_true_orbit_v18.py'
+      - '.github/workflows/adams-jazz-fresh-impact-apex-orbit-v20.yml'
+  workflow_dispatch:
+
+jobs:
+  fresh-impact-apex-orbit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native vision audio and MoGe runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve and QA all 12 official native Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out jazz_dunk_source --workers 8
+
+      - name: Establish fresh audio timeline and dunk impact
+        run: |
+          mkdir -p jazz_fresh_v20/locked_frames
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('jazz_dunk_source/clips').glob('*_489_*_SOURCE.mp4')):
+              m=re.search(r'_489_(.+)_SOURCE\.mp4$',p.name)
+              if m: rows.append({'label':m.group(1).replace('_',' '),'file':p.name,'freeze_time':9.57658})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 angles, found {len(rows)}')
+          cfg={'event':{'game_id':'0022500301','event_id':489},'source_fps':29.97003,'reference_angle':'Left Above Rim','angles':rows}
+          Path('jazz_fresh_v20/provisional_sync_map.json').write_text(json.dumps(cfg,indent=2))
+          PY
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_fresh_v20/provisional_sync_map.json --clips jazz_dunk_source/clips \
+            --reference 'Left Above Rim' --max-lag-seconds 2.0 --out jazz_fresh_v20/audio_sync_graph.json
+          python freeze_spin/refine_jazz_predunk_audio_impact_v2.py \
+            --clips jazz_dunk_source/clips --sync jazz_fresh_v20/audio_sync_graph.json \
+            --config jazz_fresh_v20/provisional_sync_map.json --pre-impact-seconds 0.12 \
+            --out jazz_fresh_v20/fresh_audio_impact.json
+          python - <<'PY'
+          import json
+          d=json.load(open('jazz_fresh_v20/fresh_audio_impact.json'))
+          if d['confidence']=='low': raise SystemExit(f"Fresh impact confidence low: {d}")
+          print('FRESH_IMPACT_REFERENCE_TIME',d['estimated_dunk_impact_reference_time'])
+          print('FRESH_IMPACT_CONFIDENCE',d['confidence'])
+          print('FRESH_IMPACT_SUPPORT',d['supporting_peak_views_within_55ms'],d['supporting_views'])
+          PY
+
+      - name: Prove basketball apex before fresh-impact rim crossing
+        run: |
+          python freeze_spin/select_jazz_ball_apex_from_fresh_impact_v7.py \
+            --clips jazz_dunk_source/clips --sync jazz_fresh_v20/audio_sync_graph.json \
+            --impact-json jazz_fresh_v20/fresh_audio_impact.json --out jazz_fresh_v20
+          python - <<'PY'
+          import json
+          d=json.load(open('jazz_fresh_v20/ball_apex_from_fresh_impact_v7.json'))
+          if not d.get('passed'): raise SystemExit('Fresh-impact apex gate failed')
+          a=float(d['apex_reference_time']); c=float(d['rim_crossing_reference_time']); i=float(d['fresh_impact_reference_time'])
+          if not (a<c<=i+0.16): raise SystemExit(f'Invalid physical ordering apex={a} crossing={c} impact={i}')
+          print('BALL_APEX_REFERENCE_TIME',a)
+          print('RIM_CROSSING_REFERENCE_TIME',c)
+          print('Apex_TO_CROSSING_S',d['apex_to_crossing_s'])
+          print('APEX_TO_AUDIO_IMPACT_S',d['apex_to_audio_impact_s'])
+          print('CONFIRMATIONS',d['confirmation_labels'])
+          PY
+
+      - name: Lock all 12 cameras to fresh physical apex
+        run: |
+          python - <<'PY'
+          import cv2,json
+          from pathlib import Path
+          d=json.load(open('jazz_fresh_v20/ball_apex_from_fresh_impact_v7.json')); tref=float(d['apex_reference_time'])
+          sync=json.load(open('jazz_fresh_v20/audio_sync_graph.json')); cfg=json.load(open('jazz_fresh_v20/provisional_sync_map.json'))
+          offsets={r['label']:float(r['offset_seconds_vs_reference']) for r in sync['angles']}; files={r['label']:r['file'] for r in cfg['angles']}
+          rows=[]
+          for label,file in files.items():
+              t=tref+offsets[label]; p=Path('jazz_dunk_source/clips')/file
+              cap=cv2.VideoCapture(str(p)); fps=float(cap.get(cv2.CAP_PROP_FPS) or 29.97003); cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0)
+              ok,im=cap.read(); fi=int(round(cap.get(cv2.CAP_PROP_POS_FRAMES)-1)); cap.release()
+              if not ok: raise RuntimeError(f'Cannot export {label} at {t}')
+              if im.shape[:2]!=(540,960): raise RuntimeError(f'{label} not native 960x540')
+              out=Path('jazz_fresh_v20/locked_frames')/f"{label.replace(' ','_')}_apex.png"; cv2.imwrite(str(out),im)
+              rows.append({'label':label,'requested_local_time':t,'reference_time':tref,'decoded_frame_index':fi,'fps':fps,'file':out.name})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 locked frames, got {len(rows)}')
+          Path('jazz_fresh_v20/locked_frames/locked_frames.json').write_text(json.dumps(rows,indent=2))
+          print('LOCKED_FRAMES',len(rows),'REFERENCE_TIME',tref)
+          PY
+
+      - name: Render hardened constant-radius orbit
+        run: |
+          python freeze_spin/build_portable_moge_true_orbit_v18.py \
+            --locked-dir jazz_fresh_v20/locked_frames --out jazz_orbit_v20 \
+            --reference 'In Arena' --tokens 1600 --max-degree 5.0 --frames 31
+
+      - name: Enforce hard spatial QA
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('jazz_orbit_v20/portable_moge_true_orbit_qa_v18.json'))
+          assert q['source_resolution']==[960,540] and q['render_resolution']==[960,540]
+          assert q['max_radius_drift']<=1e-6 and q['max_pivot_drift_px']<=0.05 and q['render_max_degree']>=3.0
+          assert q['edge_splat_policy'].startswith('explicit bounded')
+          print('TRUE_ORBIT_MAX_DEG',q['render_max_degree'])
+          print('TARGET_DIRECTION_CAMERA',q['target_direction_camera'])
+          print('REAL_BASELINE_DEG',q['real_baseline_angle_deg'])
+          print('DYNAMIC_ELIGIBLE_CAMERAS',q['dynamic_eligible_cameras'])
+          print('MAX_RADIUS_DRIFT',q['max_radius_drift'])
+          print('MAX_PIVOT_DRIFT_PX',q['max_pivot_drift_px'])
+          for r in q['stills']: print('STILL_QA',r['degree'],'actual',r['actual_degree'],'resolved',round(r['resolved_fraction'],6),'holes',r['unresolved_pixels'])
+          PY
+
+      - name: Encode native hardened orbit preview
+        run: |
+          ffmpeg -y -framerate 30 -i jazz_orbit_v20/motion_%03d.png -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart jazz_orbit_v20/adams_jazz_fresh_impact_apex_true_orbit_native.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 jazz_orbit_v20/adams_jazz_fresh_impact_apex_true_orbit_native.mp4)" = "960" || exit 1
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 jazz_orbit_v20/adams_jazz_fresh_impact_apex_true_orbit_native.mp4)" = "540" || exit 1
+
+      - name: Package proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp jazz_orbit_v20/true_orbit_00deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_orbit_v20/true_orbit_03deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_orbit_v20/true_orbit_05deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_orbit_v20/true_orbit_unresolved_03deg.png delivery/ 2>/dev/null || true
+          cp jazz_orbit_v20/true_orbit_unresolved_05deg.png delivery/ 2>/dev/null || true
+          cp jazz_orbit_v20/portable_moge_true_orbit_qa_v18.json delivery/ 2>/dev/null || true
+          cp jazz_orbit_v20/adams_jazz_fresh_impact_apex_true_orbit_native.mp4 delivery/ 2>/dev/null || true
+          cp jazz_fresh_v20/ball_apex_from_fresh_impact_v7.json delivery/ 2>/dev/null || true
+          cp jazz_fresh_v20/fresh_audio_impact.json delivery/ 2>/dev/null || true
+          cp jazz_fresh_v20/*strip.png delivery/ 2>/dev/null || true
+          cp jazz_fresh_v20/*confirm.png delivery/ 2>/dev/null || true
+          cp jazz_fresh_v20/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp jazz_fresh_v20/locked_frames/locked_frames.json delivery/ 2>/dev/null || true
+          cp jazz_fresh_v20/locked_frames/*_apex.png delivery/ 2>/dev/null || true
+          cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-fresh-impact-apex-orbit-v20-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
