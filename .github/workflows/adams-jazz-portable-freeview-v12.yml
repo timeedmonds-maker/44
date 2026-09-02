@@ -1,0 +1,108 @@
+name: Adams Jazz portable native free-view v12
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_portable_moge_pnp_freeview_v12.py'
+      - '.github/workflows/adams-jazz-portable-freeview-v12.yml'
+  workflow_dispatch:
+
+jobs:
+  prototype:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native vision and MoGe runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve all 12 official native Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source --workers 8
+
+      - name: Lock common pre-dunk state by audio graph
+        run: |
+          mkdir -p jazz_predunk/locked_frames
+          python freeze_spin/select_jazz_predunk_reference_v1.py \
+            --clips jazz_dunk_source/clips --out jazz_predunk
+          REF=$(python - <<'PY'
+          import json
+          print(json.load(open('jazz_predunk/predunk_selection_v1.json'))['reference_label'])
+          PY
+          )
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_predunk/jazz_predunk_sync_map.json \
+            --clips jazz_dunk_source/clips \
+            --reference "$REF" --max-lag-seconds 2.0 \
+            --out jazz_predunk/audio_sync_graph.json
+          python - <<'PY'
+          import cv2, json
+          from pathlib import Path
+          sync=json.load(open('jazz_predunk/audio_sync_graph.json'))
+          cfg=json.load(open('jazz_predunk/jazz_predunk_sync_map.json'))
+          files={r['label']:r['file'] for r in cfg['angles']}
+          rows=[]
+          for r in sync['angles']:
+              label=r['label']; t=float(r['predicted_freeze_time'])
+              p=Path('jazz_dunk_source/clips')/files[label]
+              cap=cv2.VideoCapture(str(p)); cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0); ok,im=cap.read(); cap.release()
+              if not ok: raise RuntimeError(f'Cannot export {label} at {t}')
+              out=Path('jazz_predunk/locked_frames')/f"{label.replace(' ','_')}_predunk.png"
+              cv2.imwrite(str(out),im)
+              rows.append({'label':label,'time':t,'file':out.name,'sync_confidence':r['confidence'],'quality':r['mean_incident_quality']})
+          Path('jazz_predunk/locked_frames/locked_frames.json').write_text(json.dumps(rows,indent=2))
+          moderate=sum(r['sync_confidence'] in ('high','moderate') for r in rows)
+          if moderate < 8: raise RuntimeError(f'Sync gate failed: {moderate}/12')
+          print(f'SYNC_PASS={moderate}/{len(rows)}')
+          PY
+
+      - name: Run portable MoGe plus static-SIFT PnP free-view solve
+        run: |
+          python freeze_spin/build_portable_moge_pnp_freeview_v12.py \
+            --locked-dir jazz_predunk/locked_frames \
+            --out jazz_portable_v12 \
+            --reference "In Arena" \
+            --tokens 1400 --max-degree 5.0 --frames 31
+
+      - name: Encode native motion preview
+        run: |
+          ffmpeg -y -framerate 30 -i jazz_portable_v12/motion_%03d.png \
+            -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart \
+            jazz_portable_v12/adams_jazz_predunk_freeview_native.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 jazz_portable_v12/adams_jazz_predunk_freeview_native.mp4)" = "960" || exit 1
+
+      - name: Package native proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp jazz_portable_v12/*.png delivery/ 2>/dev/null || true
+          cp jazz_portable_v12/*.json delivery/ 2>/dev/null || true
+          cp jazz_portable_v12/*.mp4 delivery/ 2>/dev/null || true
+          cp jazz_predunk/predunk_reference_native.png delivery/ 2>/dev/null || true
+          cp jazz_predunk/predunk_selection_v1.json delivery/ 2>/dev/null || true
+          cp jazz_predunk/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp jazz_predunk/locked_frames/*.png delivery/ 2>/dev/null || true
+          cp jazz_predunk/locked_frames/locked_frames.json delivery/ 2>/dev/null || true
+          cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
+
+      - name: Upload native proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-portable-freeview-v12-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
