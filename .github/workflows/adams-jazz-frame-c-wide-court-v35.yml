@@ -1,0 +1,89 @@
+name: Adams Jazz Frame C wide court proof v35
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/solve_frame_c_wide_court_homography_v34.py'
+      - 'freeze_spin/solve_frame_c_wide_court_homography_v35.py'
+      - 'freeze_spin/adams_jazz_frame_c_wide_court_v34.json'
+      - 'freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json'
+      - 'freeze_spin/prepare_locked_frame_c_sources.py'
+      - 'freeze_spin/adams_jazz_dunk_request.json'
+      - '.github/workflows/adams-jazz-frame-c-wide-court-v35.yml'
+
+jobs:
+  prove-wide-court-floor-v35:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic native-video and metric runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve exact target event official angles fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+      - name: Recreate immutable Frame C synchronized views
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json')); lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7 and int(lar['decoded_frame_index'])==259
+          print('FRAME_C_LOCK',lock); print('LEFT_ABOVE_RIM_FRAME',lar)
+          PY
+      - name: Prove wide regulation court floor homography v35
+        run: |
+          python -m freeze_spin.solve_frame_c_wide_court_homography_v35 \
+            --frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --wide-court freeze_spin/adams_jazz_frame_c_wide_court_v34.json \
+            --legacy-landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --out wide_court_v35 \
+            --max-heldout-three-p95-px 2.0 \
+            --max-heldout-ft-p95-px 2.0 \
+            --max-heldout-line-p95-cm 8.0 \
+            --perturbation-trials 64 \
+            --max-half-pixel-three-p95-shift-px 2.5 \
+            --max-half-pixel-ft-p95-shift-px 2.0
+          python - <<'PY'
+          import json
+          q=json.load(open('wide_court_v35/frame_c_wide_court_homography_v35.json'))
+          assert q['status']=='PASS_WIDE_COURT_FLOOR_HOMOGRAPHY_V35'
+          assert q['floor_homography_allowed'] is True
+          assert q['metric_event_camera_allowed'] is False and q['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          assert q['solver_acceleration']['equivalence_gate'] is True
+          print('WIDE_COURT_V35',q['heldout_pixel_curve_error'])
+          print('PERTURBATION',q['half_pixel_training_annotation_perturbation']['max_three_point_p95_shift_px'],q['half_pixel_training_annotation_perturbation']['max_free_throw_p95_shift_px'])
+          print('SENTINEL_EQUIVALENCE',q['solver_acceleration']['max_three_point_p95_warm_vs_full_disagreement_px'],q['solver_acceleration']['max_free_throw_p95_warm_vs_full_disagreement_px'])
+          print('LEGACY_DIAGNOSTIC',q['legacy_v26_anchor_diagnostic'])
+          PY
+      - name: Package v35 proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp wide_court_v35/frame_c_wide_court_homography_v35.json delivery/ 2>/dev/null || true
+          cp wide_court_v35/frame_c_wide_court_overlay_v35.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_wide_court_v34.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json delivery/ 2>/dev/null || true
+      - name: Upload v35 proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-wide-court-v35-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
