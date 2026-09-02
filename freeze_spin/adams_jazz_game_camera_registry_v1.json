@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "game_id": "0022500301",
+  "date": "2025-11-30",
+  "coordinate_system": "basket-local regulation NBA centimetres: +X from board toward court, +Y across board, +Z upward",
+  "policy": {
+    "visual_qa_authoritative": true,
+    "player_or_ball_points_for_camera_promotion_forbidden": true,
+    "centre_prior_does_not_imply_metric_event_camera": true,
+    "centre_prior_does_not_authorize_replay_render": true
+  },
+  "cameras": {
+    "Left Above Rim": {
+      "status": "FIXED_PHYSICAL_CENTRE_PRIOR_ACCEPTED",
+      "physical_camera_center_prior_cm": [
+        1283.71488906808,
+        -2.342538028552996,
+        298.388659094841
+      ],
+      "source_resolution_px": [960, 540],
+      "evidence": {
+        "workflow_run_id": 33616415910,
+        "workflow_commit": "299f48e2203ad0c5d2b8c5452936ee77ce286464",
+        "proof_artifact_id": 9841138862,
+        "proof_artifact_sha256": "0ff53937f4db470a4c528104d374dfe9d737eadd1d15989af872653b816bf1bf",
+        "independent_same_game_events": [40, 220, 440, 620],
+        "accepted_independent_event_count": 4,
+        "max_pairwise_camera_center_distance_cm": 6.623764587059307,
+        "max_camera_center_deviation_from_median_cm": 3.5180707122247976,
+        "independent_event_landmark_rmse_px_range": [0.6702516383015308, 0.7998909117667711],
+        "independent_event_half_pixel_center_shift_cm_range": [9.646214125374652, 17.50054532037082],
+        "target_direct_metric_landmark_rmse_px": 0.6573940807104258,
+        "target_direct_half_pixel_center_shift_cm": 17.775825197942495,
+        "visual_overlay_qa": "PASS",
+        "visual_overlay_qa_note": "Regulation target rectangle and lane geometry remain attached to the real basket/court in the immutable target and all four accepted independent event frames. Event 440 contains a small high-error held-out SIFT tail, but no corresponding visible metric misregistration."
+      },
+      "permissions": {
+        "center_prior_allowed": true,
+        "metric_event_camera_allowed": false,
+        "replay_render_allowed": false
+      },
+      "next_gate": "Solve the immutable Frame C Left Above Rim event camera with this physical centre fixed, validate reprojection and leave-one-out geometry, then visually inspect the source-pixel overlay before any metric-event-camera promotion."
+    }
+  }
+}
