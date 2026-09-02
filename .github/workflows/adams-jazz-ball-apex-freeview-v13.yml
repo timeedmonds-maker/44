@@ -96,6 +96,19 @@ jobs:
           print(f'APEX_SYNC_PASS={moderate}/{len(rows)}')
           PY
 
+      - name: Add v12 renderer compatibility aliases
+        run: |
+          python - <<'PY'
+          import shutil
+          from pathlib import Path
+          d=Path('jazz_apex/locked_frames')
+          rows=list(d.glob('*_apex.png'))
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 apex frames, found {len(rows)}')
+          for p in rows:
+              q=p.with_name(p.name.replace('_apex.png','_predunk.png'))
+              shutil.copy2(p,q)
+          PY
+
       - name: Run portable MoGe plus static-SIFT PnP free-view solve
         run: |
           python freeze_spin/build_portable_moge_pnp_freeview_v12.py \
@@ -129,7 +142,7 @@ jobs:
           cp jazz_apex/ball_apex_selection_v1.json delivery/ 2>/dev/null || true
           cp jazz_apex/audio_impact_bound.json delivery/ 2>/dev/null || true
           cp jazz_apex/apex_audio_sync_graph.json delivery/ 2>/dev/null || true
-          cp jazz_apex/locked_frames/*.png delivery/ 2>/dev/null || true
+          cp jazz_apex/locked_frames/*_apex.png delivery/ 2>/dev/null || true
           cp jazz_apex/locked_frames/locked_frames.json delivery/ 2>/dev/null || true
           cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
 
