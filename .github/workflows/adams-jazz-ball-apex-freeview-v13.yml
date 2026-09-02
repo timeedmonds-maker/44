@@ -1,0 +1,144 @@
+name: Adams Jazz ball-apex free-view v13
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/select_jazz_ball_apex_v1.py'
+      - 'freeze_spin/build_portable_moge_pnp_freeview_v12.py'
+      - '.github/workflows/adams-jazz-ball-apex-freeview-v13.yml'
+  workflow_dispatch:
+
+jobs:
+  apex-freeview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install vision audio and MoGe runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve all 12 official native Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source --workers 8
+
+      - name: Establish synchronized audio impact bound
+        run: |
+          mkdir -p jazz_apex/locked_frames
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('jazz_dunk_source/clips').glob('*_489_*_SOURCE.mp4')):
+              m=re.search(r'_489_(.+)_SOURCE\.mp4$',p.name)
+              if not m: continue
+              rows.append({'label':m.group(1).replace('_',' '),'file':p.name,'freeze_time':9.57658})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 angles, found {len(rows)}')
+          cfg={'event':{'game_id':'0022500301','event_id':489},'source_fps':29.97003,'synchronization':'provisional reference for apex-bound audio impact','reference_angle':'Left Above Rim','angles':rows}
+          Path('jazz_apex/provisional_sync_map.json').write_text(json.dumps(cfg,indent=2))
+          PY
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_apex/provisional_sync_map.json \
+            --clips jazz_dunk_source/clips \
+            --reference 'Left Above Rim' --max-lag-seconds 2.0 \
+            --out jazz_apex/provisional_audio_sync_graph.json
+          python freeze_spin/refine_jazz_predunk_audio_impact_v2.py \
+            --clips jazz_dunk_source/clips \
+            --sync jazz_apex/provisional_audio_sync_graph.json \
+            --config jazz_apex/provisional_sync_map.json \
+            --pre-impact-seconds 0.12 \
+            --out jazz_apex/audio_impact_bound.json
+
+      - name: Select true visual ball apex
+        run: |
+          python freeze_spin/select_jazz_ball_apex_v1.py \
+            --clips jazz_dunk_source/clips \
+            --impact-json jazz_apex/audio_impact_bound.json \
+            --reference 'Left Above Rim' \
+            --out jazz_apex
+
+      - name: Lock all 12 cameras to apex state
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_apex/jazz_ball_apex_sync_map.json \
+            --clips jazz_dunk_source/clips \
+            --reference 'Left Above Rim' --max-lag-seconds 2.0 \
+            --out jazz_apex/apex_audio_sync_graph.json
+          python - <<'PY'
+          import cv2,json
+          from pathlib import Path
+          sync=json.load(open('jazz_apex/apex_audio_sync_graph.json'))
+          cfg=json.load(open('jazz_apex/jazz_ball_apex_sync_map.json'))
+          files={r['label']:r['file'] for r in cfg['angles']}
+          rows=[]
+          for r in sync['angles']:
+              label=r['label']; t=float(r['predicted_freeze_time'])
+              p=Path('jazz_dunk_source/clips')/files[label]
+              cap=cv2.VideoCapture(str(p)); cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0); ok,im=cap.read(); cap.release()
+              if not ok: raise RuntimeError(f'Cannot export {label} at {t}')
+              out=Path('jazz_apex/locked_frames')/f"{label.replace(' ','_')}_apex.png"
+              cv2.imwrite(str(out),im)
+              rows.append({'label':label,'time':t,'file':out.name,'sync_confidence':r['confidence'],'quality':r['mean_incident_quality']})
+          Path('jazz_apex/locked_frames/locked_frames.json').write_text(json.dumps(rows,indent=2))
+          moderate=sum(r['sync_confidence'] in ('high','moderate') for r in rows)
+          if moderate < 8: raise RuntimeError(f'Sync gate failed: {moderate}/12')
+          print(f'APEX_SYNC_PASS={moderate}/{len(rows)}')
+          PY
+
+      - name: Run portable MoGe plus static-SIFT PnP free-view solve
+        run: |
+          python freeze_spin/build_portable_moge_pnp_freeview_v12.py \
+            --locked-dir jazz_apex/locked_frames \
+            --out jazz_apex_freeview_v13 \
+            --reference "In Arena" \
+            --tokens 1600 --max-degree 5.0 --frames 31
+
+      - name: Encode native and UHD motion previews
+        run: |
+          ffmpeg -y -framerate 30 -i jazz_apex_freeview_v13/motion_%03d.png \
+            -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart \
+            jazz_apex_freeview_v13/adams_jazz_ball_apex_freeview_native.mp4
+          ffmpeg -y -framerate 30 -i jazz_apex_freeview_v13/motion_%03d.png \
+            -vf "scale=3840:2160:flags=lanczos" \
+            -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart \
+            jazz_apex_freeview_v13/adams_jazz_ball_apex_freeview_UHD.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 jazz_apex_freeview_v13/adams_jazz_ball_apex_freeview_native.mp4)" = "960" || exit 1
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 jazz_apex_freeview_v13/adams_jazz_ball_apex_freeview_UHD.mp4)" = "3840" || exit 1
+
+      - name: Package apex proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp jazz_apex_freeview_v13/*.png delivery/ 2>/dev/null || true
+          cp jazz_apex_freeview_v13/*.json delivery/ 2>/dev/null || true
+          cp jazz_apex_freeview_v13/*.mp4 delivery/ 2>/dev/null || true
+          cp jazz_apex/ball_apex_reference_native.png delivery/ 2>/dev/null || true
+          cp jazz_apex/ball_apex_reference_annotated.png delivery/ 2>/dev/null || true
+          cp jazz_apex/ball_apex_qa_strip.png delivery/ 2>/dev/null || true
+          cp jazz_apex/ball_apex_selection_v1.json delivery/ 2>/dev/null || true
+          cp jazz_apex/audio_impact_bound.json delivery/ 2>/dev/null || true
+          cp jazz_apex/apex_audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp jazz_apex/locked_frames/*.png delivery/ 2>/dev/null || true
+          cp jazz_apex/locked_frames/locked_frames.json delivery/ 2>/dev/null || true
+          cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
+
+      - name: Upload apex proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-ball-apex-freeview-v13-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
