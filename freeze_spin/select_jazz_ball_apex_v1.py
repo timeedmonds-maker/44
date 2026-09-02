@@ -22,15 +22,14 @@ def label_from_name(path: Path) -> str:
 
 def orange_components(frame: np.ndarray) -> tuple[list[dict], list[dict]]:
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    # Broad enough for the NBA ball/rim under warm arena lighting, while retaining saturation.
-    mask = cv2.inRange(hsv, np.array([1, 65, 45], np.uint8), np.array([32, 255, 255], np.uint8))
+    mask = cv2.inRange(hsv, np.array([1, 58, 42], np.uint8), np.array([34, 255, 255], np.uint8))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     compact, elongated = [], []
     H, W = frame.shape[:2]
     for c in contours:
         area = float(cv2.contourArea(c))
-        if area < 12:
+        if area < 9:
             continue
         x, y, w, h = cv2.boundingRect(c)
         if w <= 0 or h <= 0:
@@ -46,18 +45,16 @@ def orange_components(frame: np.ndarray) -> tuple[list[dict], list[dict]]:
             "area": area, "circularity": circ, "fill": fill, "mean_saturation": sat,
         }
         aspect = w / max(h, 1)
-        # Rim candidates: elongated orange geometry, not giant floor/crowd blobs.
-        if area >= 28 and w >= 18 and aspect >= 1.45 and w <= W * 0.42 and h <= H * 0.18:
-            row["rim_score"] = float(area * min(aspect, 8.0) * (0.5 + sat / 255.0))
+        if area >= 25 and w >= 18 and aspect >= 1.40 and w <= W * 0.42 and h <= H * 0.18:
+            row["rim_score"] = float(area * min(aspect, 8.0) * (0.45 + sat / 255.0))
             elongated.append(row)
-        # Ball candidates: compact, roughly round, plausible native 540p size.
-        if 4 <= w <= 64 and 4 <= h <= 64 and 0.50 <= aspect <= 1.90 and circ >= 0.12 and fill >= 0.16:
-            size_pref = math.exp(-abs(math.log(max(math.sqrt(area), 1.0) / 17.0)) / 1.35)
-            row["ball_color_score"] = float(1.4 * circ + 0.8 * fill + 0.9 * (sat / 255.0) + 0.6 * size_pref)
+        if 4 <= w <= 68 and 4 <= h <= 68 and 0.45 <= aspect <= 2.05 and circ >= 0.09 and fill >= 0.12:
+            size_pref = math.exp(-abs(math.log(max(math.sqrt(area), 1.0) / 17.0)) / 1.45)
+            row["ball_color_score"] = float(1.35 * circ + 0.72 * fill + 0.92 * (sat / 255.0) + 0.58 * size_pref)
             compact.append(row)
     elongated.sort(key=lambda r: r["rim_score"], reverse=True)
     compact.sort(key=lambda r: r["ball_color_score"], reverse=True)
-    return compact[:30], elongated[:12]
+    return compact[:36], elongated[:14]
 
 
 def maskrcnn_balls(model, frame: np.ndarray) -> list[dict]:
@@ -66,7 +63,7 @@ def maskrcnn_balls(model, frame: np.ndarray) -> list[dict]:
         p = model([to_tensor(rgb)])[0]
     rows = []
     for score, label, box in zip(p["scores"].cpu().numpy(), p["labels"].cpu().numpy(), p["boxes"].cpu().numpy()):
-        if int(label) != SPORTS_BALL_CLASS or float(score) < 0.025:
+        if int(label) != SPORTS_BALL_CLASS or float(score) < 0.018:
             continue
         x1, y1, x2, y2 = [float(v) for v in box]
         rows.append({
@@ -74,17 +71,16 @@ def maskrcnn_balls(model, frame: np.ndarray) -> list[dict]:
             "cx": (x1 + x2) / 2.0, "cy": (y1 + y2) / 2.0,
             "w": x2 - x1, "h": y2 - y1,
         })
-    return rows[:12]
+    return rows[:14]
 
 
 def nearest_rim(rims: list[dict], W: int, H: int) -> dict | None:
     if not rims:
         return None
-    # Dunk clips are basket-centered. Penalize edge/crowd orange while keeping angle flexibility.
-    def s(r: dict) -> float:
+    def score(r: dict) -> float:
         center_pen = abs(r["cx"] - W / 2.0) / W + 0.35 * abs(r["cy"] - H * 0.43) / H
         return r["rim_score"] / (1.0 + 3.0 * center_pen)
-    return max(rims, key=s)
+    return max(rims, key=score)
 
 
 def dedupe_candidates(color_rows: list[dict], net_rows: list[dict]) -> list[dict]:
@@ -98,10 +94,10 @@ def dedupe_candidates(color_rows: list[dict], net_rows: list[dict]) -> list[dict
         merged = False
         for r in out:
             d = math.hypot(n["cx"] - r["cx"], n["cy"] - r["cy"])
-            if d <= max(10.0, 0.55 * max(n["w"], n["h"], r["w"], r["h"])):
+            if d <= max(11.0, 0.62 * max(n["w"], n["h"], r["w"], r["h"])):
                 r["source"] = "orange+maskrcnn"
                 r["maskrcnn_score"] = float(n["score"])
-                r["detector_score"] += 2.4 * float(n["score"])
+                r["detector_score"] += 3.0 * float(n["score"])
                 merged = True
                 break
         if not merged:
@@ -110,56 +106,196 @@ def dedupe_candidates(color_rows: list[dict], net_rows: list[dict]) -> list[dict
                 "w": float(n["w"]), "h": float(n["h"]),
                 "cx": float(n["cx"]), "cy": float(n["cy"]),
                 "source": "maskrcnn", "maskrcnn_score": float(n["score"]),
-                "detector_score": float(2.4 * n["score"]),
+                "detector_score": float(3.0 * n["score"]),
             })
     return out
 
 
-def build_track(frames: list[dict]) -> list[dict]:
-    # Dynamic programming over the compact candidates. The ball must stay near the basket and move smoothly.
-    prev_scores, prev_paths = {}, {}
-    for i, fr in enumerate(frames):
+def prepare_nodes(frames: list[dict]) -> list[dict]:
+    nodes = []
+    for fi, fr in enumerate(frames):
         rim = fr["rim"]
-        candidates = fr["candidates"]
-        cur_scores, cur_paths = {}, {}
-        for j, c in enumerate(candidates):
-            dx_rim = abs(c["cx"] - rim["cx"])
-            dy_rim = c["cy"] - rim["cy"]
-            if dx_rim > 245 or dy_rim < -230 or dy_rim > 125:
+        for cj, c in enumerate(fr["candidates"]):
+            dx = abs(float(c["cx"]) - float(rim["cx"]))
+            dy = float(c["cy"]) - float(rim["cy"])
+            if dx > 255 or dy < -240 or dy > 135:
                 continue
-            # Prefer compact evidence close enough to the basket to plausibly be the dunking ball.
-            local = float(c["detector_score"] - 0.0028 * dx_rim - 0.0010 * abs(dy_rim + 45.0))
-            if i == 0 or not prev_scores:
-                cur_scores[j] = local
-                cur_paths[j] = [(i, j)]
+            nodes.append({
+                "raw_i": fi, "cand_i": cj,
+                "frame_index": int(fr["frame_index"]), "time": float(fr["time"]),
+                "cx": float(c["cx"]), "cy": float(c["cy"]),
+                "height": float(rim["cy"] - c["cy"]),
+                "detector_score": float(c["detector_score"]),
+                "source": c.get("source", "unknown"),
+                "dx_rim": dx, "dy_rim": dy,
+            })
+    # Static orange arena/rim lettering tends to recur at the same coordinates in most frames.
+    for n in nodes:
+        same_frames = set()
+        for q in nodes:
+            if abs(q["raw_i"] - n["raw_i"]) < 2:
                 continue
-            best = None
-            for pj, ps in prev_scores.items():
-                pc = frames[i - 1]["candidates"][pj]
-                dist = math.hypot(c["cx"] - pc["cx"], c["cy"] - pc["cy"])
-                if dist > 48:
-                    continue
-                # Smooth motion, but do not reward a static orange object.
-                step_score = ps + local - 0.018 * dist + min(dist, 18.0) * 0.012
-                if best is None or step_score > best[0]:
-                    best = (step_score, pj)
-            if best is not None:
-                cur_scores[j] = best[0]
-                cur_paths[j] = prev_paths[best[1]] + [(i, j)]
-        prev_scores, prev_paths = cur_scores, cur_paths
-    if not prev_scores:
-        return []
-    best_j = max(prev_scores, key=prev_scores.get)
-    idx_path = prev_paths[best_j]
+            if math.hypot(q["cx"] - n["cx"], q["cy"] - n["cy"]) <= 5.5:
+                same_frames.add(q["raw_i"])
+        n["static_persistence"] = len(same_frames) / max(len(frames) - 1, 1)
+        n["local_score"] = (
+            n["detector_score"]
+            - 0.0025 * n["dx_rim"]
+            - 0.0010 * abs(n["dy_rim"] + 45.0)
+            - 2.8 * max(0.0, n["static_persistence"] - 0.20)
+        )
+    nodes.sort(key=lambda n: (n["raw_i"], n["cand_i"]))
+    return nodes
+
+
+def build_gap_tolerant_track(frames: list[dict], max_gap: int = 4) -> tuple[list[dict], dict]:
+    nodes = prepare_nodes(frames)
+    if not nodes:
+        return [], {"candidate_nodes": 0}
+    best_score = np.full(len(nodes), -1e9, np.float64)
+    best_len = np.ones(len(nodes), np.int32)
+    prev = np.full(len(nodes), -1, np.int32)
+
+    for i, n in enumerate(nodes):
+        # Starting a new path is allowed, but longer coherent paths win through a coverage bonus.
+        best_score[i] = float(n["local_score"] + 0.25)
+        for j in range(i - 1, -1, -1):
+            p = nodes[j]
+            gap = n["raw_i"] - p["raw_i"]
+            if gap <= 0:
+                continue
+            if gap > max_gap:
+                if p["raw_i"] < n["raw_i"] - max_gap:
+                    break
+                continue
+            dist = math.hypot(n["cx"] - p["cx"], n["cy"] - p["cy"])
+            max_dist = 34.0 + 30.0 * gap
+            if dist > max_dist:
+                continue
+            speed = dist / gap
+            gap_pen = 0.24 * (gap - 1)
+            speed_pen = 0.0065 * max(0.0, speed - 28.0) ** 1.35
+            # Reward observation coverage. Do not require every frame to contain a detection.
+            score = best_score[j] + n["local_score"] + 0.48 - gap_pen - speed_pen
+            if score > best_score[i]:
+                best_score[i] = score
+                best_len[i] = best_len[j] + 1
+                prev[i] = j
+
+    # Prefer long paths with real spatial motion over isolated high-score blobs.
+    end_scores = best_score + 0.48 * best_len
+    order = np.argsort(end_scores)[::-1]
+    chosen = None
+    chosen_diag = None
+    for end in order[:80]:
+        idx = []
+        cur = int(end)
+        while cur >= 0:
+            idx.append(cur)
+            cur = int(prev[cur])
+        idx.reverse()
+        path = [nodes[k] for k in idx]
+        if len(path) < 5:
+            continue
+        span_frames = path[-1]["raw_i"] - path[0]["raw_i"]
+        displacement = math.hypot(path[-1]["cx"] - path[0]["cx"], path[-1]["cy"] - path[0]["cy"])
+        bbox_span = math.hypot(
+            max(x["cx"] for x in path) - min(x["cx"] for x in path),
+            max(x["cy"] for x in path) - min(x["cy"] for x in path),
+        )
+        if span_frames < 8 or bbox_span < 18.0:
+            continue
+        chosen = path
+        chosen_diag = {
+            "candidate_nodes": len(nodes),
+            "observations": len(path),
+            "span_frames": int(span_frames),
+            "endpoint_displacement_px": float(displacement),
+            "track_bbox_span_px": float(bbox_span),
+            "path_score": float(end_scores[end]),
+            "max_gap_frames": max_gap,
+        }
+        break
+    if chosen is None:
+        return [], {"candidate_nodes": len(nodes), "reason": "no long moving path"}
+
     track = []
-    for fi, cj in idx_path:
-        fr = frames[fi]; c = fr["candidates"][cj]; rim = fr["rim"]
+    for n in chosen:
+        fr = frames[n["raw_i"]]
+        c = fr["candidates"][n["cand_i"]]
         track.append({
             "frame_index": int(fr["frame_index"]), "time": float(fr["time"]),
-            "ball": c, "rim": rim,
-            "height_proxy_px": float(rim["cy"] - c["cy"]),
+            "ball": c, "rim": fr["rim"],
+            "height_proxy_px": float(n["height"]),
+            "static_persistence": float(n["static_persistence"]),
         })
-    return track
+    return track, chosen_diag or {}
+
+
+def robust_quadratic_apex(track: list[dict], fps: float) -> tuple[dict, list[bool]]:
+    times = np.array([r["time"] for r in track], np.float64)
+    heights = np.array([r["height_proxy_px"] for r in track], np.float64)
+    t0 = float(np.median(times))
+    x = times - t0
+    inliers = np.ones(len(track), dtype=bool)
+    coeff = None
+    for _ in range(5):
+        if int(inliers.sum()) < 5:
+            break
+        coeff = np.polyfit(x[inliers], heights[inliers], 2)
+        pred = np.polyval(coeff, x)
+        resid = np.abs(heights - pred)
+        med = float(np.median(resid[inliers]))
+        mad = float(np.median(np.abs(resid[inliers] - med)))
+        threshold = max(5.0, med + 3.2 * max(mad, 1.0))
+        new_inliers = resid <= threshold
+        if np.array_equal(new_inliers, inliers):
+            break
+        inliers = new_inliers
+    if coeff is None or int(inliers.sum()) < 5:
+        raise RuntimeError("Quadratic apex fit has insufficient inliers")
+
+    a, b, c = [float(v) for v in coeff]
+    if a >= -0.5:
+        raise RuntimeError(f"Apex trajectory is not concave-down enough: quadratic_a={a:.4f}")
+    apex_x = -b / (2.0 * a)
+    apex_time_fit = float(t0 + apex_x)
+    inlier_times = times[inliers]
+    margin = 1.25 / fps
+    if apex_time_fit < float(inlier_times.min() + margin) or apex_time_fit > float(inlier_times.max() - margin):
+        raise RuntimeError(
+            f"Fitted apex {apex_time_fit:.5f}s is not interior to observed ball trajectory "
+            f"[{inlier_times.min():.5f}, {inlier_times.max():.5f}]"
+        )
+    pred = np.polyval(coeff, x)
+    rmse = float(np.sqrt(np.mean((heights[inliers] - pred[inliers]) ** 2)))
+    if rmse > 11.0:
+        raise RuntimeError(f"Apex trajectory quadratic fit too noisy: rmse={rmse:.2f}px")
+
+    snap = int(np.argmin(np.abs(times - apex_time_fit)))
+    apex = track[snap]
+    before = heights[(times < apex_time_fit) & inliers]
+    after = heights[(times > apex_time_fit) & inliers]
+    if len(before) < 2 or len(after) < 2:
+        raise RuntimeError("Apex trajectory lacks observations on both sides")
+    fit_apex_height = float(np.polyval(coeff, apex_x))
+    rise = float(fit_apex_height - np.percentile(before, 30))
+    fall = float(fit_apex_height - np.percentile(after, 30))
+    span = float(np.max(heights[inliers]) - np.min(heights[inliers]))
+    if rise < 3.0 or fall < 3.0 or span < 9.0:
+        raise RuntimeError(f"Rise/fall apex gate failed: rise={rise:.2f}px fall={fall:.2f}px span={span:.2f}px")
+    return {
+        "apex": apex,
+        "apex_time_fit": apex_time_fit,
+        "fit_coefficients_centered": [a, b, c],
+        "fit_time_center": t0,
+        "fit_rmse_px": rmse,
+        "fit_apex_height_px": fit_apex_height,
+        "rise_into_apex_px": rise,
+        "fall_after_apex_px": fall,
+        "height_proxy_span_px": span,
+        "fit_inliers": int(inliers.sum()),
+    }, inliers.tolist()
 
 
 def main() -> None:
@@ -168,8 +304,8 @@ def main() -> None:
     ap.add_argument("--impact-json", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--reference", default="Left Above Rim")
-    ap.add_argument("--search-before", type=float, default=0.95)
-    ap.add_argument("--search-after", type=float, default=0.03)
+    ap.add_argument("--search-before", type=float, default=1.05)
+    ap.add_argument("--search-after", type=float, default=0.08)
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -208,47 +344,30 @@ def main() -> None:
         candidates = dedupe_candidates(compact, net)
         raw.append({"frame_index": fi, "time": fi / fps, "rim": rim, "candidates": candidates, "image": frame})
     cap.release()
-    if len(raw) < 10:
+    if len(raw) < 12:
         raise RuntimeError(f"Only {len(raw)} frames with a usable rim in apex window")
 
-    # Stabilize rim center against orange noise; relative ball-to-rim height is the key apex proxy.
     rim_cx = float(np.median([r["rim"]["cx"] for r in raw]))
     rim_cy = float(np.median([r["rim"]["cy"] for r in raw]))
     for r in raw:
         r["rim"] = dict(r["rim"], cx=rim_cx, cy=rim_cy)
 
-    track = build_track(raw)
-    if len(track) < 8:
-        raise RuntimeError(f"Ball track too short: {len(track)} frames")
-
-    times = np.array([r["time"] for r in track], np.float64)
-    heights = np.array([r["height_proxy_px"] for r in track], np.float64)
-    # Median then short moving-average smoothing. Apex is a visual height maximum, not an audio offset.
-    if len(heights) >= 5:
-        hmed = cv2.medianBlur(heights.astype(np.float32).reshape(-1, 1), 5).reshape(-1).astype(np.float64)
-    else:
-        hmed = heights.copy()
-    hs = np.convolve(hmed, np.ones(3) / 3.0, mode="same")
-    # Avoid edge maxima; require evidence on both sides of the apex.
-    valid = np.arange(len(track))
-    valid = valid[(valid >= 2) & (valid <= len(track) - 3)]
-    if not len(valid):
-        raise RuntimeError("No interior apex candidates")
-    k = int(valid[np.argmax(hs[valid])])
-
-    # Rising before and falling after in the image-space rim-relative height proxy.
-    pre = hs[max(0, k - 3):k + 1]
-    post = hs[k:min(len(hs), k + 4)]
-    rise = float(hs[k] - np.min(pre)) if len(pre) else 0.0
-    fall = float(hs[k] - np.min(post)) if len(post) else 0.0
-    span = float(np.max(hs) - np.min(hs))
-    apex = track[k]
+    track, track_diag = build_gap_tolerant_track(raw, max_gap=4)
+    if len(track) < 6:
+        raise RuntimeError(f"Ball track still too short after gap tolerance: {len(track)} frames; {track_diag}")
+    fit, fit_inliers = robust_quadratic_apex(track, fps)
+    apex = fit["apex"]
     apex_time = float(apex["time"])
-    confidence = "high" if len(track) >= 14 and rise >= 4.0 and fall >= 4.0 and span >= 15.0 else ("moderate" if span >= 10.0 else "low")
-    if confidence == "low":
-        raise RuntimeError(f"Apex visual trajectory gate failed: span={span:.2f}px rise={rise:.2f}px fall={fall:.2f}px")
+    fit_apex_time = float(fit["apex_time_fit"])
+    lead = float(impact_ref - apex_time)
+    if lead < -0.08 or lead > 1.10:
+        raise RuntimeError(f"Selected apex is implausibly placed relative to audio impact: lead={lead:.3f}s")
 
-    # Export apex and a compact +/-3-frame visual QA strip.
+    confidence = "high" if (
+        len(track) >= 10 and fit["fit_inliers"] >= 8 and fit["fit_rmse_px"] <= 7.5
+        and fit["rise_into_apex_px"] >= 4.0 and fit["fall_after_apex_px"] >= 4.0
+    ) else "moderate"
+
     apex_frame = next(r["image"] for r in raw if r["frame_index"] == apex["frame_index"])
     annotated = apex_frame.copy()
     bx, by = int(round(apex["ball"]["cx"])), int(round(apex["ball"]["cy"]))
@@ -256,20 +375,25 @@ def main() -> None:
     cv2.circle(annotated, (bx, by), rr, (0, 255, 0), 2)
     cv2.circle(annotated, (int(round(rim_cx)), int(round(rim_cy))), 7, (255, 0, 255), 2)
     cv2.putText(annotated, f"BALL APEX {apex_time:.3f}s", (24, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2, cv2.LINE_AA)
+    cv2.putText(annotated, f"fit {fit_apex_time:.3f}s  rmse {fit['fit_rmse_px']:.1f}px", (24, 72), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (0, 255, 0), 2, cv2.LINE_AA)
     cv2.imwrite(str(args.out / "ball_apex_reference_native.png"), apex_frame)
     cv2.imwrite(str(args.out / "ball_apex_reference_annotated.png"), annotated)
 
+    by_frame = {r["frame_index"]: r for r in raw}
+    track_by_frame = {r["frame_index"]: r for r in track}
     strip = []
-    for off in range(-3, 4):
+    for off in range(-4, 5):
         fi = apex["frame_index"] + off
-        rrw = next((r for r in raw if r["frame_index"] == fi), None)
+        rrw = by_frame.get(fi)
         if rrw is None:
             continue
         im = rrw["image"].copy()
-        tr = next((q for q in track if q["frame_index"] == fi), None)
+        tr = track_by_frame.get(fi)
         if tr:
             cv2.circle(im, (int(round(tr["ball"]["cx"])), int(round(tr["ball"]["cy"]))), 10, (0, 255, 0), 2)
-            cv2.putText(im, f"{off:+d}  h={tr['height_proxy_px']:.1f}", (18, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(im, f"{off:+d} h={tr['height_proxy_px']:.1f}", (18, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (0, 255, 0), 2, cv2.LINE_AA)
+        else:
+            cv2.putText(im, f"{off:+d} gap", (18, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (0, 255, 255), 2, cv2.LINE_AA)
         strip.append(im)
     if strip:
         cv2.imwrite(str(args.out / "ball_apex_qa_strip.png"), np.hstack(strip))
@@ -284,28 +408,33 @@ def main() -> None:
     (args.out / "jazz_ball_apex_sync_map.json").write_text(json.dumps(sync_map, indent=2))
 
     report = {
-        "method": "frame-by-frame basketball tracking against stabilized rim + trajectory-reversal apex gate",
+        "method": "gap-tolerant basketball candidate graph + robust concave-down rim-relative trajectory fit",
         "reference_label": args.reference,
         "reference_file": reference_path.name,
         "fps": fps,
         "audio_impact_reference_time": impact_ref,
         "search_window_reference_seconds": [lo, hi],
         "selected_apex_time_seconds": apex_time,
+        "fitted_apex_time_seconds": fit_apex_time,
         "selected_apex_frame_index": int(apex["frame_index"]),
-        "apex_lead_before_audio_impact_seconds": float(impact_ref - apex_time),
+        "apex_lead_before_audio_impact_seconds": lead,
         "track_frames": len(track),
-        "height_proxy_span_px": span,
-        "rise_into_apex_px": rise,
-        "fall_after_apex_px": fall,
+        "track_diagnostics": track_diag,
+        "fit_inliers": fit["fit_inliers"],
+        "fit_rmse_px": fit["fit_rmse_px"],
+        "height_proxy_span_px": fit["height_proxy_span_px"],
+        "rise_into_apex_px": fit["rise_into_apex_px"],
+        "fall_after_apex_px": fit["fall_after_apex_px"],
         "apex_height_above_rim_proxy_px": float(apex["height_proxy_px"]),
         "ball_detector_source_at_apex": apex["ball"].get("source"),
         "ball_detector_score_at_apex": float(apex["ball"].get("detector_score", 0.0)),
         "confidence": confidence,
-        "track": [{k: v for k, v in r.items()} for r in track],
-        "policy": "Freeze at the visually measured highest point of the ball in the dunk motion. Audio is used only to bound/synchronize the event, not to define the apex.",
+        "fit_inlier_mask": fit_inliers,
+        "track": track,
+        "policy": "Freeze at the visually measured highest point of the ball in the dunk motion. Audio bounds and synchronizes the event but does not define the apex. Missing detections may be bridged for tracking; the apex still requires a coherent concave-down rise/top/fall trajectory.",
     }
     (args.out / "ball_apex_selection_v1.json").write_text(json.dumps(report, indent=2))
-    print(json.dumps({k: v for k, v in report.items() if k != "track"}, indent=2), flush=True)
+    print(json.dumps({k: v for k, v in report.items() if k not in ("track", "fit_inlier_mask")}, indent=2), flush=True)
 
 
 if __name__ == "__main__":
