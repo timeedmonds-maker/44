@@ -1,0 +1,115 @@
+name: Adams Jazz label-independent physical camera registry v2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_same_game_calibration_manifest_v1.py'
+      - 'freeze_spin/build_game_physical_camera_registry_v2.py'
+      - '.github/workflows/adams-jazz-game-physical-camera-registry-v2.yml'
+
+jobs:
+  physical-camera-registry-v2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic video and vision runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Discover same-game calibration events from official video inventory
+        run: |
+          python freeze_spin/build_same_game_calibration_manifest_v1.py \
+            --game-id 0022500301 --game-date 2025-11-30 --target-event 489 \
+            --event-count 9 --min-angles 8 --out same_game_calibration_manifest.json
+
+      - name: Retrieve all official angles for sampled events
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request same_game_calibration_manifest.json --out game_camera_source --workers 8
+          python - <<'PY'
+          import json
+          q=json.load(open('game_camera_source/qa.json'))
+          assert q.get('valid_clip_count') == q.get('expanded_clip_count')
+          assert q.get('valid_clip_count',0) >= 80
+          print('REAL_CLIPS',q.get('valid_clip_count'))
+          PY
+
+      - name: Recreate immutable exact Frame C target anchors
+        run: |
+          mkdir -p target_event_clips
+          cp game_camera_source/clips/*_0022500301_489_*_SOURCE.mp4 target_event_clips/
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_event_clips --out frame_c_registry_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_registry_target/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          assert len(q['options'])==12
+          print('IMMUTABLE_FRAME_C',lock)
+          PY
+
+      - name: Cluster recurring physical optical centres independent of labels
+        run: |
+          python freeze_spin/build_game_physical_camera_registry_v2.py \
+            --clips game_camera_source/clips \
+            --target-frames frame_c_registry_target/frames \
+            --target-event 489 \
+            --out game_physical_camera_registry_v2
+
+      - name: Enforce registry semantics and known duplicate-view regression
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('game_physical_camera_registry_v2/game_physical_camera_registry_v2.json'))
+          p=q['critical_policy']
+          assert p['nba_angle_label_is_physical_camera_id'] is False
+          assert p['same_label_required_for_recurrence'] is False
+          assert p['metric_xyz_promoted_by_this_stage'] is False
+          assert p['render_allowed_by_this_stage'] is False
+          assert q['target_event']==489 and q['source_resolution']==[960,540]
+          # The exact target feeds already demonstrated overwhelming pixel-level
+          # equivalence locally. The workflow must reproduce at least two links
+          # among Broadcast / Other Broadcast / Play by Play before we trust v2.
+          eq={frozenset((r['a'],r['b'])) for r in q['target_equivalent_pairs']}
+          trio={'Broadcast','Other Broadcast','Play by Play'}
+          links=sum(1 for e in eq if e.issubset(trio))
+          assert links>=2, ('duplicate-view regression failed',links,eq)
+          assert q['recurring_fixed_centre_candidate_count']>=1
+          print('TARGET_EQUIVALENT_PAIRS',[(r['a'],r['b'],r.get('inliers'),r.get('p95_error_px')) for r in q['target_equivalent_pairs']])
+          for c in q['clusters']:
+              print('CLUSTER',c['cluster_id'],c['exact_target_members'],c['status'],'events',c['passing_event_ids'],'source_labels',c['contributing_source_labels'])
+          PY
+
+      - name: Package physical-camera registry diagnostics
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp same_game_calibration_manifest.json delivery/ 2>/dev/null || true
+          cp game_camera_source/qa.json delivery/source_qa.json 2>/dev/null || true
+          cp frame_c_registry_target/options.json delivery/frame_c_synchronized_options.json 2>/dev/null || true
+          cp frame_c_registry_target/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp frame_c_registry_target/frames/*.png delivery/ 2>/dev/null || true
+          cp game_physical_camera_registry_v2/game_physical_camera_registry_v2.json delivery/ 2>/dev/null || true
+          cp game_physical_camera_registry_v2/cluster_*_contact.jpg delivery/ 2>/dev/null || true
+          mkdir -p delivery/evidence
+          cp game_physical_camera_registry_v2/evidence/*.jpg delivery/evidence/ 2>/dev/null || true
+          (cd delivery && zip -qr adams_jazz_game_physical_camera_registry_v2.zip .)
+
+      - name: Upload physical-camera registry v2
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-game-physical-camera-registry-v2-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
