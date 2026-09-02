@@ -36,7 +36,7 @@ jobs:
           from pathlib import Path
           rows=[]
           for p in sorted(Path('jazz_dunk_source/clips').glob('*_489_*_SOURCE.mp4')):
-              m=re.search(r'_489_(.+)_SOURCE\\.mp4$',p.name)
+              m=re.search(r'_489_(.+)_SOURCE\.mp4$',p.name)
               if m: rows.append({'label':m.group(1).replace('_',' '),'file':p.name,'freeze_time':8.275733})
           if len(rows)!=12: raise RuntimeError(f'Expected 12 angles, found {len(rows)}')
           cfg={'event':{'game_id':'0022500301','event_id':489},'source_fps':29.97003,'reference_angle':'Left Above Rim','angles':rows}
