@@ -55,7 +55,7 @@ jobs:
 
       - name: Prove reusable regulation-metric camera centre
         run: |
-          python freeze_spin/prove_game_camera_center_from_transfer_v1.py \
+          python -m freeze_spin.prove_game_camera_center_from_transfer_v1 \
             --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
             --target-landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
             --camera-label 'Left Above Rim' \
