@@ -12,7 +12,13 @@ game timeline. The immutable target event is always retained.
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+# The sampler lives under freeze_spin/ but reuses the proven root-level clip inventory.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from build_kd_top10_all_angles import inventory
 
@@ -52,8 +58,6 @@ def probe_event(game_id: str, event_id: int, min_angles: int) -> dict | None:
 
 
 def discover_video_events(game_id: str, target_event: int, *, min_angles: int, max_events: int) -> tuple[list[dict], dict]:
-    # A coarse pass keeps network load modest while still spanning the game. If it
-    # is too sparse, a denser pass fills the gaps. The target is always probed exactly.
     probes = sorted(set([target_event] + list(range(20, 761, 20))))
     found = []
     tested = []
@@ -64,7 +68,8 @@ def discover_video_events(game_id: str, target_event: int, *, min_angles: int, m
             found.append(row)
 
     if len(found) < max_events:
-        extra = [eid for eid in range(10, 771, 10) if eid not in set(tested)]
+        tested_set = set(tested)
+        extra = [eid for eid in range(10, 771, 10) if eid not in tested_set]
         for eid in extra:
             tested.append(eid)
             row = probe_event(game_id, eid, min_angles)
@@ -73,7 +78,6 @@ def discover_video_events(game_id: str, target_event: int, *, min_angles: int, m
             if len(found) >= max_events * 2:
                 break
 
-    # Ensure target is present even if its exact angle count differs from min_angles.
     if not any(int(r["event_id"]) == target_event for r in found):
         target = probe_event(game_id, target_event, 1)
         if target is None:
@@ -103,7 +107,6 @@ def main() -> None:
     ap.add_argument("--target-event", type=int, required=True)
     ap.add_argument("--event-count", type=int, default=9)
     ap.add_argument("--min-angles", type=int, default=8)
-    # Retained as a no-op compatibility argument for the first workflow revision.
     ap.add_argument("--per-period", type=int, default=2)
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
