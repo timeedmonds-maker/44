@@ -1,3 +1,4 @@
+# trigger existing v60 workflow; proof semantics unchanged
 name: Adams Jazz Left Slash direct physical camera v60
 
 on:
