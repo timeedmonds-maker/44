@@ -18,11 +18,10 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import json, math, requests
+          import json, requests
           from collections import defaultdict
 
           season = '2025-26'
-          url = 'https://stats.nba.com/stats/shotqualityleaders'
           params = {
               'LeagueID': '00',
               'Season': season,
@@ -35,15 +34,30 @@ jobs:
               'Referer': 'https://www.nba.com/',
               'Origin': 'https://www.nba.com',
           }
-          r = requests.get(url, params=params, headers=headers, timeout=45)
-          print('HTTP', r.status_code, r.url)
-          r.raise_for_status()
-          data = r.json()
+
+          data = None
+          errors = []
+          for host in ('https://stats.gleague.nba.com', 'https://stats.nba.com'):
+              url = host + '/stats/shotqualityleaders'
+              try:
+                  r = requests.get(url, params=params, headers=headers, timeout=(6, 15))
+                  print('HTTP', r.status_code, r.url)
+                  if r.status_code == 200:
+                      candidate = r.json()
+                      if candidate.get('shots'):
+                          data = candidate
+                          break
+                      errors.append((host, 'empty shots', r.text[:500]))
+                  else:
+                      errors.append((host, r.status_code, r.text[:500]))
+              except Exception as e:
+                  errors.append((host, repr(e)))
+          if data is None:
+              print('ERRORS', json.dumps(errors, default=str, indent=2))
+              raise SystemExit('No usable shotqualityleaders response')
+
           shots = data.get('shots', [])
           print('PLAYER_ROWS', len(shots))
-          if not shots:
-              print(json.dumps(data)[:4000])
-              raise SystemExit('No shots rows')
 
           teams = defaultdict(lambda: {
               'team': '', 'players': 0, 'fga': 0, 'fg2a': 0, 'fg3a': 0,
@@ -101,6 +115,7 @@ jobs:
 
           print('TEAM_COUNT', len(out))
           print('LEAGUE_FGA', sum(x['fga'] for x in out))
+          print('TEAM_FGA_RANGE', min(x['fga'] for x in out), max(x['fga'] for x in out))
           print('RESULT_JSON_START')
           print(json.dumps(out, indent=2))
           print('RESULT_JSON_END')
