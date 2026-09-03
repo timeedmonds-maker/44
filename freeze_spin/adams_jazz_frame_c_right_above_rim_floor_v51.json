@@ -1,0 +1,46 @@
+{
+  "game_id": "0022500301",
+  "event_id": 489,
+  "view": "Right Above Rim",
+  "reference_file": "L_Right_Above_Rim_8.562013s_frame0257.png",
+  "reference_sha256": "0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a",
+  "coordinate_system": "basket-local regulation NBA centimetres: +X from board toward court, +Y across board, +Z upward",
+  "purpose": "Analytic floor homography from lane-line correspondences plus two direct 13-foot hash anchors; circles reserved for heldout validation",
+  "lane_image_lines": {
+    "negative_y_lane": {
+      "world_line": "Y=-8ft",
+      "x_as_function_of_y": {"slope": -0.1579007926442772, "intercept": 292.23116102461495},
+      "fit_pixel_count": 289
+    },
+    "positive_y_lane": {
+      "world_line": "Y=+8ft",
+      "x_as_function_of_y": {"slope": 0.06524191813686131, "intercept": 713.8298777359772},
+      "fit_pixel_count": 348
+    }
+  },
+  "corresponded_hash_centroids_px": {
+    "negative_y_hash": [367.9545454545,129.4090909091],
+    "positive_y_hash": [629.5,141.5]
+  },
+  "corresponded_hash_world_cm": {
+    "negative_y_hash": [274.32,-152.4,0.0],
+    "positive_y_hash": [274.32,152.4,0.0]
+  },
+  "free_throw_circle_dash_centroids_px": [
+    [360.3220,46.4068],[399.6585,94.7805],[462.3873,124.4859],
+    [533.9571,127.8143],[600.7762,103.5105],[645.2991,58.5299]
+  ],
+  "restricted_area_centerline_samples_px": [
+    [392.0,274.0],[385.0,282.0],[378.0,292.0],[372.0,303.0],[368.0,312.0],
+    [364.0,323.0],[361.0,332.0],[359.0,342.0],[359.0,351.0],
+    [594.0,290.0],[599.0,299.0],[603.0,308.0],[607.0,319.0],[610.0,328.0],
+    [612.0,339.0],[614.0,348.0],[615.0,358.0],[615.0,365.0]
+  ],
+  "derivation": {
+    "lane_lines": "deterministic cyan-pixel robust line fits from immutable native frame; line geometry only, no along-line point correspondence",
+    "hashes": "deterministic local cyan connected-component centroids",
+    "player_ball_pixels_used": false,
+    "official_geometry_source": "https://cdn.nba.com/manage/2026/01/Official-2025-26-NBA-Playing-Rules.pdf"
+  },
+  "guardrail": "Diagnostic only. No player/ball/pose evidence, no prior camera parameters, and no replay outputs contribute to the floor solve."
+}
