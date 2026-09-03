@@ -1,0 +1,140 @@
+[
+  {
+    "host": "https://stats.gleague.nba.com/stats/shotqualityshotlog",
+    "variant": "game_only",
+    "params": {
+      "GameID": "0042500301"
+    },
+    "attempts": [
+      {
+        "client": "requests_no_redirect",
+        "status": 500,
+        "bytes": 0,
+        "url": "https://stats.gleague.nba.com/stats/shotqualityshotlog?GameID=0042500301",
+        "location": null,
+        "ct": null,
+        "prefix": ""
+      },
+      {
+        "client": "curl_cffi",
+        "status": 500,
+        "bytes": 0,
+        "url": "https://stats.gleague.nba.com/stats/shotqualityshotlog?GameID=0042500301",
+        "location": null,
+        "ct": null,
+        "prefix": ""
+      }
+    ]
+  },
+  {
+    "host": "https://stats.gleague.nba.com/stats/shotqualityshotlog",
+    "variant": "game_league",
+    "params": {
+      "GameID": "0042500301",
+      "LeagueID": "00"
+    },
+    "attempts": [
+      {
+        "client": "requests_no_redirect",
+        "status": 500,
+        "bytes": 0,
+        "url": "https://stats.gleague.nba.com/stats/shotqualityshotlog?GameID=0042500301&LeagueID=00",
+        "location": null,
+        "ct": null,
+        "prefix": ""
+      },
+      {
+        "client": "curl_cffi",
+        "status": 500,
+        "bytes": 0,
+        "url": "https://stats.gleague.nba.com/stats/shotqualityshotlog?GameID=0042500301&LeagueID=00",
+        "location": null,
+        "ct": null,
+        "prefix": ""
+      }
+    ]
+  },
+  {
+    "host": "https://stats.gleague.nba.com/stats/shotqualityshotlog",
+    "variant": "lower",
+    "params": {
+      "GameID": "0042500301",
+      "LeagueID": "00",
+      "leagueId": "00"
+    },
+    "attempts": [
+      {
+        "client": "requests_no_redirect",
+        "status": 500,
+        "bytes": 0,
+        "url": "https://stats.gleague.nba.com/stats/shotqualityshotlog?GameID=0042500301&LeagueID=00&leagueId=00",
+        "location": null,
+        "ct": null,
+        "prefix": ""
+      },
+      {
+        "client": "curl_cffi",
+        "status": 500,
+        "bytes": 0,
+        "url": "https://stats.gleague.nba.com/stats/shotqualityshotlog?GameID=0042500301&LeagueID=00&leagueId=00",
+        "location": null,
+        "ct": null,
+        "prefix": ""
+      }
+    ]
+  },
+  {
+    "host": "https://stats.nba.com/stats/shotqualityshotlog",
+    "variant": "game_only",
+    "params": {
+      "GameID": "0042500301"
+    },
+    "attempts": [
+      {
+        "client": "requests_no_redirect",
+        "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=18)\"))"
+      },
+      {
+        "client": "curl_cffi",
+        "error": "Timeout('Failed to perform, curl: (28) Operation timed out after 20000 milliseconds with 0 bytes received. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.')"
+      }
+    ]
+  },
+  {
+    "host": "https://stats.nba.com/stats/shotqualityshotlog",
+    "variant": "game_league",
+    "params": {
+      "GameID": "0042500301",
+      "LeagueID": "00"
+    },
+    "attempts": [
+      {
+        "client": "requests_no_redirect",
+        "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=18)\"))"
+      },
+      {
+        "client": "curl_cffi",
+        "error": "Timeout('Failed to perform, curl: (28) Operation timed out after 20002 milliseconds with 0 bytes received. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.')"
+      }
+    ]
+  },
+  {
+    "host": "https://stats.nba.com/stats/shotqualityshotlog",
+    "variant": "lower",
+    "params": {
+      "GameID": "0042500301",
+      "LeagueID": "00",
+      "leagueId": "00"
+    },
+    "attempts": [
+      {
+        "client": "requests_no_redirect",
+        "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=18)\"))"
+      },
+      {
+        "client": "curl_cffi",
+        "error": "Timeout('Failed to perform, curl: (28) Operation timed out after 20002 milliseconds with 0 bytes received. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.')"
+      }
+    ]
+  }
+]
