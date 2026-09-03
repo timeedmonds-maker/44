@@ -1,0 +1,199 @@
+name: Team xEFG Micro-Rescue 2025-26
+
+on:
+  push:
+    paths:
+      - '.github/workflows/team-xefg-microrescue-2025-26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check pandas pyreadr requests
+      - name: Build manifest
+        run: |
+          python3 - <<'PY'
+          import json, requests, pandas as pd, pyreadr
+          from pathlib import Path
+          r=requests.get('https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.rds',timeout=180); r.raise_for_status()
+          Path('data.rds').write_bytes(r.content)
+          df=next(iter(pyreadr.read_r('data.rds').values()))
+          df['game_id']=df['game_id'].astype(str).str.replace(r'\.0$','',regex=True).str.zfill(10)
+          f=df.loc[pd.to_numeric(df['is_field_goal'],errors='coerce').fillna(0).eq(1) & df['game_id'].str.startswith('002'),['game_id','event_num','player1_name','team_abb']].copy()
+          p=f['player1_name'].astype(str).str.extract(r'^\s*(\d+)\s+(.*)$')
+          f['player_id']=pd.to_numeric(p[0],errors='coerce').astype('Int64'); f['player_name']=p[1]
+          f=f.dropna(subset=['player_id','team_abb']).copy(); f['player_id']=f['player_id'].astype(int)
+          m=(f.groupby(['game_id','player_id','player_name','team_abb'],as_index=False).agg(pbp_fga=('event_num','size')).sort_values(['game_id','team_abb','player_id']))
+          m.to_csv('manifest.csv',index=False)
+          qa={'fga':int(m.pbp_fga.sum()),'games':int(m.game_id.nunique()),'pairs':len(m),'teams':int(m.team_abb.nunique())}
+          Path('manifest_qa.json').write_text(json.dumps(qa,indent=2)); print(json.dumps(qa,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: micro-manifest
+          path: |
+            manifest.csv
+            manifest_qa.json
+          retention-days: 1
+          compression-level: 0
+
+  extract:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [44,104,164,224,284]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: micro-manifest
+          path: input
+      - run: curl --retry 3 --retry-delay 1 -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/team_xefg_shard_fast.py" -o team_xefg_shard_fast.py
+      - run: python3 -m pip install --quiet --disable-pip-version-check pandas requests
+      - name: Extract micro-shard
+        run: python3 team_xefg_shard_fast.py --manifest input/manifest.csv --shard-index ${{ matrix.shard }} --num-shards 300 --workers 8 --max-attempts 2 --connect-timeout 3 --read-timeout 7 --out-dir out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-xefg-micro-${{ matrix.shard }}
+          path: |
+            out/partial_${{ matrix.shard }}.csv
+            out/errors_${{ matrix.shard }}.csv
+            out/summary_${{ matrix.shard }}.json
+          retention-days: 1
+          compression-level: 0
+
+  merge:
+    needs: extract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Download completed original shards
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 33801733176
+          pattern: team-xefg-shot-shard-*
+          path: original
+          merge-multiple: true
+      - name: Download first rescue shards
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 33802362539
+          pattern: team-xefg-rescue-*
+          path: rescue
+          merge-multiple: true
+      - name: Download micro shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: team-xefg-micro-*
+          path: micro
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: micro-manifest
+          path: input
+      - run: python3 -m pip install --quiet --disable-pip-version-check pandas
+      - name: Merge exact partition and report
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+
+          parts=[]; summaries=[]
+          # 17 good modulo-20 shards: everything except 1,2,4.
+          for p in Path('original').glob('partial_*.csv'):
+              idx=int(p.stem.split('_')[1])
+              if idx not in {1,2,4}:
+                  parts.append(pd.read_csv(p))
+          for p in Path('original').glob('summary_*.json'):
+              idx=int(p.stem.split('_')[1])
+              if idx not in {1,2,4}:
+                  summaries.append(json.loads(p.read_text()))
+
+          # First rescue supplies all of original 1 and 2, and two thirds of original 4: 4 and 24. Exclude 44.
+          keep_rescue={1,21,41,2,22,42,4,24}
+          for p in Path('rescue').glob('partial_*.csv'):
+              idx=int(p.stem.split('_')[1])
+              if idx in keep_rescue:
+                  parts.append(pd.read_csv(p))
+          for p in Path('rescue').glob('summary_*.json'):
+              idx=int(p.stem.split('_')[1])
+              if idx in keep_rescue:
+                  summaries.append(json.loads(p.read_text()))
+
+          # Five modulo-300 slices exactly partition missing modulo-60 shard 44.
+          micro={44,104,164,224,284}
+          for p in Path('micro').glob('partial_*.csv'):
+              idx=int(p.stem.split('_')[1])
+              if idx in micro:
+                  parts.append(pd.read_csv(p))
+          for p in Path('micro').glob('summary_*.json'):
+              idx=int(p.stem.split('_')[1])
+              if idx in micro:
+                  summaries.append(json.loads(p.read_text()))
+
+          df=pd.concat(parts,ignore_index=True)
+          sums=['pbp_fga_shard','tracked_fga','tracked_fgm','tracked_3pa','tracked_3pm','actual_efg_num','expected_efg_num','api_official_fga','unlisted_fga','successful_pairs','failed_pairs']
+          g=df.groupby('team_abb',as_index=False)[sums].sum()
+          g['tracked_actual_eFG_pct']=100*g.actual_efg_num/g.tracked_fga
+          g['xEFG_pct']=100*g.expected_efg_num/g.tracked_fga
+          g['eFG_minus_xEFG_pp']=g.tracked_actual_eFG_pct-g.xEFG_pct
+          g['xfg_coverage_pct_vs_pbp_fga']=100*g.tracked_fga/g.pbp_fga_shard
+          g['xfg_coverage_pct_vs_api_fga']=100*g.tracked_fga/g.api_official_fga.replace(0,pd.NA)
+          g=g.sort_values(['eFG_minus_xEFG_pp','tracked_fga'],ascending=[False,False]).reset_index(drop=True)
+          g.insert(0,'rank',range(1,len(g)+1))
+
+          mqa=json.loads(Path('input/manifest_qa.json').read_text())
+          qa={
+              'season':'2025-26','season_type':'Regular Season',
+              'source_resource':'NBA shotqualityvideologs','source_host':'stats.gleague.nba.com',
+              'pbp_source':'ramirobentes/nba_pbp_data pbp-final-2026',
+              'manifest_qa':mqa,
+              'definition':{
+                  'actual_eFG':'sum(success * [1.5 if 3PT else 1]) / tracked xFG shots',
+                  'xEFG':'sum(shotQuality * [1.5 if 3PT else 1]) / tracked xFG shots',
+                  'difference_pp':'actual eFG% - xEFG%'
+              },
+              'partition':'17 modulo-20 originals + 8 modulo-60 rescues + 5 modulo-300 micro-rescues; exact non-overlapping coverage of all 1230 games',
+              'request_pairs':sum(int(x.get('request_pairs',0)) for x in summaries),
+              'request_errors':sum(int(x.get('errors',0)) for x in summaries),
+              'teams':len(g),
+              'league_pbp_fga':int(g.pbp_fga_shard.sum()),
+              'league_tracked_xfg_fga':int(g.tracked_fga.sum()),
+              'league_xfg_coverage_pct_vs_pbp':float(100*g.tracked_fga.sum()/g.pbp_fga_shard.sum()),
+              'min_team_xfg_coverage_pct_vs_pbp':float(g.xfg_coverage_pct_vs_pbp_fga.min()),
+              'max_team_xfg_coverage_pct_vs_pbp':float(g.xfg_coverage_pct_vs_pbp_fga.max()),
+              'positive_teams':int((g.eFG_minus_xEFG_pp>0).sum()),
+              'note':'No missing xFG is imputed. Actual eFG and xEFG are compared on the identical set of NBA shots carrying public per-shot xFG.'
+          }
+          Path('final').mkdir(exist_ok=True)
+          g.to_csv('final/team_xefg_2025_26.csv',index=False)
+          g[g.eFG_minus_xEFG_pp>0].to_csv('final/teams_above_xefg_2025_26.csv',index=False)
+          Path('final/qa.json').write_text(json.dumps(qa,indent=2))
+          print('FULL_TABLE_START')
+          print(g[['rank','team_abb','tracked_fga','tracked_actual_eFG_pct','xEFG_pct','eFG_minus_xEFG_pp','xfg_coverage_pct_vs_pbp_fga']].to_csv(index=False))
+          print('FULL_TABLE_END')
+          print('QA_START'); print(json.dumps(qa,indent=2)); print('QA_END')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-xefg-final-${{ github.run_id }}
+          path: final/*
+          retention-days: 7
+          compression-level: 0
