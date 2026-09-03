@@ -1,0 +1,102 @@
+name: Shot Quality Single Event Filter Probe
+
+on:
+  push:
+    branches:
+      - analysis/raw-tracking-deep-capture
+    paths:
+      - '.github/workflows/shotquality-single-event-filter-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: analysis/raw-tracking-deep-capture
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test whether public shot-quality endpoints can be reduced to one event
+        run: |
+          python3 - <<'PY'
+          import requests,json,time
+          from pathlib import Path
+          OUT=Path('analysis/raw_tracking_deep_capture/filter_probe'); OUT.mkdir(parents=True,exist_ok=True)
+          BASE='https://stats.gleague.nba.com/stats/'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9'}
+          s=requests.Session(); s.headers.update(H)
+          game='0042500301'; pid=1628384; ev=7
+          base_v={'GameID':game,'PlayerID':pid}
+          variants=[
+            ('base',{}),
+            ('EventNum',{'EventNum':ev}),
+            ('eventNum',{'eventNum':ev}),
+            ('EventNumber',{'EventNumber':ev}),
+            ('range_q1_25s_rt2',{'StartRange':249,'EndRange':251,'RangeType':2,'StartPeriod':1,'EndPeriod':1}),
+            ('range_q1_25s_rt0',{'StartRange':249,'EndRange':251,'RangeType':0,'StartPeriod':1,'EndPeriod':1}),
+            ('period1',{'StartPeriod':1,'EndPeriod':1}),
+          ]
+          report={'videologs':[],'leaders':[]}
+          def req(resource,p):
+            try:
+              r=s.get(BASE+resource,params=p,timeout=(6,30),allow_redirects=True)
+              rec={'status':r.status_code,'bytes':len(r.content),'url':r.url}
+              if r.status_code==200:
+                try:
+                  j=r.json(); rec['json']=j; return j,rec
+                except Exception as e: rec['json_error']=repr(e); rec['prefix']=r.text[:500]
+              else: rec['prefix']=r.text[:500]
+              return None,rec
+            except Exception as e: return None,{'error':repr(e)}
+
+          for name,extra in variants:
+            j,rec=req('shotqualityvideologs',{**base_v,**extra})
+            out={'name':name,'extra':extra,**{k:v for k,v in rec.items() if k!='json'}}
+            if isinstance(j,dict):
+              sl=j.get('shotList') or []
+              out.update(shots=j.get('shots'),shotList_len=len(sl),eventNums=[x.get('eventNum') for x in sl],avgDefenderBallDistance=j.get('avgDefenderBallDistance'),avgShotQuality=j.get('avgShotQuality'),top_keys=sorted(j.keys()))
+              (OUT/f'videologs_{name}.json').write_text(json.dumps(j,indent=2),encoding='utf-8')
+            report['videologs'].append(out)
+            time.sleep(.15)
+
+          leader_base={'LeagueID':'00','Season':'2025-26','SeasonType':'Playoffs','PlayerID':pid}
+          leader_variants=[
+            ('player_season',{}),
+            ('game',{'GameID':game}),
+            ('game_EventNum',{'GameID':game,'EventNum':ev}),
+            ('game_eventNum',{'GameID':game,'eventNum':ev}),
+            ('game_range_rt2',{'GameID':game,'StartRange':249,'EndRange':251,'RangeType':2,'StartPeriod':1,'EndPeriod':1}),
+            ('game_period1',{'GameID':game,'StartPeriod':1,'EndPeriod':1}),
+          ]
+          for name,extra in leader_variants:
+            j,rec=req('shotqualityleaders',{**leader_base,**extra})
+            out={'name':name,'extra':extra,**{k:v for k,v in rec.items() if k!='json'}}
+            if isinstance(j,dict):
+              out['top_keys']=sorted(j.keys())
+              shots=j.get('shots')
+              out['rows_len']=len(shots) if isinstance(shots,list) else None
+              if isinstance(shots,list) and shots:
+                row=shots[0]
+                out['first_keys']=sorted(row.keys()) if isinstance(row,dict) else None
+                if isinstance(row,dict):
+                  wanted=['PLAYERID','PLAYER_NAME','PLAYERNAME','FGA','AVGSHOTQUALITY','AVGDEFENSIVEHANDHEIGHT','AVGDEFENDERBALLDISTANCE','AVGSHOOTERSPEED','AVGROTATIONDEGREES','AVGDEFENDERPRESSURESCORE']
+                  out['first_selected']={k:row.get(k) for k in wanted if k in row}
+              (OUT/f'leaders_{name}.json').write_text(json.dumps(j,indent=2),encoding='utf-8')
+            report['leaders'].append(out)
+            time.sleep(.15)
+          (OUT/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,indent=2))
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add analysis/raw_tracking_deep_capture/filter_probe
+          git commit -m "Test single-event shot-quality filters" || exit 0
+          git push origin HEAD:analysis/raw-tracking-deep-capture
