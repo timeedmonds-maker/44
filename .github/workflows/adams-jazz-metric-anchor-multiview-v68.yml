@@ -1,4 +1,4 @@
-name: Adams Jazz metric-anchored multiview v68
+name: Adams Jazz metric-anchored multiview v68b
 
 on:
   workflow_dispatch:
@@ -6,10 +6,11 @@ on:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
       - 'freeze_spin/build_metric_anchor_multiview_freeview_v68.py'
+      - 'freeze_spin/build_metric_anchor_multiview_freeview_v68b.py'
       - '.github/workflows/adams-jazz-metric-anchor-multiview-v68.yml'
 
 jobs:
-  diagnostic-v68:
+  diagnostic-v68b:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -45,9 +46,9 @@ jobs:
           assert q['status']=='PASS_PLAY_BY_PLAY_WIDE_COURT_FLOOR_V65'
           assert all(q['gates'].values())
           PY
-      - name: Run metric-anchored two-view diagnostic
+      - name: Run metric-anchored two-view diagnostic v68b
         run: |
-          python freeze_spin/build_metric_anchor_multiview_freeview_v68.py \
+          python freeze_spin/build_metric_anchor_multiview_freeview_v68b.py \
             --lar-frame frame_c_v68/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
             --pbp-frame frame_c_v68/frames/D_Play_by_Play_9.150953s_frame0275.png \
             --lar-floor freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
@@ -98,7 +99,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-metric-anchor-multiview-v68-${{ github.run_id }}
+          name: adams-jazz-metric-anchor-multiview-v68b-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
