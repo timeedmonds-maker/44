@@ -1,0 +1,123 @@
+name: Adams Jazz Play by Play shared optical centre v64a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_fixed_camera_center_from_depth_homography_v1.py'
+      - '.github/workflows/adams-jazz-play-by-play-shared-optical-center-v64a.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/prove_fixed_camera_center_from_depth_homography_v1.py'
+      - '.github/workflows/adams-jazz-play-by-play-shared-optical-center-v64a.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native-frame proof runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Recover successful Play by Play v61a same-game scan
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-play-by-play-same-game-scan-v61a-33733368179
+          path: v61a
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33733368179
+
+      - name: Verify immutable target
+        run: |
+          test -f frame_c/D_Play_by_Play_9.150953s_frame0275.png
+          echo 'a774c9ee4cad8e5978dc0ee0299d0c5ab913d166225f43517278d910ce9c4c2d  frame_c/D_Play_by_Play_9.150953s_frame0275.png' | sha256sum -c -
+
+      - name: Prove shared effective optical centre across independent events
+        id: proof
+        continue-on-error: true
+        run: |
+          python -m freeze_spin.prove_fixed_camera_center_from_depth_homography_v1 \
+            --target-frame frame_c/D_Play_by_Play_9.150953s_frame0275.png \
+            --target-sha256 a774c9ee4cad8e5978dc0ee0299d0c5ab913d166225f43517278d910ce9c4c2d \
+            --samples v61a \
+            --camera-label 'Play by Play' \
+            --min-independent-events 4 \
+            --out v64a
+
+      - name: Print decisive diagnostics
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('v64a/fixed_camera_center_depth_homography_v1.json')
+          if not p.exists():
+              print('no proof json produced')
+              raise SystemExit(0)
+          q=json.load(open(p))
+          print('status',q['status'])
+          print('independent events',q['independent_passing_event_count'])
+          for e in q['passing_events']:
+              print('event',e['event_id'],e['frame_name'],
+                    'full',e['full_scene']['ransac_inliers'],
+                    'court_med',round(e['heldout_court']['median_px'],3),
+                    'court<3',round(e['heldout_court']['fraction_under_3px'],3),
+                    'depth_med',round(e['noncoplanar_background']['median_px'],3),
+                    'depth<3',round(e['noncoplanar_background']['fraction_under_3px'],3))
+          print('permissions',q['permissions'])
+          PY
+
+      - name: Package all v64a evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v64a/fixed_camera_center_depth_homography_v1.json delivery/ 2>/dev/null || true
+          cp -r v64a/evidence delivery/ 2>/dev/null || true
+          cp frame_c/D_Play_by_Play_9.150953s_frame0275.png delivery/ 2>/dev/null || true
+          cp v61a/same_game_camera_prior_scan.json delivery/v61a_source_scan.json 2>/dev/null || true
+
+      - name: Upload v64a evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-play-by-play-shared-optical-center-v64a-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Enforce fail-closed v64a verdict
+        if: always()
+        run: |
+          test -f v64a/fixed_camera_center_depth_homography_v1.json
+          python - <<'PY'
+          import json
+          q=json.load(open('v64a/fixed_camera_center_depth_homography_v1.json'))
+          assert q['status']=='PASS_SHARED_OPTICAL_CENTER_PRIOR', q['status']
+          assert q['independent_passing_event_count'] >= 4
+          assert q['permissions']['shared_optical_center_prior_allowed'] is True
+          assert q['permissions']['metric_camera_promotion_allowed'] is False
+          assert q['permissions']['static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          for e in q['passing_events']:
+              assert all(e['gates'].values()), (e['event_id'],e['gates'])
+          PY
