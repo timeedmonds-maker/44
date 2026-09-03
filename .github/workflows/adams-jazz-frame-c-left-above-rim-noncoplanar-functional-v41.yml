@@ -1,0 +1,96 @@
+name: Adams Jazz Frame C Left Above Rim noncoplanar functional v41
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_frame_c_left_above_rim_noncoplanar_functional_camera_v41.py'
+      - '.github/workflows/adams-jazz-frame-c-left-above-rim-noncoplanar-functional-v41.yml'
+
+jobs:
+  prove-v41:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve exact target event fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+          find target_source/clips -name '*_0022500301_489_Left_Above_Rim_SOURCE.mp4' | head -n1 > lar_clip_path.txt
+          test -s lar_clip_path.txt
+      - name: Recreate immutable Frame C
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json')); lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7
+          assert int(lar['decoded_frame_index'])==259
+          PY
+      - name: Export independent same-game Left Above Rim samples
+        run: |
+          python freeze_spin/export_same_camera_transfer_samples_v1.py \
+            --game-id 0022500301 --events 40,220,440,620 \
+            --label 'Left Above Rim' --out same_game_samples
+          test "$(find same_game_samples -name 'Left_Above_Rim__event*.png' | wc -l)" -ge 12
+      - name: Export exact-clip static bank
+        run: |
+          python freeze_spin/export_target_clip_intrinsics_samples_v31.py \
+            --clip "$(cat lar_clip_path.txt)" --freeze-time 8.653093 \
+            --sample-count 19 --exclude-radius-seconds 0.75 --out target_clip_samples
+          test "$(find target_clip_samples -name 'Left_Above_Rim_target_event__*.png' | wc -l)" -ge 10
+      - name: Run v41 noncoplanar functional proof
+        run: |
+          python freeze_spin/prove_frame_c_left_above_rim_noncoplanar_functional_camera_v41.py \
+            --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --same-game-samples same_game_samples \
+            --target-clip-samples target_clip_samples \
+            --target-manifest target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json \
+            --floor-proof freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --wide-court freeze_spin/adams_jazz_frame_c_wide_court_v34.json \
+            --out v41
+      - name: Enforce v41 permissions
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v41/left_above_rim_noncoplanar_functional_camera_v41.json'))
+          assert q['status']=='PASS_NONCOPLANAR_FUNCTIONAL_CAMERA_V41'
+          assert q['permissions']['physical_camera_center_allowed'] is True
+          assert q['permissions']['metric_event_camera_allowed'] is True
+          assert q['permissions']['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          print('V41_CENTER',q['camera_center_cm'])
+          print('V41_TARGET_CAMERA',q['target_camera'])
+          print('V41_FUNCTIONAL_EQ',q['functional_root_equivalence']['max_p95_px'],q['functional_root_equivalence']['max_px'])
+          PY
+      - name: Package proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v41/left_above_rim_noncoplanar_functional_camera_v41.json delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json delivery/ 2>/dev/null || true
+          cp same_game_samples/manifest.json delivery/same_game_manifest.json 2>/dev/null || true
+          cp same_game_samples/Left_Above_Rim__event*.png delivery/ 2>/dev/null || true
+      - name: Upload v41 proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-left-above-rim-noncoplanar-functional-v41-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
