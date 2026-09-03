@@ -1,0 +1,123 @@
+name: Event and Matchup Tracking Probe
+
+on:
+  push:
+    branches: [analysis/raw-tracking-deep-capture]
+    paths: ['.github/workflows/event-and-matchup-tracking-probe.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: analysis/raw-tracking-deep-capture
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspect public event frontend and test matchup slicing
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check requests
+          python3 - <<'PY'
+          import requests,re,json,time
+          from pathlib import Path
+          from urllib.parse import urljoin
+          OUT=Path('analysis/raw_tracking_deep_capture/event_matchup_probe'); OUT.mkdir(parents=True,exist_ok=True)
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/stats/events','Origin':'https://www.nba.com','Accept-Language':'en-US,en;q=0.9'}
+          report={'pages':{},'scripts':[],'resource_literals':[],'matchup_probes':[]}
+          s=requests.Session(); s.headers.update(H)
+
+          pages=['https://www.nba.com/stats/events','https://www.nba.com/webview/stats/events']
+          scripts=[]
+          for p in pages:
+            try:
+              r=s.get(p,timeout=30); html=r.text
+              report['pages'][p]={'status':r.status_code,'bytes':len(r.content),'final':r.url}
+              (OUT/('page_'+str(len(report['pages']))+'.html')).write_text(html,encoding='utf-8')
+              for m in re.finditer(r'<script[^>]+src=["\']([^"\']+)',html,re.I): scripts.append(urljoin(r.url,m.group(1)))
+            except Exception as e: report['pages'][p]={'error':repr(e)}
+          scripts=list(dict.fromkeys(scripts))
+
+          terms=['resource:','eventNum','eventnum','GameID','PlayerID','tracking','shot','defender','matchup','video','playbyplay','pbp','rangeType','startRange','endRange','frame','coordinate','position','speed','contest','pressure']
+          resources=set()
+          for idx,u in enumerate(scripts):
+            try:
+              r=s.get(u,timeout=30); txt=r.text
+              rec={'url':u,'status':r.status_code,'bytes':len(r.content)}
+              if r.status_code==200 and len(txt)<6_000_000:
+                # constants assigned to strings and direct resource literals
+                lits=set(re.findall(r'(?:const|let|var)\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*["\']([A-Za-z0-9_-]{3,80})["\']',txt))
+                direct=set(re.findall(r'resource\s*:\s*["\']([A-Za-z0-9_-]{3,80})["\']',txt))
+                rlike=sorted(x for x in lits|direct if any(k in x.lower() for k in ['event','shot','video','play','match','track','boxscore','defens','gravity','dunk']))
+                resources.update(rlike)
+                hits=[]; low=txt.lower()
+                for term in terms:
+                  p=0;n=0
+                  while True:
+                    j=low.find(term.lower(),p)
+                    if j<0:break
+                    hits.append({'term':term,'context':txt[max(0,j-500):min(len(txt),j+1300)]})
+                    p=j+len(term);n+=1
+                    if n>=8:break
+                if hits or rlike:
+                  rec['resource_like']=rlike; rec['hits']=hits[:100]
+                  (OUT/f'script_{idx:03d}_hits.json').write_text(json.dumps(rec,indent=2),encoding='utf-8')
+              report['scripts'].append(rec)
+            except Exception as e: report['scripts'].append({'url':u,'error':repr(e)})
+          report['resource_literals']=sorted(resources)
+
+          # Known game and narrow Q1 interval around OG Anunoby event 7 at 11:35.
+          game='0042500301'
+          base='https://stats.gleague.nba.com/stats/'
+          SH={**H,'Referer':'https://www.nba.com/','Accept':'application/json, text/plain, */*'}
+          ss=requests.Session();ss.headers.update(SH)
+          variants=[
+            ('base',{}),
+            ('period1',{'StartPeriod':1,'EndPeriod':1}),
+            ('range_rt0',{'StartPeriod':1,'EndPeriod':1,'StartRange':24,'EndRange':26,'RangeType':0}),
+            ('range_rt1',{'StartPeriod':1,'EndPeriod':1,'StartRange':24,'EndRange':26,'RangeType':1}),
+            ('range_rt2',{'StartPeriod':1,'EndPeriod':1,'StartRange':24,'EndRange':26,'RangeType':2}),
+            ('range_25s_rt2',{'StartPeriod':1,'EndPeriod':1,'StartRange':249,'EndRange':251,'RangeType':2}),
+            ('range_695s_rt2',{'StartPeriod':1,'EndPeriod':1,'StartRange':6949,'EndRange':6951,'RangeType':2}),
+          ]
+          endpoints=['defensiveboxscore','boxscorematchupsv3','boxscorematchups']
+          def summarize(o):
+            if isinstance(o,list): return {'type':'list','len':len(o),'keys':sorted({k for x in o if isinstance(x,dict) for k in x})}
+            if isinstance(o,dict):
+              z={'type':'dict','keys':sorted(o.keys())}
+              for k,v in o.items():
+                if isinstance(v,list): z[k]={'len':len(v),'keys':sorted({kk for x in v if isinstance(x,dict) for kk in x})}
+                elif isinstance(v,dict): z[k]={'keys':sorted(v.keys())}
+              return z
+            return {'type':type(o).__name__}
+          for ep in endpoints:
+            for name,extra in variants:
+              params={'GameID':game,'LeagueID':'00',**extra}
+              rec={'endpoint':ep,'variant':name,'params':params}
+              try:
+                r=ss.get(base+ep,params=params,timeout=(6,24),allow_redirects=False)
+                rec.update(status=r.status_code,bytes=len(r.content),url=r.url,location=r.headers.get('location'),prefix=r.text[:400])
+                if r.status_code==200:
+                  try:
+                    o=r.json(); rec['summary']=summarize(o)
+                    (OUT/f'{ep}_{name}.json').write_text(json.dumps(o,indent=2),encoding='utf-8')
+                  except Exception as e:rec['json_error']=repr(e)
+              except Exception as e:rec['error']=repr(e)
+              report['matchup_probes'].append(rec);time.sleep(.12)
+
+          (OUT/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print('RESOURCES',json.dumps(report['resource_literals'],indent=2))
+          print('MATCHUP PROBES',json.dumps(report['matchup_probes'],indent=2))
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add analysis/raw_tracking_deep_capture/event_matchup_probe
+          git commit -m "Probe event and matchup tracking surfaces" || exit 0
+          git push origin HEAD:analysis/raw-tracking-deep-capture
