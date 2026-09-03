@@ -44,7 +44,7 @@ def floor_transfer(src,target):
     ii=mask.ravel().astype(bool); pp,qq=p[m][ii],q[m][ii]
     e=np.linalg.norm(apply_h(Hm,pp)-qq,axis=1)
     if len(e)<35 or np.percentile(e,95)>1.5:raise RuntimeError('floor transfer gate failed')
-    return Hm,{'raw_matches':int(len(p)),'floor_candidates':int(m.sum()),'inliers':int(ii.sum()),'train_p95_px':float(np.percentile(e,95))}
+    return Hm,pp,qq,{'raw_matches':int(len(p)),'floor_candidates':int(m.sum()),'inliers':int(ii.sum()),'train_p95_px':float(np.percentile(e,95))}
 
 
 def grid_obs(Hm):
@@ -63,7 +63,7 @@ def decomp(Hm,cx,cy):
     a2=np.array([h2[0]-cx*h2[2],h2[1]-cy*h2[2]])
     cand=[]
     if abs(h1[2]*h2[2])>1e-12:
-        x=-(a1@a2)/(h1[2]*h2[2]);
+        x=-(a1@a2)/(h1[2]*h2[2])
         if x>0:cand.append(x)
     d=h1[2]**2-h2[2]**2
     if abs(d)>1e-12:
@@ -126,11 +126,11 @@ def main():
     if floor.get('status')!='PASS_WIDE_COURT_FLOOR_HOMOGRAPHY_V35':raise RuntimeError('v35 floor not accepted')
     Ht=np.asarray(floor['floor_homography_world_to_image'],float);target=cv2.imread(str(a.target_frame))
     if target is None or target.shape[:2]!=(H,W):raise RuntimeError('bad immutable target frame')
-    obsrows={int(x['event_id']):x for x in spec['observations']};keys=sorted(obsrows);Hs={};grid={};diag={}
+    obsrows={int(x['event_id']):x for x in spec['observations']};keys=sorted(obsrows);Hs={};grid={};diag={};corr={}
     for e in keys:
         wanted=obsrows[e]['sample_file'];p=a.samples/wanted
         if not p.exists():raise RuntimeError(f'missing locked sample {wanted}')
-        src=cv2.imread(str(p));Hst,d=floor_transfer(src,target);Hs[e]=np.linalg.inv(Hst)@Ht;Hs[e]/=Hs[e][2,2];grid[e]=grid_obs(Hs[e]);diag[e]=d
+        src=cv2.imread(str(p));Hst,sp,tp,d=floor_transfer(src,target);Hs[e]=np.linalg.inv(Hst)@Ht;Hs[e]/=Hs[e][2,2];grid[e]=grid_obs(Hs[e]);diag[e]=d;corr[e]=(sp,tp)
     rims={'world_cm':spec['regulation_rim_center_world_cm'],'obs':{e:obsrows[e]['rim_center_px'] for e in keys}}
     full=solve(keys,Hs,grid,rims);per=metrics(full,keys,grid,rims)
     loo={}
@@ -139,15 +139,20 @@ def main():
         loo[drop]={'center_shift_cm':float(np.linalg.norm(s['C']-full['C'])),'pp_shift_px':float(np.linalg.norm(s['pp']-full['pp']))}
     rng=np.random.default_rng(20260903);pert=[]
     for _ in range(a.perturbation_trials):
-        gp={};ro={}
+        Hp={};gp={};ro={}
         for e in keys:
-            P,U=grid[e];gp[e]=(P,U+rng.uniform(-.5,.5,U.shape));ro[e]=(np.asarray(rims['obs'][e])+rng.uniform(-.5,.5,2)).tolist()
-        s=solve(keys,Hs,gp,{'world_cm':rims['world_cm'],'obs':ro},warm=full['x'],max_nfev=6000)
+            sp,tp=corr[e]
+            spp=sp+rng.uniform(-.5,.5,sp.shape);tpp=tp+rng.uniform(-.5,.5,tp.shape)
+            Hst,_=cv2.findHomography(spp.astype(np.float32),tpp.astype(np.float32),0)
+            if Hst is None:raise RuntimeError('perturbed transfer fit failed')
+            Hw=np.linalg.inv(Hst)@Ht;Hw/=Hw[2,2];Hp[e]=Hw;gp[e]=grid_obs(Hw)
+            ro[e]=(np.asarray(rims['obs'][e])+rng.uniform(-.5,.5,2)).tolist()
+        s=solve(keys,Hp,gp,{'world_cm':rims['world_cm'],'obs':ro},warm=full['x'],max_nfev=6000)
         pert.append({'center_shift_cm':float(np.linalg.norm(s['C']-full['C'])),'pp_shift_px':float(np.linalg.norm(s['pp']-full['pp']))})
     maxfloor=max(x['floor_p95_px'] for x in per.values());maxrim=max(x['rim_center_error_px'] for x in per.values());maxloo=max(x['center_shift_cm'] for x in loo.values());maxpp=max(x['pp_shift_px'] for x in loo.values());maxpc=max(x['center_shift_cm'] for x in pert);maxppp=max(x['pp_shift_px'] for x in pert)
     gates={'shared_rms':full['rms']<=0.75,'floor_p95':maxfloor<=2.0,'rim_center':maxrim<=4.0,'loo_center':maxloo<=5.0,'loo_pp':maxpp<=6.0,'perturb_center':maxpc<=5.0,'perturb_pp':maxppp<=6.0}
     passed=all(gates.values())
-    rep={'schema_version':1,'status':'PASS_NONCOPLANAR_GAME_CAMERA_CENTER_V41' if passed else 'FAIL_NONCOPLANAR_GAME_CAMERA_CENTER_V41','game_id':'0022500301','camera_label':'Left Above Rim','method':'independent same-game source floor transfer + regulation 3D rim centre; target event 489 excluded','camera_center_cm':full['C'].tolist(),'shared_principal_point_diagnostic_px':full['pp'].tolist(),'shared_rms_px':full['rms'],'selected_samples':{str(e):obsrows[e]['sample_file'] for e in keys},'transfer_diagnostics':{str(e):diag[e] for e in keys},'per_event':{str(e):per[e] for e in keys},'leave_one_event_out':{str(e):loo[e] for e in keys},'perturbation':{'trials':len(pert),'max_center_shift_cm':maxpc,'max_pp_shift_px':maxppp},'gates':gates,'deprecated_constraints':['v26 baseline floor anchors','v26 backboard target as camera fit constraint','v1 centre','v36 floor-only centre if this v41 proof passes'],'permissions':{'physical_camera_center_allowed':passed,'principal_point_prior_allowed':False,'metric_event_camera_allowed':False,'replay_render_allowed':False}}
+    rep={'schema_version':2,'status':'PASS_NONCOPLANAR_GAME_CAMERA_CENTER_V41' if passed else 'FAIL_NONCOPLANAR_GAME_CAMERA_CENTER_V41','game_id':'0022500301','camera_label':'Left Above Rim','method':'independent same-game source floor transfer + regulation 3D rim centre; target event 489 excluded','perturbation_method':'jitter real source/target SIFT inlier coordinates by +/-0.5 px, refit each transfer homography, then perturb rim observations +/-0.5 px','camera_center_cm':full['C'].tolist(),'shared_principal_point_diagnostic_px':full['pp'].tolist(),'shared_rms_px':full['rms'],'selected_samples':{str(e):obsrows[e]['sample_file'] for e in keys},'transfer_diagnostics':{str(e):diag[e] for e in keys},'per_event':{str(e):per[e] for e in keys},'leave_one_event_out':{str(e):loo[e] for e in keys},'perturbation':{'trials':len(pert),'max_center_shift_cm':maxpc,'max_pp_shift_px':maxppp,'p95_center_shift_cm':float(np.percentile([x['center_shift_cm'] for x in pert],95)),'p95_pp_shift_px':float(np.percentile([x['pp_shift_px'] for x in pert],95))},'gates':gates,'deprecated_constraints':['v26 baseline floor anchors','v26 backboard target as camera fit constraint','v1 centre','v36 floor-only centre if this v41 proof passes'],'permissions':{'physical_camera_center_allowed':passed,'principal_point_prior_allowed':False,'metric_event_camera_allowed':False,'replay_render_allowed':False}}
     (a.out/'left_above_rim_noncoplanar_center_v41.json').write_text(json.dumps(rep,indent=2)+'\n')
     print(json.dumps(rep,indent=2))
     if not passed:raise SystemExit(2)
