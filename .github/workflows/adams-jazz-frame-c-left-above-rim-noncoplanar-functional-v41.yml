@@ -80,6 +80,7 @@ jobs:
         run: |
           mkdir -p delivery
           cp v41/left_above_rim_noncoplanar_functional_camera_v41.json delivery/ 2>/dev/null || true
+          cp v41/left_above_rim_target_rim_contour_v41.png delivery/ 2>/dev/null || true
           cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
           cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
           cp target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json delivery/ 2>/dev/null || true
