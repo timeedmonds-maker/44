@@ -28,7 +28,7 @@ def sift(a,b):
     s=cv2.SIFT_create(nfeatures=10000,contrastThreshold=.015)
     ka,da=s.detectAndCompute(cv2.cvtColor(a,cv2.COLOR_BGR2GRAY),None);kb,db=s.detectAndCompute(cv2.cvtColor(b,cv2.COLOR_BGR2GRAY),None)
     if da is None or db is None:return np.empty((0,2),np.float32),np.empty((0,2),np.float32)
-    raw=cv2.BFMatcher().knnMatch(da,db,k=2);good=[];used={}
+    raw=cv2.BFMatcher().knnMatch(da,db,k=2);used={}
     for m,n in raw:
         if m.distance<.72*n.distance and (m.trainIdx not in used or m.distance<used[m.trainIdx].distance):used[m.trainIdx]=m
     good=list(used.values())
@@ -36,8 +36,6 @@ def sift(a,b):
 
 def floor_transfer(src,target):
     p,q=sift(src,target)
-    # conservative lower court; side margins retained because candidate broadcast
-    # may frame the paint differently from Left Above Rim.
     m=(p[:,1]>250)&(q[:,1]>250)&(p[:,0]>35)&(p[:,0]<925)&(q[:,0]>35)&(q[:,0]<925)
     if int(m.sum())<30:return None
     Hm,mask=cv2.findHomography(p[m],q[m],cv2.RANSAC,1.75,maxIters=40000,confidence=.999)
@@ -47,9 +45,13 @@ def floor_transfer(src,target):
     return {'H':Hm,'inliers':int(len(e)),'p95_px':float(np.percentile(e,95)),'median_px':float(np.median(e))}
 
 def target_for_label(root,label):
-    token=safe(label)
-    rows=list(root.glob(f'*_{token}_*frame*.png'))
-    if len(rows)!=1:raise RuntimeError(f'Expected one target for {label}, got {len(rows)}')
+    rows=[]
+    for p in sorted(root.glob('*.png')):
+        m=re.match(r'^[A-L]_(.+?)_\d+\.\d+s_frame\d+$',p.stem)
+        if not m:continue
+        parsed=m.group(1).replace('_',' ')
+        if parsed==label:rows.append(p)
+    if len(rows)!=1:raise RuntimeError(f'Expected one exact target for {label}, got {len(rows)}: {[p.name for p in rows]}')
     return rows[0]
 def selected_event_samples(root,label,target):
     token=safe(label);out={}
@@ -65,8 +67,6 @@ def selected_event_samples(root,label,target):
 def rim_components(im,Hworld):
     foot=apply_h(Hworld,RIM_FLOOR)[0];fx,fy=float(foot[0]),float(foot[1])
     hsv=cv2.cvtColor(im,cv2.COLOR_BGR2HSV)
-    # Basketball/rim orange. Keep broad hue but strong saturation; ranking + overlay
-    # make this proposal-only until visual QA.
     mask=cv2.inRange(hsv,np.array([2,90,70],np.uint8),np.array([28,255,255],np.uint8))
     roi=np.zeros_like(mask);x0=max(0,int(fx-105));x1=min(W,int(fx+105));y0=max(0,int(fy-225));y1=min(H,int(fy-25));roi[y0:y1,x0:x1]=255;mask=cv2.bitwise_and(mask,roi)
     mask=cv2.morphologyEx(mask,cv2.MORPH_OPEN,np.ones((2,2),np.uint8))
@@ -77,8 +77,6 @@ def rim_components(im,Hworld):
         if area<5 or w<4 or w>90 or h>35:continue
         ratio=w/max(h,1);dy=fy-cy
         if dy<25 or dy>225:continue
-        # Prefer horizontal static-rim-like components close to basket x; do not
-        # make this a hard detector yet because the ball can also be orange.
         score=abs(cx-fx)*1.5+abs(dy-130.0)*0.35-max(ratio,1.0)*4.0-area*0.08
         rows.append({'component':i,'bbox':[x,y,w,h],'area':area,'centroid_px':[cx,cy],'width_height_ratio':ratio,'vertical_above_floor_px':dy,'score':float(score)})
     rows.sort(key=lambda r:r['score'])
