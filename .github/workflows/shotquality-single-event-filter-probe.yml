@@ -24,6 +24,7 @@ jobs:
           python-version: '3.12'
       - name: Test whether public shot-quality endpoints can be reduced to one event
         run: |
+          python3 -m pip install --quiet --disable-pip-version-check requests
           python3 - <<'PY'
           import requests,json,time
           from pathlib import Path
