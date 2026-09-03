@@ -1,0 +1,29 @@
+{
+  "season": "2025-26",
+  "season_type": "Regular Season",
+  "source_resource": "NBA shotqualityvideologs",
+  "source_host": "stats.gleague.nba.com",
+  "pbp_source": "ramirobentes/nba_pbp_data pbp-final-2026",
+  "manifest_qa": {
+    "fga": 219158,
+    "games": 1230,
+    "pairs": 25339,
+    "teams": 30
+  },
+  "definition": {
+    "actual_eFG": "sum(success * [1.5 if 3PT else 1]) / tracked xFG shots",
+    "xEFG": "sum(shotQuality * [1.5 if 3PT else 1]) / tracked xFG shots",
+    "difference_pp": "actual eFG% - xEFG%"
+  },
+  "partition": "17 modulo-20 originals + 8 modulo-60 rescues + 5 modulo-300 micro-rescues; exact non-overlapping coverage of all 1230 games",
+  "request_pairs": 25339,
+  "request_errors": 44,
+  "teams": 30,
+  "league_pbp_fga": 219158,
+  "league_tracked_xfg_fga": 205769,
+  "league_xfg_coverage_pct_vs_pbp": 93.89070898621087,
+  "min_team_xfg_coverage_pct_vs_pbp": 88.49522813439665,
+  "max_team_xfg_coverage_pct_vs_pbp": 96.8818301034533,
+  "positive_teams": 21,
+  "note": "No missing xFG is imputed. Actual eFG and xEFG are compared on the identical set of NBA shots carrying public per-shot xFG."
+}
