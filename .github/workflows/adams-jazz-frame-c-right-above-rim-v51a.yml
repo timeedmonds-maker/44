@@ -1,0 +1,36 @@
+name: Adams Jazz Frame C Right Above Rim floor H v51a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_frame_c_right_above_rim_floor_v51.json'
+      - 'freeze_spin/diagnose_right_above_rim_floor_homography_v51a.py'
+      - '.github/workflows/adams-jazz-frame-c-right-above-rim-v51a.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-floor-homography-v51a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4
+      - name: Run analytic floor homography diagnostic
+        run: |
+          python -m freeze_spin.diagnose_right_above_rim_floor_homography_v51a \
+            --observations freeze_spin/adams_jazz_frame_c_right_above_rim_floor_v51.json \
+            --out v51a
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-floor-h-v51a-${{ github.run_id }}
+          path: v51a/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
