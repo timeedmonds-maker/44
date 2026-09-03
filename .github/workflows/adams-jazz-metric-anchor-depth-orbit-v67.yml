@@ -1,0 +1,121 @@
+name: Adams Jazz metric-anchored depth orbit v67
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_metric_anchor_depth_orbit_v67.py'
+      - 'freeze_spin/adams_jazz_frame_c_floor_homography_v35.json'
+      - 'freeze_spin/adams_jazz_game_camera_registry_v4.json'
+      - '.github/workflows/adams-jazz-metric-anchor-depth-orbit-v67.yml'
+
+jobs:
+  diagnostic-v67:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native deterministic and depth runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print('TORCH', torch.__version__, 'TORCHVISION', torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve official source and recreate immutable Frame C
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out source_v67 --workers 8
+          test "$(find source_v67/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips source_v67/clips --out frame_c_v67
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_v67/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7
+          assert int(lar['decoded_frame_index'])==259
+          assert lar['file']=='K_Left_Above_Rim_8.653093s_frame0259.png'
+          print('LOCKED_LAR',lar)
+          PY
+
+      - name: Run metric-anchored learned-depth static orbit
+        run: |
+          python freeze_spin/build_metric_anchor_depth_orbit_v67.py \
+            --frame frame_c_v67/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --floor-proof freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --camera-registry freeze_spin/adams_jazz_game_camera_registry_v4.json \
+            --tokens 1600 --out metric_anchor_v67
+
+      - name: Print decisive v67 diagnostics
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('metric_anchor_v67/metric_anchor_depth_orbit_v67.json')
+          if not p.exists():
+              print('NO_V67_REPORT')
+              raise SystemExit(0)
+          q=json.load(open(p))
+          print('STATUS',q['status'])
+          d=q['depth_metric_alignment']
+          print('DEPTH_MODEL',d['selected_model'])
+          print('DEPTH_HELDOUT_CM median',d['heldout_median_abs_cm'],'p95',d['heldout_p95_abs_cm'],'max',d['heldout_max_abs_cm'])
+          print('CAMERA_FLOOR_REPRO',q['accepted_metric_camera']['floor_reproduction'])
+          print('SAFE_MAX_AZIMUTH_DEG',q['coverage_assessment']['safe_max_azimuth_deg'])
+          for s in q['stills']:
+              print('STILL',s['requested_azimuth_deg'],'actual3d',s['actual_3d_angular_displacement_deg'],
+                    'roi_resolved',s['resolved_fraction_action_roi'],'full_resolved',s['resolved_fraction_full'],
+                    'pivot_drift',s['pivot_drift_px'],'radius_drift',s['radius_drift_cm'])
+          print('GATES',q['gates'])
+          print('PERMISSIONS',q['permissions'])
+          PY
+
+      - name: Package visual proof and diagnostics
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp metric_anchor_v67/metric_anchor_depth_orbit_v67.json delivery/ 2>/dev/null || true
+          cp metric_anchor_v67/metric_anchor_depth_orbit_*deg_native.png delivery/ 2>/dev/null || true
+          cp metric_anchor_v67/metric_anchor_depth_orbit_*deg_unresolved.png delivery/ 2>/dev/null || true
+          cp metric_anchor_v67/left_above_rim_dynamic_mask_v67.png delivery/ 2>/dev/null || true
+          cp frame_c_v67/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_v67/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp source_v67/qa.json delivery/source_qa.json 2>/dev/null || true
+          test -f delivery/metric_anchor_depth_orbit_v67.json
+
+      - name: Enforce non-promotion policy
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('delivery/metric_anchor_depth_orbit_v67.json')
+          assert p.exists(), 'v67 report missing'
+          q=json.load(open(p))
+          assert q['permissions']['physical_camera_promotion_allowed'] is False
+          assert q['permissions']['metric_camera_promotion_allowed'] is False
+          assert q['permissions']['product_static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          assert [s['requested_azimuth_deg'] for s in q['stills']]==[0.0,3.0,6.0,9.0,12.0]
+          print('V67_DIAGNOSTIC_STATUS',q['status'])
+          PY
+
+      - name: Upload v67 diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-metric-anchor-depth-orbit-v67-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
