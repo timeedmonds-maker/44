@@ -5,8 +5,8 @@ import cv2,numpy as np
 from scipy.optimize import least_squares
 W,H=960,540; FT=30.48; IN=2.54
 EVENTS=[40,220,440,620]
-RIM_ROI={40:[450,505,120,145],220:[465,510,155,175],440:[455,505,180,200],489:[455,505,160,190],620:[455,505,165,185]}
-TARGET_RIM_CENTER=np.array([479.0,174.0],float)
+RIM_ROI={40:[450,505,120,145],220:[465,510,155,175],440:[455,505,180,200],489:[463,497,165,183],620:[455,505,165,185]}
+TARGET_RIM_CENTER=np.array([477.5555555556,172.2777777778],float)
 
 def K(f,pp):return np.array([[f,0,pp[0]],[0,f,pp[1]],[0,0,1.]],float)
 def normh(h):h=np.asarray(h,float);return h/h[2,2]
