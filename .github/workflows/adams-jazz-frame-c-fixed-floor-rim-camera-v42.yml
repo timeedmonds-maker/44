@@ -1,0 +1,73 @@
+name: Adams Jazz Frame C fixed-floor rim camera v42
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_frame_c_fixed_floor_rim_camera_v42.py'
+      - '.github/workflows/adams-jazz-frame-c-fixed-floor-rim-camera-v42.yml'
+
+jobs:
+  prove-v42:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve target and immutable Frame C
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+      - name: Retrieve independent same-game samples
+        run: |
+          python freeze_spin/export_same_camera_transfer_samples_v1.py --game-id 0022500301 --events 40,220,440,620 --label 'Left Above Rim' --out lar_samples
+      - name: Reproduce v41 centre prerequisite
+        run: |
+          python freeze_spin/prove_left_above_rim_rim_center_v41.py \
+            --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --samples lar_samples \
+            --floor-proof freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --rim-observations freeze_spin/adams_jazz_left_above_rim_independent_rim_centers_v41.json \
+            --out v41 --perturbation-trials 24
+      - name: Prove exact Frame C fixed-floor rim camera v42
+        run: |
+          python freeze_spin/prove_frame_c_fixed_floor_rim_camera_v42.py \
+            --v41 v41/left_above_rim_noncoplanar_center_v41.json \
+            --floor-proof freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --rim-observations freeze_spin/adams_jazz_left_above_rim_independent_rim_centers_v41.json \
+            --out v42 --perturbation-trials 24
+          python - <<'PY'
+          import json
+          q=json.load(open('v42/frame_c_left_above_rim_fixed_floor_rim_camera_v42.json'))
+          assert q['status']=='PASS_FIXED_FLOOR_RIM_EVENT_CAMERA_V42'
+          assert q['permissions']['metric_event_camera_allowed'] is True
+          assert q['permissions']['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          print('V42_CAMERA',q['camera'])
+          print('V42_ROOTS',q['multistart'])
+          print('V42_PERTURB',q['perturbation'])
+          PY
+      - name: Package proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v41/*.json delivery/ 2>/dev/null || true
+          cp v42/*.json delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_floor_homography_v35.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_left_above_rim_independent_rim_centers_v41.json delivery/ 2>/dev/null || true
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-fixed-floor-rim-v42-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
