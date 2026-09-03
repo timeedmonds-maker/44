@@ -1,0 +1,12 @@
+{
+  "url": "https://www.nba.com/_next/static/chunks/polyfills-42372ed130431b0a.js",
+  "status": 200,
+  "bytes": 112594,
+  "resource_like": [],
+  "hits": [
+    {
+      "term": "frame",
+      "context": "t?Object.defineProperties:function(t,e){kt(t);for(var r,n=k(e),o=_e(e),i=o.length,a=0;i>a;)Ct.f(t,r=o[a++],n[r]);return t},Be={f:Fe},De=L(\"document\",\"documentElement\"),ze=\"prototype\",We=\"script\",qe=Xt(\"IE_PROTO\"),He=function(){},$e=function(t){return\"<\"+We+\">\"+t+\"</\"+We+\">\"},Ke=function(t){t.write($e(\"\")),t.close();var e=t.parentWindow.Object;return t=null,e},Ge=function(){try{re=new ActiveXObject(\"htmlfile\")}catch(t){}var t,e,r;Ge=\"undefined\"!=typeof document?document.domain&&re?Ke(re):(e=Et(\"iframe\"),r=\"java\"+We+\":\",e.style.display=\"none\",De.appendChild(e),e.src=String(r),(t=e.contentWindow.document).open(),t.write($e(\"document.F=Object\")),t.close(),t.F):Ke(re);for(var n=Se.length;n--;)delete Ge[ze][Se[n]];return Ge()};Jt[qe]=!0;var Ve=Object.create||function(t,e){var r;return null!==t?(He[ze]=kt(t),r=new He,He[ze]=null,r[qe]=t):r=Ge(),void 0===e?r:Be.f(r,e)},Ye=Ct.f,Xe=dt(\"unscopables\"),Je=Array.prototype;void 0===Je[Xe]&&Ye(Je,Xe,{configurable:!0,value:Ve(null)});var Qe=function(t){Je[Xe][t]=!0};Ce({target:\"Array\",proto:!0},{at:function(t){var e=it(this),r=de(e),n=ce(t),o=n>=0?n:r+n;return o<0||o>=r?void 0:e[o]}}),Qe(\"at\");var Ze=function(t,e){return b(i[t].prototype[e])},tr=(Ze(\"Array\",\"at\"),TypeError),er=function(t,e){if(!delete t[e])throw new tr(\"Cannot delete property \"+Y(e)+\" of \"+Y(t))},rr=Math.min,nr=[].copyWithin||function(t,e){var r=it(this),n=de(r),o=he(t,n),i=he(e,n),a=arguments.length>2?arguments[2]:void 0,u=rr((void 0===a?n:he(a,n))-i,n-o),s=1;for(i<o&&o<i+u&&(s=-1,i+=u-1,o+=u-1);u-- >0;)i in r?r[o]=r[i]:er(r,o),o+=s,i+=s;return r};Ce({target:\"Array\",proto:!0},{copyWithin:nr}),Qe(\"copyWithin\"),Ze(\"Array\",\"copyWithin\"),Ce({target:\"Array\",proto:!0},{fill:function(t){for(var e=it(this),r=de(e),n=arguments.length,o=he(n>1?arguments[1]:void 0,r),i=n>2?argume"
+    }
+  ]
+}

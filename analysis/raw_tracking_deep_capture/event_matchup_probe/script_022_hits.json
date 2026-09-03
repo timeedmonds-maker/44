@@ -1,0 +1,12 @@
+{
+  "url": "https://www.nba.com/osY3tp/K9/nR/Lofs/UVRQmA6DIlNPk/imaJwh3cc9G1m1/CBpnMBcC/UToe/Dnx6JB4B",
+  "status": 200,
+  "bytes": 544870,
+  "resource_like": [],
+  "hits": [
+    {
+      "term": "frame",
+      "context": "f\"]('Trident/6.0')>-1)OCZ=10;else if(vHZ[\"indexOf\"]('Trident/5.0')>-1)OCZ=9;else OCZ=0;return OCZ>=9;};var wzZ=function(){var nbZ=CGZ();var l7Z=JG[\"Object\"][\"prototype\"][\"hasOwnProperty\"].call(JG[\"Navigator\"][\"prototype\"],'mediaDevices');var MxZ=JG[\"Object\"][\"prototype\"][\"hasOwnProperty\"].call(JG[\"Navigator\"][\"prototype\"],'serviceWorker');var tfZ=! !JG[\"window\"][\"browser\"];var rKZ=typeof JG[\"ServiceWorker\"]==='function';var PBZ=typeof JG[\"ServiceWorkerContainer\"]==='function';var E7Z=typeof JG[\"frames\"][\"ServiceWorkerRegistration\"]==='function';var WbZ=JG[\"window\"][\"location\"]&&JG[\"window\"][\"location\"][\"protocol\"]==='http:';var xxZ=nbZ&&(!l7Z||!MxZ||!rKZ||!tfZ||!PBZ||!E7Z)&&!WbZ;return xxZ;};var CGZ=function(){var dCZ=UX();var ZQZ=/(iPhone|iPad).*AppleWebKit(?!.*(Version|CriOS))/i[\"test\"](dCZ);var bgZ=JG[\"navigator\"][\"platform\"]==='MacIntel'&&JG[\"navigator\"][\"maxTouchPoints\"]>1&&/(Safari)/[\"test\"](dCZ)&&!JG[\"window\"][\"MSStream\"]&&typeof JG[\"navigator\"][\"standalone\"]!=='undefined';return ZQZ||bgZ;};var gfZ=function(LBZ){var pAZ=JG[\"Math\"][\"floor\"](JG[\"Math\"][\"random\"]()*100000+10000);var AKZ=JG[\"String\"](LBZ*pAZ);var xtZ=0;var LsZ=[];var n7Z=AKZ[\"length\"]>=18?true:false;while(LsZ[\"length\"]<6){LsZ[\"push\"](JG[\"parseInt\"](AKZ[\"slice\"](xtZ,xtZ+2),10));xtZ=n7Z?xtZ+3:xtZ+2;}var CCZ=L5Z(LsZ);return [pAZ,CCZ];};var KCZ=function(CHZ){if(CHZ===null||CHZ===undefined){return 0;}var xdZ=function WlZ(StZ){return CHZ[\"toLowerCase\"]()[\"includes\"](StZ[\"toLowerCase\"]());};var BxZ=0;(OlZ&&OlZ[\"fields\"]||[])[\"some\"](function(m7Z){var AgZ=m7Z[\"type\"];var cKZ=m7Z[\"labels\"];if(cKZ[\"some\"](xdZ)){BxZ=TxZ[AgZ];if(m7Z[\"extensions\"]&&m7Z[\"extensions\"][\"labels\"]&&m7Z[\"extensions\"][\"labels\"][\"some\"](function(ztZ){return CHZ[\"toLowerCase\"]()[\"includes\"](ztZ[\"toLowerCase\"]());})){BxZ=TxZ[m7Z[\"extension"
+    }
+  ]
+}
