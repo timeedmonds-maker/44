@@ -5,6 +5,7 @@ on:
   push:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
+      - 'build_kd_top10_all_angles.py'
       - 'freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json'
       - 'freeze_spin/solve_frame_c_broadcast_floor_v44.py'
       - '.github/workflows/adams-jazz-frame-c-broadcast-floor-v44.yml'
