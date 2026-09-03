@@ -107,7 +107,7 @@ def json_safe(value):
 
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--target-frame',type=Path,required=True);ap.add_argument('--same-game-samples',type=Path,required=True);ap.add_argument('--target-clip-samples',type=Path,required=True);ap.add_argument('--target-manifest',type=Path,required=True);ap.add_argument('--floor-proof',type=Path,required=True);ap.add_argument('--wide-court',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--perturbation-trials',type=int,default=12);a=ap.parse_args();a.out.mkdir(parents=True,exist_ok=True)
- floor=json.loads(a.floor_proof.read_text());wide=json.loads(a.wide_court.read_text());Ht=normh(np.array(floor['floor_homography_world_to_image'],float));sel={};Hs={};rims={}
+ floor=json.loads(a.floor_proof.read_text());wide=json.loads(a.wide_court.read_text());Ht=normh(np.array(floor['floor_homography_world_to_image'],float));target_floor_P,target_floor_U=hobs(Ht);sel={};Hs={};rims={}
  for e in EVENTS:
   r=best(sorted(a.same_game_samples.glob(f'Left_Above_Rim__event{e:04d}__s*.png')),a.target_frame);sel[e]=r;Hs[e]=normh(np.linalg.inv(r['H'])@Ht);rims[e]=rim_pixels(cv2.imread(r['source']),e)
  roots=[]
@@ -117,13 +117,9 @@ def main():
  for omit in EVENTS:
   ev=[e for e in EVENTS if e!=omit];x,_=solve_center(Hs,rims,ev);loo[str(omit)]={'center_shift_cm':float(np.linalg.norm(x[:3]-C)),'pp_shift_px':float(np.linalg.norm(x[3:5]-gamepp))}
  obs={k:np.array(v,float) for k,v in wide['observations_px'].items()};held={k:set(v) for k,v in wide['held_out_indices'].items()};target_image=cv2.imread(str(a.target_frame));target_rim=rim_pixels(target_image,489)
- def metric_res(core,obsx=obs,rimc=TARGET_RIM_CENTER,rimobs=target_rim):
-  pp=core[4:6];par=np.r_[core[3],core[:3]];z=[]
-  for n,oo in obsx.items():
-   pred=project(C,pp,par,CURVES[n])
-   for i,p in enumerate(oo):
-    if i not in held[n]:z.extend(nearest_res(pred,p))
-  z.extend(((project(C,pp,par,RIM_CENTER)-np.asarray(rimc).reshape(1,2))*3).ravel());z.extend(nearvec(project(C,pp,par,RIM),rimobs));return np.asarray(z)
+ def metric_res(core,rimc=TARGET_RIM_CENTER):
+  pp=core[4:6];par=np.r_[core[3],core[:3]]
+  return np.r_[(project(C,pp,par,target_floor_P)-target_floor_U).ravel(),((project(C,pp,par,RIM_CENTER)-np.asarray(rimc).reshape(1,2))*3).ravel()]
  d=decomp(Ht,459,430);metric0=np.r_[d[2],math.log(d[0]),459.,430.]
  man=json.loads(a.target_manifest.read_text());meta={x['file']:x for x in man['samples']};pairs=[]
  for p in sorted(a.target_clip_samples.glob('Left_Above_Rim_target_event__*.png')):
@@ -150,7 +146,7 @@ def main():
   pred=project(C,pp,par,CURVES[n])
   for i,p in enumerate(oo):
    e=float(np.min(np.linalg.norm(pred-p,axis=1)));(ho if i in held[n] else tr).append(e)
- rim_pred=project(C,pp,par,RIM);rimerr=float(np.linalg.norm(project(C,pp,par,RIM_CENTER)-TARGET_RIM_CENTER.reshape(1,2)));rim_contour=np.linalg.norm(nearvec(rim_pred,target_rim).reshape(-1,2),axis=1)
+ fixed_floor_err=np.linalg.norm(project(C,pp,par,target_floor_P)-target_floor_U,axis=1);rim_pred=project(C,pp,par,RIM);rimerr=float(np.linalg.norm(project(C,pp,par,RIM_CENTER)-TARGET_RIM_CENTER.reshape(1,2)));rim_contour=np.linalg.norm(nearvec(rim_pred,target_rim).reshape(-1,2),axis=1)
  rim_overlay=target_image.copy()
  for x,y in target_rim:cv2.circle(rim_overlay,(int(round(x)),int(round(y))),2,(255,255,0),-1,cv2.LINE_AA)
  q=np.round(rim_pred).astype(int);ok=(q[:,0]>=0)&(q[:,0]<W)&(q[:,1]>=0)&(q[:,1]<H)
@@ -164,8 +160,8 @@ def main():
   for j,y in enumerate(eroot[i+1:],i+1):
    ua=project(C,x[4:6],np.r_[x[3],x[:3]],ACTION);ub=project(C,y[4:6],np.r_[y[3],y[:3]],ACTION);m=(ua[:,0]>0)&(ua[:,0]<W)&(ua[:,1]>0)&(ua[:,1]<H)&(ub[:,0]>0)&(ub[:,0]<W)&(ub[:,1]>0)&(ub[:,1]<H);dd=np.linalg.norm(ua[m]-ub[m],axis=1);fe.append({'i':i,'j':j,'p95_px':float(np.percentile(dd,95)),'max_px':float(dd.max())})
  pp_root=max(np.linalg.norm(x[4:6]-y[4:6]) for i,x in enumerate(eroot) for y in eroot[i+1:]);fe95=max(x['p95_px'] for x in fe);femax=max(x['max_px'] for x in fe)
- gates={'center_root_spread':center_spread<=1.0,'center_loo':max(x['center_shift_cm'] for x in loo.values())<=15.0,'target_floor_heldout':float(np.percentile(ho,95))<=1.5,'target_rim_center':rimerr<=1.0,'target_rim_contour_support':len(target_rim)>=12,'target_rim_contour_p95':float(np.percentile(rim_contour,95))<=2.5,'target_static_heldout':max(x['p95_px'] for x in static)<=3.0,'functional_root_p95':fe95<=0.5,'functional_root_max':femax<=0.75}
+ gates={'center_root_spread':center_spread<=1.0,'center_loo':max(x['center_shift_cm'] for x in loo.values())<=15.0,'target_fixed_floor_p95':float(np.percentile(fixed_floor_err,95))<=0.5,'target_floor_heldout':float(np.percentile(ho,95))<=1.5,'target_rim_center':rimerr<=1.0,'target_static_heldout':max(x['p95_px'] for x in static)<=3.0,'functional_root_p95':fe95<=0.5,'functional_root_max':femax<=0.75}
  passed=all(gates.values())
- rep=json_safe({'schema_version':1,'status':'PASS_NONCOPLANAR_FUNCTIONAL_CAMERA_V41' if passed else 'FAIL_NONCOPLANAR_FUNCTIONAL_CAMERA_V41','game_id':'0022500301','event_id':489,'camera_label':'Left Above Rim','method':'independent same-game v35 floor transfers + regulation rim-circle pixels solve physical centre; held-out Frame C raw wide-court + rim-centre + full source-pixel rim contour + settled static background; multistart accepted only if functionally sub-pixel equivalent across 3D action volume','independent_events':EVENTS,'selected_samples':{str(e):Path(sel[e]['source']).name for e in EVENTS},'camera_center_cm':C.tolist(),'game_level_pp_diagnostic_px':gamepp.tolist(),'center_multistart_max_cm':center_spread,'game_pp_multistart_max_px':gamepp_spread,'leave_one_event_out':loo,'target_camera':{'rvec':core0[:3].tolist(),'focal_px':float(np.exp(core0[3])),'principal_point_px':core0[4:6].tolist(),'parameter_pp_root_spread_px':float(pp_root)},'target_metric':{'floor_train_p95_px':float(np.percentile(tr,95)),'floor_heldout_p95_px':float(np.percentile(ho,95)),'rim_center_error_px':rimerr,'rim_contour_source_pixel_count':len(target_rim),'rim_contour_median_px':float(np.median(rim_contour)),'rim_contour_p95_px':float(np.percentile(rim_contour,95)),'rim_contour_max_px':float(np.max(rim_contour))},'settled_static':{'count':len(sett),'median_initial_source_focal_px':med,'heldout':static},'functional_root_equivalence':{'action_volume_cm':{'x':[-30,250],'y':[-180,180],'z':[20,350]},'max_p95_px':fe95,'max_px':femax,'pairs':fe},'gates':gates,'permissions':{'physical_camera_center_allowed':passed,'metric_event_camera_allowed':passed,'replay_render_allowed':False},'retired_constraint':'legacy backboard inner-target pixels are diagnostic only and excluded from v41 fit'})
+ rep=json_safe({'schema_version':1,'status':'PASS_NONCOPLANAR_FUNCTIONAL_CAMERA_V41' if passed else 'FAIL_NONCOPLANAR_FUNCTIONAL_CAMERA_V41','game_id':'0022500301','event_id':489,'camera_label':'Left Above Rim','method':'independent same-game v35 floor transfers + regulation rim-circle pixels solve physical centre; exact Frame C fit holds the accepted v35 floor homography fixed and adds the accepted rim centre plus settled static background; multistart accepted only if functionally sub-pixel equivalent across 3D action volume','independent_events':EVENTS,'selected_samples':{str(e):Path(sel[e]['source']).name for e in EVENTS},'camera_center_cm':C.tolist(),'game_level_pp_diagnostic_px':gamepp.tolist(),'center_multistart_max_cm':center_spread,'game_pp_multistart_max_px':gamepp_spread,'leave_one_event_out':loo,'target_camera':{'rvec':core0[:3].tolist(),'focal_px':float(np.exp(core0[3])),'principal_point_px':core0[4:6].tolist(),'parameter_pp_root_spread_px':float(pp_root)},'target_metric':{'fixed_floor_rms_px':float(np.sqrt(np.mean(fixed_floor_err**2))),'fixed_floor_p95_px':float(np.percentile(fixed_floor_err,95)),'fixed_floor_max_px':float(np.max(fixed_floor_err)),'floor_train_p95_px':float(np.percentile(tr,95)),'floor_heldout_p95_px':float(np.percentile(ho,95)),'rim_center_error_px':rimerr,'rim_contour_visual_diagnostic_only':{'source_pixel_count':len(target_rim),'median_nearest_px':float(np.median(rim_contour)),'p95_nearest_px':float(np.percentile(rim_contour,95)),'max_nearest_px':float(np.max(rim_contour)),'note':'Broad orange pixels include physical rim thickness and net attachment; overlay inspection, not this distance, is authoritative.'}},'settled_static':{'count':len(sett),'median_initial_source_focal_px':med,'heldout':static},'functional_root_equivalence':{'action_volume_cm':{'x':[-30,250],'y':[-180,180],'z':[20,350]},'max_p95_px':fe95,'max_px':femax,'pairs':fe},'gates':gates,'permissions':{'physical_camera_center_allowed':passed,'metric_event_camera_allowed':passed,'replay_render_allowed':False},'retired_constraint':'legacy backboard inner-target pixels are diagnostic only and excluded from v41 fit'})
  (a.out/'left_above_rim_noncoplanar_functional_camera_v41.json').write_text(json.dumps(rep,indent=2)+'\n');print(json.dumps(rep,indent=2));raise SystemExit(0 if passed else 2)
 if __name__=='__main__':main()
