@@ -1,0 +1,103 @@
+name: Adams Jazz Frame C Right Above Rim v46
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_frame_c_right_above_rim_fixed_geometry_v46.json'
+      - '.github/workflows/adams-jazz-frame-c-right-above-rim-v46.yml'
+      - 'freeze_spin/solve_right_above_rim_fixed_geometry_v1.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  preflight-right-above-rim-v46:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable Frame C from successful chooser artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c_archive
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Verify immutable Right Above Rim pixels and provenance
+        run: |
+          test -f frame_c_archive/L_Right_Above_Rim_8.562013s_frame0257.png
+          echo '0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a  frame_c_archive/L_Right_Above_Rim_8.562013s_frame0257.png' | sha256sum -c -
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('frame_c_archive/options.json').read_text())
+          rows = p if isinstance(p, list) else p.get('options', p.get('cameras', []))
+          matches = [r for r in rows if str(r.get('camera', r.get('label', r.get('camera_label', '')))) == 'Right Above Rim']
+          assert len(matches) == 1, matches
+          r = matches[0]
+          assert r.get('file') == 'L_Right_Above_Rim_8.562013s_frame0257.png', r
+          assert int(r.get('decoded_frame_index')) == 257, r
+          assert abs(float(r.get('requested_local_time')) - 8.562013) < 1e-6, r
+          Path('frame_c_provenance_v46.json').write_text(json.dumps({
+              'source_workflow_run_id': 33602700692,
+              'source_head_sha': '0f82269eed63c0b3ef10150b6d37c86c48f36958',
+              'source_artifact_id': 9835847111,
+              'source_artifact_digest': 'sha256:b4390e10a55124790f7d6109911ad0285b9dd154566fc08404ec6115544bd030',
+              'frame_file': r['file'],
+              'frame_sha256': '0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a',
+              'frame_size': [960, 540],
+              'requested_local_time_seconds': float(r['requested_local_time']),
+              'decoded_frame_index': int(r['decoded_frame_index']),
+              'policy': 'Calibration-only reuse of immutable official NBA Frame C; static regulation geometry only.'
+          }, indent=2))
+          PY
+      - name: Run strict regulation-curve preflight
+        run: |
+          python -m freeze_spin.solve_right_above_rim_fixed_geometry_v1 \
+            --observations freeze_spin/adams_jazz_frame_c_right_above_rim_fixed_geometry_v46.json \
+            --image frame_c_archive/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --out v46
+      - name: Evaluate v46 curve gate
+        run: |
+          python - <<'PY'
+          import json
+          q = json.load(open('v46/right_above_rim_fixed_geometry_v1.json'))
+          qa = q['qa']
+          print(json.dumps({
+            'combined_curve_rms_px': qa['combined_curve_rms_px'],
+            'combined_curve_p95_px': qa['combined_curve_p95_px'],
+            'rim_curve_rms_px': qa['rim_curve_rms_px'],
+            'restricted_curve_rms_px': qa['restricted_curve_rms_px'],
+            'camera_center_world_cm': qa['camera_center_world_cm'],
+            'focal_px': qa['focal_px'],
+            'principal_point_px': qa['principal_point_px'],
+            'strict_curve_fit': q['gate']['strict_curve_fit']
+          }, indent=2))
+          assert q['gate']['source_geometry_independent_of_players'] is True
+          assert q['gate']['strict_curve_fit'] is True
+          PY
+      - name: Package v46 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v46/*.json delivery/ 2>/dev/null || true
+          cp v46/*.png delivery/ 2>/dev/null || true
+          cp frame_c_archive/L_Right_Above_Rim_8.562013s_frame0257.png delivery/ 2>/dev/null || true
+          cp frame_c_provenance_v46.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_right_above_rim_fixed_geometry_v46.json delivery/ 2>/dev/null || true
+      - name: Upload v46 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-right-above-rim-v46-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
