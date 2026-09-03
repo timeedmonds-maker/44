@@ -1,0 +1,116 @@
+name: Team xEFG 2025-26
+
+on:
+  push:
+    paths:
+      - '.github/workflows/team-xefg-2025-26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  team-xefg:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fetch NBA shot quality leaders and aggregate teams
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, math, requests
+          from collections import defaultdict
+
+          season = '2025-26'
+          url = 'https://stats.nba.com/stats/shotqualityleaders'
+          params = {
+              'LeagueID': '00',
+              'Season': season,
+              'SeasonType': 'Regular Season',
+              'TeamID': '0',
+          }
+          headers = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Referer': 'https://www.nba.com/',
+              'Origin': 'https://www.nba.com',
+          }
+          r = requests.get(url, params=params, headers=headers, timeout=45)
+          print('HTTP', r.status_code, r.url)
+          r.raise_for_status()
+          data = r.json()
+          shots = data.get('shots', [])
+          print('PLAYER_ROWS', len(shots))
+          if not shots:
+              print(json.dumps(data)[:4000])
+              raise SystemExit('No shots rows')
+
+          teams = defaultdict(lambda: {
+              'team': '', 'players': 0, 'fga': 0, 'fg2a': 0, 'fg3a': 0,
+              'fg2m': 0, 'fg3m': 0, 'x2makes': 0.0, 'x3makes': 0.0,
+              'missing_x2_fga': 0, 'missing_x3_fga': 0,
+          })
+
+          for s in shots:
+              abbr = s.get('TEAMABBREVIATION') or s.get('TEAM_ABBREVIATION') or str(s.get('TEAMID') or s.get('TEAM_ID'))
+              t = teams[abbr]
+              t['team'] = s.get('TEAMNAME') or s.get('TEAM_NAME') or abbr
+              t['players'] += 1
+              fg2a = int(s.get('FG2A') or 0)
+              fg3a = int(s.get('FG3A') or 0)
+              fg2m = int(s.get('FG2M') or 0)
+              fg3m = int(s.get('FG3M') or 0)
+              fga = int(s.get('FGA') or (fg2a + fg3a))
+              x2 = s.get('AVGSHOTQUALITY2PT')
+              x3 = s.get('AVGSHOTQUALITY3PT')
+              t['fga'] += fga
+              t['fg2a'] += fg2a
+              t['fg3a'] += fg3a
+              t['fg2m'] += fg2m
+              t['fg3m'] += fg3m
+              if fg2a:
+                  if x2 is None:
+                      t['missing_x2_fga'] += fg2a
+                  else:
+                      t['x2makes'] += float(x2) * fg2a
+              if fg3a:
+                  if x3 is None:
+                      t['missing_x3_fga'] += fg3a
+                  else:
+                      t['x3makes'] += float(x3) * fg3a
+
+          out = []
+          for abbr, t in teams.items():
+              fga = t['fga']
+              actual_efg = (t['fg2m'] + 1.5*t['fg3m']) / fga if fga else None
+              expected_efg = (t['x2makes'] + 1.5*t['x3makes']) / fga if fga else None
+              out.append({
+                  'team': abbr,
+                  'team_name': t['team'],
+                  'players': t['players'],
+                  'fga': fga,
+                  'fg2a': t['fg2a'],
+                  'fg3a': t['fg3a'],
+                  'actual_eFG_pct': round(actual_efg*100, 3),
+                  'xEFG_pct': round(expected_efg*100, 3),
+                  'eFG_minus_xEFG_pp': round((actual_efg-expected_efg)*100, 3),
+                  'missing_x2_fga': t['missing_x2_fga'],
+                  'missing_x3_fga': t['missing_x3_fga'],
+              })
+          out.sort(key=lambda x: x['eFG_minus_xEFG_pp'], reverse=True)
+
+          print('TEAM_COUNT', len(out))
+          print('LEAGUE_FGA', sum(x['fga'] for x in out))
+          print('RESULT_JSON_START')
+          print(json.dumps(out, indent=2))
+          print('RESULT_JSON_END')
+          with open('team_xefg_2025_26.json', 'w') as f:
+              json.dump(out, f, indent=2)
+          PY
+
+      - name: Upload team xEFG result
+        uses: actions/upload-artifact@v4
+        with:
+          name: team-xefg-2025-26
+          path: team_xefg_2025_26.json
+          if-no-files-found: error
