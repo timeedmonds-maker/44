@@ -1,0 +1,72 @@
+{
+  "game_id": "0022500301",
+  "event_id": 489,
+  "view": "Right Above Rim",
+  "reference_file": "L_Right_Above_Rim_8.562013s_frame0257.png",
+  "reference_sha256": "0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a",
+  "requested_local_time_seconds": 8.562013,
+  "decoded_frame_index": 257,
+  "image_geometry": "960x540 native NBA frame",
+  "purpose": "Resolve v49 residual two-root ambiguity with uniquely corresponded regulation 13-foot hash marks",
+  "geometry": {
+    "rim_inner_radius_in": 9.0,
+    "rim_center_from_backboard_in": 15.0,
+    "rim_height_ft": 10.0,
+    "restricted_area_radius_ft": 4.0,
+    "restricted_area_center_from_backboard_in": 15.0,
+    "free_throw_circle_radius_ft": 6.0,
+    "free_throw_circle_center_from_backboard_ft": 15.0,
+    "baseline_from_backboard_ft": -4.0,
+    "lane_half_width_ft": 8.0,
+    "hash_from_baseline_ft": 13.0,
+    "hash_inboard_from_lane_line_ft": 3.0,
+    "hash_length_in": 6.0,
+    "hash_center_world_x_ft_from_board": 9.0,
+    "hash_center_abs_world_y_ft": 5.0,
+    "official_source": "https://cdn.nba.com/manage/2026/01/Official-2025-26-NBA-Playing-Rules.pdf",
+    "official_rule_note": "Rule 1 Section I(g): hash marks are 13 ft from baseline, 3 ft from free throw lane lines, and 6 in long. With baseline X=-4 ft from board and lane half-width 8 ft, their nominal centres are X=+9 ft, Y=+-5 ft."
+  },
+  "rim_inner_edge_samples_px": [
+    [461.0,253.0],[478.0,249.0],[496.0,250.0],[514.0,257.0],[527.0,272.0],
+    [533.0,291.0],[532.0,311.0],[525.0,328.0],[511.0,339.0],[490.0,341.0],
+    [469.0,337.0],[452.0,325.0],[444.0,309.0],[441.0,291.0],[445.0,272.0]
+  ],
+  "restricted_area_centerline_samples_px": [
+    [392.0,274.0],[385.0,282.0],[378.0,292.0],[372.0,303.0],[368.0,312.0],
+    [364.0,323.0],[361.0,332.0],[359.0,342.0],[359.0,351.0],
+    [594.0,290.0],[599.0,299.0],[603.0,308.0],[607.0,319.0],[610.0,328.0],
+    [612.0,339.0],[614.0,348.0],[615.0,358.0],[615.0,365.0]
+  ],
+  "free_throw_circle_dash_centroids_px": [
+    [360.3220,46.4068],[399.6585,94.7805],[462.3873,124.4859],
+    [533.9571,127.8143],[600.7762,103.5105],[645.2991,58.5299]
+  ],
+  "corresponded_hash_centroids_px": {
+    "negative_y_hash": [367.9545454545,129.4090909091],
+    "positive_y_hash": [629.5,141.5]
+  },
+  "corresponded_hash_world_cm": {
+    "negative_y_hash": [274.32,-152.4,0.0],
+    "positive_y_hash": [274.32,152.4,0.0]
+  },
+  "hash_observation_derivation": {
+    "method": "deterministic local cyan segmentation inside predeclared ROIs around the two isolated 13-foot hash marks; connected-component centroid used",
+    "negative_y_roi_px": [340,390,115,150],
+    "positive_y_roi_px": [610,655,120,165],
+    "segmentation": "B>150, G-R>8, B-R>70 in native BGR source pixels",
+    "component_pixels_negative_y": 44,
+    "component_pixels_positive_y": 48,
+    "player_ball_pixels_used": false
+  },
+  "gates": {
+    "max_combined_anchor_rms_px": 3.0,
+    "max_combined_anchor_p95_px": 6.0,
+    "max_hash_point_error_px": 3.0,
+    "max_competitive_root_action_volume_p95_shift_px": 0.5,
+    "max_support_reduction_action_volume_p95_shift_px": 2.0,
+    "max_half_pixel_camera_center_shift_cm": 75.0,
+    "max_half_pixel_action_volume_p95_shift_px": 2.0,
+    "min_distinct_camera_baseline_cm": 50.0
+  },
+  "guardrail": "No player, ball, pose, silhouette, prior replay output, Broadcast calibration, rejected lane-line solve, or Left Above Rim camera parameters may contribute to this camera solve. Left Above Rim is used only after solving for physical-baseline distinctness."
+}
