@@ -50,6 +50,15 @@ def fit(C,H,rim,seed,warm=None,U_override=None):
         return np.r_[(project(C,pp,f,rv,P)-U).ravel(),project(C,pp,f,rv,RIM)[0]-rim]
     o=least_squares(fun,x0,bounds=(lo,hi),loss='soft_l1',f_scale=1,x_scale='jac',max_nfev=12000);return o.x,float(np.mean(fun(o.x)**2)),P,U
 
+def json_safe(x):
+    if isinstance(x,dict):return {str(k):json_safe(v) for k,v in x.items()}
+    if isinstance(x,(list,tuple)):return [json_safe(v) for v in x]
+    if isinstance(x,np.ndarray):return x.tolist()
+    if isinstance(x,np.bool_):return bool(x)
+    if isinstance(x,np.integer):return int(x)
+    if isinstance(x,np.floating):return float(x)
+    return x
+
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--v41',type=Path,required=True);ap.add_argument('--floor-proof',type=Path,required=True);ap.add_argument('--rim-observations',type=Path,required=True);ap.add_argument('--out',type=Path,required=True);ap.add_argument('--perturbation-trials',type=int,default=24);a=ap.parse_args();a.out.mkdir(parents=True,exist_ok=True)
     v41=json.loads(a.v41.read_text());floor=json.loads(a.floor_proof.read_text());rs=json.loads(a.rim_observations.read_text())
@@ -65,10 +74,10 @@ def main():
     for _ in range(a.perturbation_trials):
         d=rng.normal(size=3);d/=max(np.linalg.norm(d),1e-12);Cq=C+d*rng.uniform(0,pc);Uq=U+rng.uniform(-.5,.5,U.shape);rq=rim+rng.uniform(-.5,.5,2);q,_,_,_=fit(Cq,H,rq,tuple(pp),warm=x,U_override=Uq);fq=float(np.exp(q[3]));pert.append({'pp_shift_px':float(np.linalg.norm(q[4:6]-pp)),'focal_fraction':abs(fq-f)/f})
     maxpps=max(z['pp_shift_px'] for z in pert);maxffs=max(z['focal_fraction'] for z in pert)
-    gates={'root_pp':pp_spread<=0.05,'root_focal':fspread<=0.0001,'fixed_floor_p95':float(np.percentile(fe,95))<=0.5,'rim_center':re<=1.5,'perturb_pp':maxpps<=10.0,'perturb_focal':maxffs<=0.005}
-    passed=all(gates.values())
+    gates={k:bool(v) for k,v in {'root_pp':pp_spread<=0.05,'root_focal':fspread<=0.0001,'fixed_floor_p95':float(np.percentile(fe,95))<=0.5,'rim_center':re<=1.5,'perturb_pp':maxpps<=10.0,'perturb_focal':maxffs<=0.005}.items()}
+    passed=bool(all(gates.values()))
     rep={'schema_version':1,'status':'PASS_FIXED_FLOOR_RIM_EVENT_CAMERA_V42' if passed else 'FAIL_FIXED_FLOOR_RIM_EVENT_CAMERA_V42','game_id':'0022500301','event_id':489,'camera_label':'Left Above Rim','physical_center_cm':C.tolist(),'camera':{'rvec':rv.tolist(),'focal_px':f,'principal_point_px':pp.tolist()},'method':'v41 independent physical centre + fixed accepted v35 floor homography + regulation 3D rim centre','fixed_floor':{'grid_points':int(len(fe)),'rms_px':float(np.sqrt(np.mean(fe**2))),'p95_px':float(np.percentile(fe,95)),'max_px':float(np.max(fe))},'rim_center':{'observed_px':rim.tolist(),'predicted_px':project(C,pp,f,rv,RIM)[0].tolist(),'error_px':re},'multistart':{'roots':[{k:v for k,v in r.items() if k!='x'} for r in roots],'max_pp_pairwise_px':pp_spread,'focal_spread_fraction':fspread},'perturbation':{'trials':len(pert),'source_center_radius_cm':pc,'max_pp_shift_px':maxpps,'max_focal_fraction':maxffs},'legacy_backboard_target_policy':'diagnostic only; excluded from fit and permissions','gates':gates,'permissions':{'metric_event_camera_allowed':passed,'replay_render_allowed':False}}
-    (a.out/'frame_c_left_above_rim_fixed_floor_rim_camera_v42.json').write_text(json.dumps(rep,indent=2)+'\n');print(json.dumps(rep,indent=2))
+    rep=json_safe(rep);text=json.dumps(rep,indent=2)+'\n';(a.out/'frame_c_left_above_rim_fixed_floor_rim_camera_v42.json').write_text(text);print(text,end='')
     if not passed:raise SystemExit(2)
 
 if __name__=='__main__':main()
