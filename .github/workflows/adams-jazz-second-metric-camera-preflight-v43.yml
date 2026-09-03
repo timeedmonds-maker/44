@@ -1,0 +1,58 @@
+name: Adams Jazz second metric camera preflight v43
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/preflight_second_metric_camera_v43.py'
+      - '.github/workflows/adams-jazz-second-metric-camera-preflight-v43.yml'
+
+jobs:
+  preflight-camera2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve target and immutable Frame C
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+      - name: Retrieve same-game candidate samples
+        run: |
+          python freeze_spin/export_same_camera_transfer_samples_v1.py --game-id 0022500301 --events 40,220,440,620 --label 'Broadcast' --out broadcast_samples
+          python freeze_spin/export_same_camera_transfer_samples_v1.py --game-id 0022500301 --events 40,220,440,620 --label 'Mobile Broadcast' --out mobile_samples
+      - name: Run camera-2 preflight and rim proposals
+        run: |
+          python -m freeze_spin.preflight_second_metric_camera_v43 \
+            --target-frames frame_c_target/frames \
+            --lar-floor-proof freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --broadcast-samples broadcast_samples \
+            --mobile-samples mobile_samples \
+            --out v43
+          cat v43/second_metric_camera_preflight_v43.json
+      - name: Package preflight
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v43/*.json delivery/ 2>/dev/null || true
+          cp v43/*_rim_candidates.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/A_Broadcast_9.194613s_frame0276.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/C_Mobile_Broadcast_8.937253s_frame0268.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp broadcast_samples/Broadcast__event*.png delivery/ 2>/dev/null || true
+          cp mobile_samples/Mobile_Broadcast__event*.png delivery/ 2>/dev/null || true
+      - name: Upload preflight
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-second-metric-camera-preflight-v43-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
