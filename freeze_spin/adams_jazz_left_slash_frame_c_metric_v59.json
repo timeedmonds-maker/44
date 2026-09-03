@@ -1,0 +1,43 @@
+{
+  "frame_geometry": "960x540 immutable official Frame C",
+  "purpose": "Direct Left Slash metric-camera identifiability test using only regulation static basket geometry; no player or ball anchors",
+  "max_landmark_rmse_px": 3.0,
+  "max_rim_center_error_px": 3.0,
+  "max_rim_major_axis_error_px": 4.0,
+  "max_rim_minor_axis_error_px": 2.0,
+  "max_rim_angle_error_deg": 3.0,
+  "max_half_pixel_camera_center_shift_cm": 10.0,
+  "perturbation_trials": 24,
+  "minimum_required_passed_views": 1,
+  "views": [
+    {
+      "index": 7,
+      "label": "Left Slash",
+      "image": "G_Left_Slash_8.868843s_frame0266.png",
+      "principal_point_prior_sigma_px": 160.0,
+      "principal_point_bound_px": 350.0,
+      "focal_prior_sigma_log": 1.8,
+      "landmarks": {
+        "target_inner_top_left": [568.0, 77.0],
+        "target_inner_top_right": [630.5, 78.0],
+        "target_inner_bottom_right": [630.0, 120.5],
+        "target_inner_bottom_left": [568.5, 120.0]
+      },
+      "rim_seed_points_px": {
+        "rim_left": [552.5, 131.0],
+        "rim_right": [621.0, 133.0]
+      },
+      "rim_curve_samples_px": [
+        [552.5, 131.0],
+        [563.5, 128.0],
+        [586.0, 126.5],
+        [609.0, 128.0],
+        [621.0, 133.0],
+        [610.0, 138.0],
+        [586.0, 141.0],
+        [563.0, 137.5]
+      ],
+      "notes": "Manually measured on immutable source pixels. Uses the clean 20x14-inch opening inside the 24x18 target stripe plus the regulation 18-inch rim conic. Backboard outline is deliberately omitted because the board top is clipped by Frame C."
+    }
+  ]
+}
