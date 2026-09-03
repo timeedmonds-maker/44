@@ -1,3 +1,4 @@
+# trigger existing v57a workflow; acquisition semantics unchanged
 name: Adams Jazz Left HandHeld same-game scan v57a
 
 on:
