@@ -1,3 +1,4 @@
+# trigger existing v58a workflow; acquisition semantics unchanged
 name: Adams Jazz Left Slash same-game scan v58a
 
 on:
