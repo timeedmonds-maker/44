@@ -134,19 +134,27 @@ def residual(z: np.ndarray, h0: np.ndarray, groups: dict) -> np.ndarray:
     return np.concatenate(rows)
 
 
-def solve_multistart(h0: np.ndarray, groups: dict, *, warm: np.ndarray | None = None) -> np.ndarray:
+def solve_multistart(
+    h0: np.ndarray,
+    groups: dict,
+    *,
+    warm: np.ndarray | None = None,
+    return_roots: bool = False,
+):
     seeds = []
     if warm is not None:
         seeds.append(np.asarray(warm, dtype=np.float64))
     seeds.append(np.zeros(8, dtype=np.float64))
     rng = np.random.default_rng(440903)
-    seeds.extend(rng.uniform(-0.25, 0.25, size=8) for _ in range(9))
+    seeds.extend(rng.uniform(-0.25, 0.25, size=8) for _ in range(4))
     best, best_score = None, float("inf")
+    roots = []
     for x0 in seeds:
         try:
             fit = least_squares(
                 lambda z: residual(z, h0, groups), x0,
-                loss="soft_l1", f_scale=1.0, x_scale="jac", max_nfev=30000,
+                loss="soft_l1", f_scale=1.0, x_scale="jac", max_nfev=3000,
+                bounds=(-np.ones(8), np.ones(8)),
             )
             Hm = H_from_z(fit.x, h0)
             score = float(np.median(np.abs(np.concatenate([
@@ -154,17 +162,22 @@ def solve_multistart(h0: np.ndarray, groups: dict, *, warm: np.ndarray | None = 
             ]))))
             if np.isfinite(score) and score < best_score:
                 best, best_score = np.asarray(fit.x, dtype=np.float64), score
+            if np.isfinite(score):
+                roots.append({"z": np.asarray(fit.x, dtype=np.float64), "median_abs_pixel_residual": score})
         except Exception:
             continue
     if best is None:
         raise RuntimeError("Broadcast v44 homography solve failed from all deterministic roots")
+    if return_roots:
+        return best, roots
     return best
 
 
 def solve_warm(h0: np.ndarray, groups: dict, warm: np.ndarray) -> np.ndarray:
     fit = least_squares(
         lambda z: residual(z, h0, groups), np.asarray(warm, dtype=np.float64),
-        loss="soft_l1", f_scale=1.0, x_scale="jac", max_nfev=10000,
+        loss="soft_l1", f_scale=1.0, x_scale="jac", max_nfev=1000,
+        bounds=(-np.ones(8), np.ones(8)),
     )
     z = np.asarray(fit.x, dtype=np.float64)
     Hm = H_from_z(z, h0)
@@ -269,7 +282,7 @@ def main() -> None:
     train, held = split_groups(spec["observations_px"], spec["held_out_indices"])
     dense = dense_features()
 
-    z = solve_multistart(h0, train)
+    z, nominal_roots = solve_multistart(h0, train, return_roots=True)
     Hm = H_from_z(z, h0)
     train_metrics = pixel_metrics(Hm, train, dense)
     held_metrics = pixel_metrics(Hm, held, dense)
@@ -278,6 +291,24 @@ def main() -> None:
     zr = solve_multistart(h0, reduced, warm=z)
     root_shift = curve_shift(Hm, H_from_z(zr, h0), dense)
     max_root_p95 = max(row["p95_px"] for row in root_shift.values())
+
+    best_root_score = min(row["median_abs_pixel_residual"] for row in nominal_roots)
+    competitive_roots = [row for row in nominal_roots if row["median_abs_pixel_residual"] <= best_root_score + 0.25]
+    pairwise_root_rows = []
+    for i in range(len(competitive_roots)):
+        for j in range(i + 1, len(competitive_roots)):
+            shifts = curve_shift(
+                H_from_z(competitive_roots[i]["z"], h0),
+                H_from_z(competitive_roots[j]["z"], h0),
+                dense,
+            )
+            pairwise_root_rows.append({
+                "i": i,
+                "j": j,
+                "feature_shift": shifts,
+                "max_p95_px": max(row["p95_px"] for row in shifts.values()),
+            })
+    max_pairwise_root_p95 = max((row["max_p95_px"] for row in pairwise_root_rows), default=0.0)
 
     rng = np.random.default_rng(441903)
     perturbations = []
@@ -294,6 +325,8 @@ def main() -> None:
         "native_960x540_source": True,
         "static_regulation_floor_only": True,
         "spatially_distributed_heldout_observations": True,
+        "at_least_three_competitive_multistart_roots": len(competitive_roots) >= 3,
+        "competitive_multistart_roots_functionally_equivalent": max_pairwise_root_p95 <= 0.5,
         "every_heldout_feature_p95_at_most_two_px": max_heldout_p95 <= args.max_heldout_p95_px,
         "support_reduction_root_p95_at_most_threshold": max_root_p95 <= args.max_root_p95_shift_px,
         "half_pixel_annotation_p95_stability": max_perturb_p95 <= args.max_half_pixel_p95_shift_px,
@@ -316,6 +349,15 @@ def main() -> None:
         "max_heldout_feature_p95_px": float(max_heldout_p95),
         "support_reduction_projection_shift": root_shift,
         "max_support_reduction_p95_shift_px": float(max_root_p95),
+        "nominal_multistart": {
+            "seed_count": len(nominal_roots),
+            "competitive_score_margin_px": 0.25,
+            "competitive_root_count": len(competitive_roots),
+            "competitive_root_scores_px": [row["median_abs_pixel_residual"] for row in competitive_roots],
+            "pairwise_projection_shift": pairwise_root_rows,
+            "max_pairwise_p95_shift_px": float(max_pairwise_root_p95),
+            "max_allowed_pairwise_p95_shift_px": 0.5,
+        },
         "half_pixel_training_annotation_perturbation": {
             "trial_count": len(perturbations),
             "max_feature_p95_shift_px": float(max_perturb_p95),
@@ -342,6 +384,8 @@ def main() -> None:
         "heldout_p95_px": {key: row["p95_px"] for key, row in held_metrics.items()},
         "max_heldout_feature_p95_px": max_heldout_p95,
         "max_support_reduction_p95_shift_px": max_root_p95,
+        "competitive_root_count": len(competitive_roots),
+        "max_competitive_pairwise_p95_shift_px": max_pairwise_root_p95,
         "max_half_pixel_p95_shift_px": max_perturb_p95,
         "gates": gates,
         "permissions": payload["permissions"],
