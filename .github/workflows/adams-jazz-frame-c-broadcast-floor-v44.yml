@@ -39,12 +39,14 @@ jobs:
           from pathlib import Path
           p = json.loads(Path('frame_c_archive/options.json').read_text())
           rows = p if isinstance(p, list) else p.get('options', p.get('cameras', []))
-          matches = [r for r in rows if str(r.get('label', r.get('camera_label', ''))) == 'Broadcast']
+          matches = [r for r in rows if str(r.get('camera', r.get('label', r.get('camera_label', '')))) == 'Broadcast']
           assert len(matches) == 1, matches
           r = matches[0]
           expected = 'A_Broadcast_9.194613s_frame0276.png'
-          actual = str(r.get('frame_file', r.get('file', r.get('output_file', expected)))).split('/')[-1]
+          actual = str(r.get('file', r.get('frame_file', r.get('output_file', expected)))).split('/')[-1]
           assert actual == expected, (actual, r)
+          assert int(r.get('decoded_frame_index', 276)) == 276, r
+          assert abs(float(r.get('requested_local_time', 9.194613)) - 9.194613) < 1e-6, r
           Path('frame_c_provenance.json').write_text(json.dumps({
               'source_workflow_run_id': 33602700692,
               'source_head_sha': '0f82269eed63c0b3ef10150b6d37c86c48f36958',
@@ -54,6 +56,8 @@ jobs:
               'frame_file': expected,
               'frame_sha256': '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c',
               'frame_size': [960, 540],
+              'requested_local_time_seconds': 9.194613,
+              'decoded_frame_index': 276,
               'policy': 'Calibration-only reuse of previously validated immutable official NBA Frame C; no re-download or pixel transformation.'
           }, indent=2))
           PY
