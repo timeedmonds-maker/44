@@ -1,0 +1,79 @@
+name: Shot Quality Shot Log Host Probe
+
+on:
+  push:
+    branches: [analysis/raw-tracking-deep-capture]
+    paths: ['.github/workflows/shotqualityshotlog-host-probe.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: analysis/raw-tracking-deep-capture
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe shotqualityshotlog hosts and dump exact schema
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check requests curl_cffi
+          python3 - <<'PY'
+          import json,time
+          from pathlib import Path
+          import requests
+          from curl_cffi import requests as crequests
+          OUT=Path('analysis/raw_tracking_deep_capture/shotlog_host_probe'); OUT.mkdir(parents=True,exist_ok=True)
+          game='0042500301'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/inside-the-game','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
+          hosts=['https://stats.gleague.nba.com/stats/shotqualityshotlog','https://stats.nba.com/stats/shotqualityshotlog']
+          variants=[('game_only',{'GameID':game}),('game_league',{'GameID':game,'LeagueID':'00'}),('lower',{'GameID':game,'LeagueID':'00','leagueId':'00'})]
+          report=[]
+          def schema(obj):
+            out={'top_type':type(obj).__name__}
+            if isinstance(obj,dict):
+              out['top_keys']=sorted(obj.keys())
+              for k,v in obj.items():
+                if isinstance(v,list):
+                  keys=sorted({kk for row in v if isinstance(row,dict) for kk in row})
+                  out[k]={'len':len(v),'keys':keys,'first':v[0] if v else None}
+            return out
+          for host in hosts:
+            for name,p in variants:
+              # requests, no redirects first
+              rec={'host':host,'variant':name,'params':p,'attempts':[]}
+              try:
+                r=requests.get(host,params=p,headers=H,timeout=(6,18),allow_redirects=False)
+                a={'client':'requests_no_redirect','status':r.status_code,'bytes':len(r.content),'url':r.url,'location':r.headers.get('location'),'ct':r.headers.get('content-type'),'prefix':r.text[:600]}
+                if r.status_code==200:
+                  try:
+                    o=r.json(); a['schema']=schema(o); (OUT/f'{host.split("//")[1].split("/")[0]}_{name}_requests.json').write_text(json.dumps(o,indent=2),encoding='utf-8')
+                  except Exception as e:a['json_error']=repr(e)
+                rec['attempts'].append(a)
+              except Exception as e: rec['attempts'].append({'client':'requests_no_redirect','error':repr(e)})
+              # curl-cffi chrome impersonation
+              try:
+                r=crequests.get(host,params=p,headers=H,timeout=20,impersonate='chrome124',allow_redirects=False)
+                a={'client':'curl_cffi','status':r.status_code,'bytes':len(r.content),'url':str(r.url),'location':r.headers.get('location'),'ct':r.headers.get('content-type'),'prefix':r.text[:600]}
+                if r.status_code==200:
+                  try:
+                    o=r.json(); a['schema']=schema(o); (OUT/f'{host.split("//")[1].split("/")[0]}_{name}_curl.json').write_text(json.dumps(o,indent=2),encoding='utf-8')
+                  except Exception as e:a['json_error']=repr(e)
+                rec['attempts'].append(a)
+              except Exception as e: rec['attempts'].append({'client':'curl_cffi','error':repr(e)})
+              report.append(rec); time.sleep(.2)
+          (OUT/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print(json.dumps(report,indent=2))
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add analysis/raw_tracking_deep_capture/shotlog_host_probe
+          git commit -m "Probe full shotqualityshotlog schema" || exit 0
+          git push origin HEAD:analysis/raw-tracking-deep-capture
