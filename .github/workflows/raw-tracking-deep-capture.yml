@@ -1,0 +1,218 @@
+name: Raw Tracking Deep Capture
+
+on:
+  push:
+    branches:
+      - analysis/raw-tracking-deep-capture
+    paths:
+      - '.github/workflows/raw-tracking-deep-capture.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: analysis/raw-tracking-deep-capture
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Capture complete NBA tracking-derived payloads
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check requests
+          python3 - <<'PY'
+          import json, time, re
+          from pathlib import Path
+          from collections import defaultdict
+          import requests
+
+          OUT=Path('analysis/raw_tracking_deep_capture')
+          OUT.mkdir(parents=True,exist_ok=True)
+          BASE='https://stats.gleague.nba.com/stats/'
+          HEADERS={
+              'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+              'Referer':'https://www.nba.com/',
+              'Origin':'https://www.nba.com',
+              'Accept':'application/json, text/plain, */*',
+              'Accept-Language':'en-US,en;q=0.9',
+              'Connection':'keep-alive',
+          }
+          sess=requests.Session(); sess.headers.update(HEADERS)
+
+          games=['0042500301','0022500928']
+          report={'base':BASE,'games':{},'keyword_inventory':{},'candidate_probes':[]}
+          tracking_terms=[
+              'defender','defensive','contest','pressure','hand','height','vertical','jump','speed',
+              'rotation','release','distance','angle','pose','joint','hip','wrist','shoulder','ankle',
+              'frame','xyz','coordinate','tracking','hawk','ball','velocity','acceleration','closeout',
+              'orientation','movement','shotquality','locx','locy'
+          ]
+
+          def fetch(resource, params, timeout=(6,35), attempts=4):
+              last=None
+              for a in range(1,attempts+1):
+                  try:
+                      r=sess.get(BASE+resource,params=params,timeout=timeout)
+                      rec={'resource':resource,'params':params,'status':r.status_code,'bytes':len(r.content),'url':r.url,'attempt':a}
+                      if r.status_code==200:
+                          try: return r.json(), rec
+                          except Exception as e:
+                              rec['json_error']=repr(e); rec['prefix']=r.text[:1000]; return None,rec
+                      rec['prefix']=r.text[:500]; last=rec
+                  except Exception as e:
+                      last={'resource':resource,'params':params,'error':repr(e),'attempt':a}
+                  if a<attempts: time.sleep(0.8*(2**(a-1)))
+              return None,last
+
+          def union_schema(items):
+              keys={}
+              examples={}
+              nonnull=defaultdict(int)
+              for row in items or []:
+                  if not isinstance(row,dict): continue
+                  for k,v in row.items():
+                      keys.setdefault(k,set()).add(type(v).__name__)
+                      if v is not None and v!='' and examples.get(k) is None:
+                          examples[k]=v
+                      if v is not None and v!='': nonnull[k]+=1
+              return {
+                  'keys':sorted(keys),
+                  'types':{k:sorted(v) for k,v in sorted(keys.items())},
+                  'nonnull_counts':dict(sorted(nonnull.items())),
+                  'examples':{k:examples.get(k) for k in sorted(keys)}
+              }
+
+          def walk(obj,path='$'):
+              if isinstance(obj,dict):
+                  for k,v in obj.items():
+                      yield path+'.'+str(k),v
+                      yield from walk(v,path+'.'+str(k))
+              elif isinstance(obj,list):
+                  for i,v in enumerate(obj[:250]):
+                      yield f'{path}[{i}]',v
+                      yield from walk(v,f'{path}[{i}]')
+
+          for game in games:
+              gr={'resources':{},'players':{},'schemas':{},'tracking_hits':[]}
+              # Whole-game per-shot endpoint.
+              slog,smeta=fetch('shotqualityshotlog',{'GameID':game,'LeagueID':'00'})
+              gr['resources']['shotqualityshotlog']=smeta
+              if slog is not None:
+                  (OUT/f'{game}_shotqualityshotlog_raw.json').write_text(json.dumps(slog,indent=2),encoding='utf-8')
+                  shots=slog.get('shots') or [] if isinstance(slog,dict) else []
+                  gr['schemas']['shotqualityshotlog_top']=union_schema([slog] if isinstance(slog,dict) else [])
+                  gr['schemas']['shotqualityshotlog_shots']=union_schema(shots)
+                  pids=sorted({int(x['playerId']) for x in shots if isinstance(x,dict) and x.get('playerId')})
+              else:
+                  pids=[]
+
+              # Fall back to known player for current regular-season test page if whole-game endpoint fails.
+              if game=='0022500928' and 1631221 not in pids: pids.append(1631221)
+              if game=='0042500301' and 1628384 not in pids: pids.append(1628384)
+              pids=sorted(set(pids))[:40]
+
+              # Capture per-player/per-game event logs for every shooter we can identify.
+              all_events=[]
+              all_top=[]
+              for pid in pids:
+                  obj,meta=fetch('shotqualityvideologs',{'GameID':game,'PlayerID':pid})
+                  gr['players'][str(pid)]={'meta':meta}
+                  if obj is None: continue
+                  all_top.append(obj)
+                  ev=obj.get('shotList') or [] if isinstance(obj,dict) else []
+                  all_events.extend(ev)
+                  gr['players'][str(pid)]['top_keys']=sorted(obj.keys()) if isinstance(obj,dict) else []
+                  gr['players'][str(pid)]['shot_count']=len(ev)
+                  gr['players'][str(pid)]['event_keys']=sorted({k for e in ev if isinstance(e,dict) for k in e})
+                  (OUT/f'{game}_{pid}_shotqualityvideologs_raw.json').write_text(json.dumps(obj,indent=2),encoding='utf-8')
+                  time.sleep(0.08)
+              gr['schemas']['shotqualityvideologs_top']=union_schema(all_top)
+              gr['schemas']['shotqualityvideologs_events']=union_schema(all_events)
+
+              # Matchup-level tracking-derived game endpoint used by Inside the Game.
+              dbo,dmeta=fetch('defensiveboxscore',{'GameID':game,'LeagueID':'00'})
+              gr['resources']['defensiveboxscore']=dmeta
+              if dbo is not None:
+                  (OUT/f'{game}_defensiveboxscore_raw.json').write_text(json.dumps(dbo,indent=2),encoding='utf-8')
+                  if isinstance(dbo,list):
+                      gr['schemas']['defensiveboxscore_rows']=union_schema(dbo)
+                  elif isinstance(dbo,dict):
+                      gr['schemas']['defensiveboxscore_top']=union_schema([dbo])
+                      for k,v in dbo.items():
+                          if isinstance(v,list): gr['schemas'][f'defensiveboxscore_{k}']=union_schema(v)
+
+              # Search every captured object for tracking/biomechanics-looking names and values.
+              captured=[('shotqualityshotlog',slog),('defensiveboxscore',dbo)]
+              for pid in pids:
+                  p=OUT/f'{game}_{pid}_shotqualityvideologs_raw.json'
+                  if p.exists(): captured.append((f'shotqualityvideologs:{pid}',json.loads(p.read_text())))
+              seen=set()
+              for source,obj in captured:
+                  if obj is None: continue
+                  for path,v in walk(obj):
+                      low=path.lower()
+                      terms=[t for t in tracking_terms if t in low]
+                      if terms:
+                          key=(source,path)
+                          if key not in seen:
+                              seen.add(key)
+                              gr['tracking_hits'].append({'source':source,'path':path,'terms':terms,'example':v if isinstance(v,(str,int,float,bool,type(None))) else type(v).__name__})
+              report['games'][game]=gr
+
+          # Probe a small, evidence-driven set of plausible event-detail resources. Only ordinary public GETs.
+          candidate_resources=[
+              'shotqualitydetails','shotqualitydetail','shotqualityevents','shotqualityeventlog',
+              'shotqualitytracking','shottracking','trackingevents','defensiveshotlog'
+          ]
+          for res in candidate_resources:
+              obj,meta=fetch(res,{'GameID':'0022500928','PlayerID':1631221,'LeagueID':'00'},attempts=1,timeout=(4,12))
+              meta['top_keys']=sorted(obj.keys()) if isinstance(obj,dict) else None
+              meta['list_len']=len(obj) if isinstance(obj,list) else None
+              report['candidate_probes'].append(meta)
+              if obj is not None:
+                  (OUT/f'candidate_{res}.json').write_text(json.dumps(obj,indent=2),encoding='utf-8')
+
+          # Global keyword inventory from union schemas.
+          inventory=[]
+          for game,gr in report['games'].items():
+              for sname,schema in gr.get('schemas',{}).items():
+                  for k in schema.get('keys',[]):
+                      hits=[t for t in tracking_terms if t in k.lower()]
+                      if hits: inventory.append({'game':game,'schema':sname,'field':k,'terms':hits,'example':schema.get('examples',{}).get(k)})
+          report['keyword_inventory']=inventory
+
+          (OUT/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          # Human-readable schema summary.
+          lines=[]
+          for game,gr in report['games'].items():
+              lines.append(f'GAME {game}')
+              for name,schema in gr.get('schemas',{}).items():
+                  lines.append(f'\n{name} ({len(schema.get("keys",[]))} fields)')
+                  for k in schema.get('keys',[]):
+                      lines.append(f'  {k}: {schema.get("types",{}).get(k)} | nonnull={schema.get("nonnull_counts",{}).get(k,0)} | example={schema.get("examples",{}).get(k)!r}')
+          (OUT/'schema_summary.txt').write_text('\n'.join(lines),encoding='utf-8')
+
+          print('=== SCHEMA SUMMARY ===')
+          print('\n'.join(lines)[:45000])
+          print('\n=== TRACKING-LIKE FIELD INVENTORY ===')
+          print(json.dumps(inventory,indent=2)[:30000])
+          print('\n=== CANDIDATE RESOURCE PROBES ===')
+          print(json.dumps(report['candidate_probes'],indent=2))
+          PY
+      - name: Commit capture
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add analysis/raw_tracking_deep_capture
+          git commit -m "Capture complete tracking-derived shot payloads" || exit 0
+          git push origin HEAD:analysis/raw-tracking-deep-capture
