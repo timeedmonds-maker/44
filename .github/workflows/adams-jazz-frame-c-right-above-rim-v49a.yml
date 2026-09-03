@@ -1,0 +1,36 @@
+name: Adams Jazz Frame C Right Above Rim FT circle roots v49a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_frame_c_right_above_rim_ft_circle_v49.json'
+      - 'freeze_spin/diagnose_right_above_rim_ft_circle_roots_v49a.py'
+      - '.github/workflows/adams-jazz-frame-c-right-above-rim-v49a.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-ft-circle-roots-v49a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Run diagnostic-only multistart root check
+        run: |
+          python -m freeze_spin.diagnose_right_above_rim_ft_circle_roots_v49a \
+            --observations freeze_spin/adams_jazz_frame_c_right_above_rim_ft_circle_v49.json \
+            --out v49a
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-ft-circle-roots-v49a-${{ github.run_id }}
+          path: v49a/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
