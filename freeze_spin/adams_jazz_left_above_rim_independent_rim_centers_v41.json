@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "game_id": "0022500301",
+  "camera_label": "Left Above Rim",
+  "purpose": "Independent non-coplanar metric evidence for game-level physical camera centre. Event 489 is excluded from the fit.",
+  "coordinate_system": "basket-local centimetres: +X from backboard face toward court, +Y across court, Z=0 floor",
+  "regulation_rim_center_world_cm": [38.1, 0.0, 304.8],
+  "observations": [
+    {"event_id": 40, "sample_file": "Left_Above_Rim__event0040__s0.png", "rim_center_px": [476.375, 129.8125]},
+    {"event_id": 220, "sample_file": "Left_Above_Rim__event0220__s0.png", "rim_center_px": [483.5, 160.5]},
+    {"event_id": 440, "sample_file": "Left_Above_Rim__event0440__s1.png", "rim_center_px": [471.3, 186.9]},
+    {"event_id": 620, "sample_file": "Left_Above_Rim__event0620__s2.png", "rim_center_px": [475.1666666667, 169.1666666667]}
+  ],
+  "held_out_target_event": {
+    "event_id": 489,
+    "sample_file": "K_Left_Above_Rim_8.653093s_frame0259.png",
+    "rim_center_px_diagnostic_only": [477.5555555556, 172.2777777778]
+  },
+  "annotation_policy": "Source-pixel orange-rim centre observations from the selected same-physical-camera samples. These are independent of the event-489 v26 backboard-target landmarks and independent of the retired v26 baseline anchors. Event 489 does not enter the game-level fit.",
+  "guardrails": [
+    "Do not transport event-489 metric landmarks into these events.",
+    "Do not use the retired v1/v26 physical centre as a fit prior.",
+    "Passing this evidence may promote only the game-level physical centre; exact event camera and replay remain separate gates."
+  ]
+}
