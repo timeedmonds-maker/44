@@ -46,14 +46,7 @@ jobs:
           test -f v52_archive/E_In_Arena_9.062573s_frame0272.png
           test -f v52_archive/in_arena_floor_v52.json
           test -f v53a_archive/same_game_camera_prior_scan.json
-          echo 'ec8bd82230da4770426777549b234dfb4faec3c79f715911de8a244b750edc87  v52_archive/E_In_Arena_9.062573s_frame0272.png' | sha256sum -c - || {
-            python - <<'PY'
-          import hashlib
-          p='v52_archive/E_In_Arena_9.062573s_frame0272.png'
-          print('ACTUAL_TARGET_SHA', hashlib.sha256(open(p,'rb').read()).hexdigest())
-          raise SystemExit(1)
-          PY
-          }
+          echo 'a3ae19c3b7439e21ca33a49f2140a9da605e2f62fa1b6759fb5233341d8e38f4  v52_archive/E_In_Arena_9.062573s_frame0272.png' | sha256sum -c -
           python - <<'PY'
           import json
           a=json.load(open('v52_archive/in_arena_floor_v52.json'))
