@@ -1,0 +1,169 @@
+name: Team xEFG Shot-Level 2025-26
+
+on:
+  push:
+    paths:
+      - '.github/workflows/team-xefg-shotlevel-2025-26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Install dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas pyreadr requests
+      - name: Build exact player-game-team manifest from 2025-26 PBP
+        run: |
+          python3 - <<'PY'
+          import json, re, requests, pandas as pd, pyreadr
+          from pathlib import Path
+          url='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.rds'
+          r=requests.get(url,timeout=180); r.raise_for_status()
+          Path('data.rds').write_bytes(r.content)
+          df=next(iter(pyreadr.read_r('data.rds').values()))
+          df['game_id']=df['game_id'].astype(str).str.replace(r'\.0$','',regex=True).str.zfill(10)
+          is_fg=pd.to_numeric(df['is_field_goal'],errors='coerce').fillna(0).eq(1)
+          reg=df['game_id'].str.startswith('002')
+          raw=df.loc[is_fg & reg,['game_id','event_num','player1_name','team_abb']].copy()
+          raw_count=len(raw)
+          p=raw['player1_name'].astype(str).str.extract(r'^\s*(\d+)\s+(.*)$')
+          raw['player_id']=pd.to_numeric(p[0],errors='coerce').astype('Int64')
+          raw['player_name']=p[1]
+          missing_player=int(raw['player_id'].isna().sum())
+          missing_team=int(raw['team_abb'].isna().sum())
+          fga=raw.dropna(subset=['player_id','team_abb']).copy()
+          fga['player_id']=fga['player_id'].astype(int)
+          manifest=(fga.groupby(['game_id','player_id','player_name','team_abb'],as_index=False)
+                    .agg(pbp_fga=('event_num','size'))
+                    .sort_values(['game_id','team_abb','player_id']))
+          manifest.to_csv('manifest.csv',index=False)
+          team=fga.groupby('team_abb',as_index=False).size().rename(columns={'size':'pbp_fga'})
+          team.to_csv('pbp_team_fga.csv',index=False)
+          qa={'raw_regular_season_fga_rows':raw_count,'parsed_manifest_fga':int(manifest['pbp_fga'].sum()),
+              'missing_player_id_fga':missing_player,'missing_team_fga':missing_team,
+              'games':int(manifest['game_id'].nunique()),'request_pairs':len(manifest),'teams':int(manifest['team_abb'].nunique()),
+              'team_fga_min':int(team['pbp_fga'].min()),'team_fga_max':int(team['pbp_fga'].max())}
+          Path('manifest_qa.json').write_text(json.dumps(qa,indent=2))
+          print(json.dumps(qa,indent=2))
+          print(team.sort_values('team_abb').to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-xefg-manifest
+          path: |
+            manifest.csv
+            pbp_team_fga.csv
+            manifest_qa.json
+          retention-days: 1
+          compression-level: 0
+
+  extract:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: team-xefg-manifest
+          path: input
+      - name: Fetch extractor
+        run: |
+          curl --retry 3 --retry-delay 1 -fsSL \
+            "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/team_xefg_shard.py" \
+            -o team_xefg_shard.py
+      - name: Install dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas requests
+      - name: Extract shard
+        run: |
+          python3 team_xefg_shard.py \
+            --manifest input/manifest.csv \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 20 \
+            --workers 2 \
+            --out-dir out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-xefg-shot-shard-${{ matrix.shard }}
+          path: |
+            out/partial_${{ matrix.shard }}.csv
+            out/errors_${{ matrix.shard }}.csv
+            out/summary_${{ matrix.shard }}.json
+          retention-days: 1
+          compression-level: 0
+
+  merge:
+    needs: extract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: team-xefg-shot-shard-*
+          path: downloaded
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: team-xefg-manifest
+          path: input
+      - name: Install pandas
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas
+      - name: Pool sufficient statistics and QA
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          parts=[pd.read_csv(p) for p in sorted(Path('downloaded').glob('partial_*.csv'))]
+          df=pd.concat(parts,ignore_index=True)
+          sums=['pbp_fga_shard','tracked_fga','tracked_fgm','tracked_3pa','tracked_3pm','actual_efg_num','expected_efg_num','api_official_fga','unlisted_fga','successful_pairs','failed_pairs']
+          g=df.groupby('team_abb',as_index=False)[sums].sum()
+          g['tracked_actual_eFG_pct']=100*g['actual_efg_num']/g['tracked_fga']
+          g['xEFG_pct']=100*g['expected_efg_num']/g['tracked_fga']
+          g['eFG_minus_xEFG_pp']=g['tracked_actual_eFG_pct']-g['xEFG_pct']
+          g['xfg_coverage_pct_vs_pbp_fga']=100*g['tracked_fga']/g['pbp_fga_shard']
+          g['xfg_coverage_pct_vs_api_fga']=100*g['tracked_fga']/g['api_official_fga'].replace(0,pd.NA)
+          g=g.sort_values(['eFG_minus_xEFG_pp','tracked_fga'],ascending=[False,False]).reset_index(drop=True)
+          g.insert(0,'rank',range(1,len(g)+1))
+          Path('final').mkdir(exist_ok=True)
+          g.to_csv('final/team_xefg_2025_26.csv',index=False)
+          positives=g[g['eFG_minus_xEFG_pp']>0].copy()
+          positives.to_csv('final/teams_above_xefg_2025_26.csv',index=False)
+          summaries=[json.loads(p.read_text()) for p in sorted(Path('downloaded').glob('summary_*.json'))]
+          mqa=json.loads(Path('input/manifest_qa.json').read_text())
+          qa={'season':'2025-26','season_type':'Regular Season','source_resource':'NBA shotqualityvideologs',
+              'source_host':'stats.gleague.nba.com','pbp_source':'ramirobentes/nba_pbp_data pbp-final-2026',
+              'definition':{'actual_eFG':'sum(success * [1.5 if 3PT else 1]) / tracked shots',
+                            'xEFG':'sum(shotQuality * [1.5 if 3PT else 1]) / tracked shots',
+                            'difference_pp':'actual_eFG% - xEFG%'},
+              'manifest_qa':mqa,'request_pairs':sum(x['request_pairs'] for x in summaries),
+              'request_errors':sum(x['errors'] for x in summaries),'teams':len(g),
+              'league_pbp_fga':int(g['pbp_fga_shard'].sum()),'league_tracked_xfg_fga':int(g['tracked_fga'].sum()),
+              'league_xfg_coverage_pct_vs_pbp':float(100*g['tracked_fga'].sum()/g['pbp_fga_shard'].sum()),
+              'min_team_xfg_coverage_pct_vs_pbp':float(g['xfg_coverage_pct_vs_pbp_fga'].min()),
+              'max_team_xfg_coverage_pct_vs_pbp':float(g['xfg_coverage_pct_vs_pbp_fga'].max()),
+              'positive_teams':int(len(positives)),
+              'note':'No missing xFG is imputed. Actual eFG and xEFG are compared on the identical set of NBA shots with public per-shot xFG.'}
+          Path('final/qa.json').write_text(json.dumps(qa,indent=2))
+          print('FULL_TABLE')
+          print(g[['rank','team_abb','tracked_fga','tracked_actual_eFG_pct','xEFG_pct','eFG_minus_xEFG_pp','xfg_coverage_pct_vs_pbp_fga']].to_csv(index=False))
+          print('QA')
+          print(json.dumps(qa,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-xefg-shotlevel-2025-26-${{ github.run_id }}
+          path: final/*
+          retention-days: 7
+          compression-level: 0
