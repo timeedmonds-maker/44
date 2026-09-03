@@ -1,0 +1,97 @@
+name: Adams Jazz Right Above Rim state mining v63a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/mine_same_game_camera_states_v1.py'
+      - '.github/workflows/adams-jazz-right-above-rim-state-mining-v63a.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/mine_same_game_camera_states_v1.py'
+      - '.github/workflows/adams-jazz-right-above-rim-state-mining-v63a.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native-frame mining runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests==2.32.3
+
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify exact immutable Right Above Rim target
+        run: |
+          test -f frame_c/L_Right_Above_Rim_8.562013s_frame0257.png
+          echo '0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a  frame_c/L_Right_Above_Rim_8.562013s_frame0257.png' | sha256sum -c -
+
+      - name: Mine broad same-game physical optical states
+        run: |
+          python -m freeze_spin.mine_same_game_camera_states_v1 \
+            --game-id 0022500301 \
+            --camera-label 'Right Above Rim' \
+            --target-frame frame_c/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --target-sha256 0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a \
+            --count 36 \
+            --event-start 5 \
+            --event-stop 1205 \
+            --event-step 20 \
+            --samples-per-clip 7 \
+            --keep-top 12 \
+            --out v63a
+
+      - name: Assert discovery-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v63a/same_game_physical_state_mining_v1.json'))
+          assert q['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+          assert q['permissions']['fixed_camera_center_prior_allowed'] is False
+          assert q['permissions']['metric_camera_promotion_allowed'] is False
+          assert q['permissions']['static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          assert len(q['top_candidates']) >= 5, len(q['top_candidates'])
+          print('successful events', sum(e.get('status')=='ok' for e in q['events']))
+          print('credible discovery candidates', q['credible_candidate_event_count'])
+          for c in q['top_candidates']:
+              a=c['analysis']
+              print(c['event_probe'], c['sample_name'], a['discovery_score_lower_is_better'], a['full_scene']['ransac_inliers'], a['cross_depth'].get('support_residual',{}).get('median_px'))
+          PY
+
+      - name: Package v63a discovery evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v63a/same_game_physical_state_mining_v1.json delivery/ 2>/dev/null || true
+          cp v63a/top_state_candidates_montage.png delivery/ 2>/dev/null || true
+          cp -r v63a/selected_frames delivery/ 2>/dev/null || true
+          cp frame_c/L_Right_Above_Rim_8.562013s_frame0257.png delivery/ 2>/dev/null || true
+
+      - name: Upload v63a discovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-state-mining-v63a-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
