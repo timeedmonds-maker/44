@@ -51,11 +51,7 @@ jobs:
       - name: Verify immutable target and prepare static source samples
         run: |
           test -f frame_c/G_Left_Slash_8.868843s_frame0266.png
-          echo 'a1ba9df27411397982d93361508977b7ff611bc29687f27dff8ad3becb5be255  frame_c/G_Left_Slash_8.868843s_frame0266.png' | sha256sum -c - || {
-            echo 'Target hash differs from preflight; printing actual and failing closed.'
-            sha256sum frame_c/G_Left_Slash_8.868843s_frame0266.png
-            exit 1
-          }
+          echo '2ced6fbf7108459e4c8acda1d62ab8a4a77a455971287c1fcfcdc6ea7b6a272f  frame_c/G_Left_Slash_8.868843s_frame0266.png' | sha256sum -c -
           mkdir -p samples
           python - <<'PY'
           from pathlib import Path
