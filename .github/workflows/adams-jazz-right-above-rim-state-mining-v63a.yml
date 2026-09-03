@@ -51,7 +51,7 @@ jobs:
             --camera-label 'Right Above Rim' \
             --target-frame frame_c/L_Right_Above_Rim_8.562013s_frame0257.png \
             --target-sha256 0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a \
-            --count 36 \
+            --count 22 \
             --event-start 5 \
             --event-stop 1205 \
             --event-step 20 \
