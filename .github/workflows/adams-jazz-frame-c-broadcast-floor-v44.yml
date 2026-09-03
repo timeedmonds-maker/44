@@ -1,0 +1,65 @@
+name: Adams Jazz Frame C Broadcast floor v44
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json'
+      - 'freeze_spin/solve_frame_c_broadcast_floor_v44.py'
+      - '.github/workflows/adams-jazz-frame-c-broadcast-floor-v44.yml'
+
+jobs:
+  prove-broadcast-floor-v44:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve target and recreate immutable Frame C
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+          test -f frame_c_target/frames/A_Broadcast_9.194613s_frame0276.png
+      - name: Run strict Broadcast pinhole-floor proof
+        id: proof
+        continue-on-error: true
+        run: |
+          python -m freeze_spin.solve_frame_c_broadcast_floor_v44 \
+            --frame frame_c_target/frames/A_Broadcast_9.194613s_frame0276.png \
+            --observations freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json \
+            --out v44
+      - name: Package v44 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v44/*.json delivery/ 2>/dev/null || true
+          cp v44/*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/A_Broadcast_9.194613s_frame0276.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+      - name: Upload v44 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-broadcast-floor-v44-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce v44 verdict
+        if: always()
+        run: |
+          test -f v44/broadcast_frame_c_floor_v44.json
+          python - <<'PY'
+          import json
+          q = json.load(open('v44/broadcast_frame_c_floor_v44.json'))
+          assert q['status'] == 'PASS_BROADCAST_PINHOLE_FLOOR_V44'
+          assert q['permissions']['broadcast_floor_homography_allowed'] is True
+          assert q['permissions']['broadcast_metric_event_camera_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          PY

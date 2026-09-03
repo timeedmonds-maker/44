@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "game_id": "0022500301",
+  "event_id": 489,
+  "date": "2025-11-30",
+  "camera_label": "Broadcast",
+  "image": "A_Broadcast_9.194613s_frame0276.png",
+  "freeze_lock": {
+    "authority_camera": "Right Slash",
+    "chooser_option": "C",
+    "right_slash_local_time": 8.275733,
+    "right_slash_decoded_frame_index": 248,
+    "broadcast_synchronized_time": 9.194613,
+    "broadcast_decoded_frame_index": 276
+  },
+  "annotation_policy": "Manual deterministic native source-pixel samples on directly visible static NBA court paint only. The score bug, people and other occlusions are skipped. No player, ball, body, generated appearance point or cross-camera pixel transfer is permitted.",
+  "observations_px": {
+    "three_point_arc": [[91,324],[90,340],[94,358],[103,376],[116,391],[132,403],[150,415],[170,424],[190,433],[210,440],[260,454],[290,462],[320,468],[350,473],[380,477],[410,480]],
+    "free_throw_front_semicircle": [[278,310],[260,311],[240,312],[220,317],[203,322],[191,330],[183,340],[181,347],[187,359],[198,366],[212,371],[230,374],[250,376],[270,378],[290,379],[310,379],[330,379],[340,378]],
+    "free_throw_line": [[267,296],[276,306],[285,316],[294,326],[303,336],[312,346],[321,356],[330,366],[339,376],[348,386],[351,390]],
+    "lane_negative_y": [[267,296],[300,292],[335,288],[370,283],[405,278],[435,274]],
+    "lane_positive_y": [[351,390],[385,388],[420,384],[539,371],[575,367],[612,363],[646,359],[685,355],[718,352]]
+  },
+  "held_out_indices": {
+    "three_point_arc": [2,5,8,11,14],
+    "free_throw_front_semicircle": [1,4,7,10,13,16],
+    "free_throw_line": [1,4,7,9],
+    "lane_negative_y": [1,4],
+    "lane_positive_y": [1,4,7]
+  },
+  "regulation_geometry": {
+    "coordinate_system": "basket-local centimetres: +X from backboard face toward court, +Y across court, Z=0 floor",
+    "basket_center_x_from_backboard_face_in": 15.0,
+    "baseline_x_from_backboard_face_ft": -4.0,
+    "free_throw_line_x_from_backboard_face_ft": 15.0,
+    "free_throw_circle_radius_ft": 6.0,
+    "three_point_arc_radius_ft": 23.75,
+    "corner_three_distance_from_basket_center_ft": 22.0,
+    "paint_width_ft": 16.0
+  },
+  "seed_only_correspondences": {
+    "note": "These four approximate lane corners initialize the nonlinear solver only; they are excluded from every residual and metric gate.",
+    "world_cm": [[457.2,-243.84],[457.2,243.84],[-121.92,-243.84],[-121.92,243.84]],
+    "image_px": [[267,296],[351,390],[640,239],[718,352]]
+  },
+  "notes": "Broadcast is a distinct physical sideline baseline. Mobile Broadcast, Other Broadcast and Play by Play are near-duplicate/crop-family feeds and are not counted as independent metric cameras. v44 deliberately tests the undistorted pinhole-floor hypothesis at the established two-pixel held-out standard."
+}
