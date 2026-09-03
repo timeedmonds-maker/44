@@ -1,0 +1,105 @@
+name: Adams Jazz In Arena static-scene family v53b
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/audit_in_arena_same_center_v53b.py'
+      - '.github/workflows/adams-jazz-in-arena-static-scene-v53b.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic vision runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Recover sealed v52 target artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-in-arena-floor-v52-33717856610
+          path: v52_archive
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33717856610
+
+      - name: Recover v53a same-game state artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-in-arena-same-game-scan-v53a-33718582878
+          path: v53a_archive
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33718582878
+
+      - name: Verify sealed inputs
+        run: |
+          test -f v52_archive/E_In_Arena_9.062573s_frame0272.png
+          test -f v52_archive/in_arena_floor_v52.json
+          test -f v53a_archive/same_game_camera_prior_scan.json
+          echo 'ec8bd82230da4770426777549b234dfb4faec3c79f715911de8a244b750edc87  v52_archive/E_In_Arena_9.062573s_frame0272.png' | sha256sum -c - || {
+            python - <<'PY'
+          import hashlib
+          p='v52_archive/E_In_Arena_9.062573s_frame0272.png'
+          print('ACTUAL_TARGET_SHA', hashlib.sha256(open(p,'rb').read()).hexdigest())
+          raise SystemExit(1)
+          PY
+          }
+          python - <<'PY'
+          import json
+          a=json.load(open('v52_archive/in_arena_floor_v52.json'))
+          b=json.load(open('v53a_archive/same_game_camera_prior_scan.json'))
+          assert a['status']=='PASS_IN_ARENA_FLOOR_V52'
+          assert a['floor_homography_allowed'] is True
+          assert a['metric_event_camera_allowed'] is False
+          assert b['camera_label']=='In Arena'
+          assert b['promotion_allowed'] is False
+          print('SEALED INPUTS OK')
+          PY
+
+      - name: Audit real static-scene family
+        run: |
+          python freeze_spin/audit_in_arena_same_center_v53b.py \
+            --target v52_archive/E_In_Arena_9.062573s_frame0272.png \
+            --states v53a_archive \
+            --out v53b
+
+      - name: Assert candidate-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('v53b/in_arena_static_scene_family_v53b.json'))
+          assert p['status']=='PASS_IN_ARENA_STATIC_SCENE_FAMILY_V53B'
+          assert p['static_scene_family_allowed'] is True
+          assert p['metric_event_camera_allowed'] is False
+          assert p['replay_render_allowed'] is False
+          assert all(p['gates'].values())
+          print('SELECTED', [(x['event_probe'],x['frame'],round(x['relative_scale_at_center'],3)) for x in p['selected_candidates']])
+          PY
+
+      - name: Package v53b evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v53b/*.json delivery/ 2>/dev/null || true
+          cp v52_archive/E_In_Arena_9.062573s_frame0272.png delivery/ || true
+          cp v52_archive/in_arena_floor_v52.json delivery/ || true
+
+      - name: Upload v53b evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-in-arena-static-scene-v53b-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
