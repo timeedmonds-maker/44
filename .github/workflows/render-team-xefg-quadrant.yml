@@ -46,7 +46,7 @@ jobs:
             [HOU]='https://content.sportslogos.net/logos/6/230/full/houston-rockets-logo-primary-2020-3703.png'
             [DEN]='https://content.sportslogos.net/logos/6/229/full/8926_denver_nuggets-primary-2019.png'
             [POR]='https://content.sportslogos.net/logos/6/239/full/9725_portland_trail_blazers-primary-2018.png'
-            [ORL]='https://content.sportslogos.net/logos/6/217/full/orlando-magic-logo-primary-2026-21794952026.png'
+            [ORL]='https://content.sportslogos.net/logos/6/217/full/orlando-magic-logo_primary_2026-21794952026.png'
           )
           for abbr in "${!hist[@]}"; do
             curl -fL --retry 5 --retry-delay 2 -A 'Mozilla/5.0' "${hist[$abbr]}" \
@@ -94,7 +94,8 @@ jobs:
               arr[near_white,3] = 0
               im = Image.fromarray(arr)
               bb = im.getchannel('A').getbbox()
-              if bb: im = im.crop(bb)
+              if bb:
+                  im = im.crop(bb)
               canvas = Image.new('RGBA',(360,360),(255,255,255,0))
               im.thumbnail((326,326),Image.Resampling.LANCZOS)
               canvas.alpha_composite(im,((360-im.width)//2,(360-im.height)//2))
@@ -103,86 +104,105 @@ jobs:
           logos = {t: prepare_logo(logo_dir/f'{t}.png') for t,_,_ in data}
 
           fig, ax = plt.subplots(figsize=(16.0,11.4), dpi=220)
-          fig.patch.set_facecolor('white'); ax.set_facecolor('white')
-          ax.set_xlim(52.92,56.28); ax.set_ylim(-1.58,5.38)
-          ax.set_xticks([53.0,53.5,54.0,54.5,55.0,55.5,56.0])
-          ax.set_yticks([-1.5,-1.0,0,1,2,3,4,5])
+          fig.patch.set_facecolor('white')
+          ax.set_facecolor('white')
+          ax.set_xlim(52.92,56.28)
+          ax.set_ylim(-1.58,5.38)
+          ax.set_xticks([53.0,53.5,54.0,54.5,55.0,55.5,56.0,56.2])
+          ax.set_yticks([-1.5,-1.0,0,1,2,3,4,5,5.3])
           ax.tick_params(axis='both',labelsize=13,length=5,width=1)
-          ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
-          ax.spines['left'].set_linewidth(1); ax.spines['bottom'].set_linewidth(1)
+          ax.spines['top'].set_visible(False)
+          ax.spines['right'].set_visible(False)
+          ax.spines['left'].set_linewidth(1)
+          ax.spines['bottom'].set_linewidth(1)
           ax.axvline(league_x,ls='--',lw=1.25,c='#9b9b9b',zorder=0)
           ax.axhline(0,ls='--',lw=1.25,c='#9b9b9b',zorder=0)
 
-          fig.suptitle('Shot Quality & Shot Making',fontsize=36,fontweight='bold',y=0.975)
-          ax.set_title('2025-26 Regular Season | NBA shot-level tracking data',fontsize=18.5,pad=23)
-          ax.set_xlabel('xEFG% (shot quality)',fontsize=19,fontweight='bold',labelpad=13)
-          ax.set_ylabel('eFG% − xEFG% (percentage points)',fontsize=19,fontweight='bold',labelpad=16)
+          fig.suptitle('Shot Quality & Shot Making',fontsize=36,fontweight='bold',y=0.973)
+          ax.set_title('2025-26 Regular Season | NBA shot-level tracking data',fontsize=18.5,pad=18)
+          ax.set_xlabel('xEFG% (shot quality)',fontsize=19,fontweight='bold',labelpad=12)
+          ax.set_ylabel('eFG% minus xEFG (percentage points)',fontsize=19,fontweight='bold',labelpad=12)
+
           qkw=dict(fontsize=13.5,fontstyle='italic',color='#555555',linespacing=1.25)
-          ax.text(53.06,5.20,'Lower shot quality /\nAbove expected',ha='left',va='top',**qkw)
-          ax.text(56.14,5.20,'Higher shot quality /\nAbove expected',ha='right',va='top',**qkw)
-          ax.text(53.06,-1.46,'Lower shot quality /\nBelow expected',ha='left',va='bottom',**qkw)
-          ax.text(56.14,-1.46,'Higher shot quality /\nBelow expected',ha='right',va='bottom',**qkw)
+          ax.text(53.06,5.22,'Lower expected shot quality /\nBetter than expected shot making',ha='left',va='top',**qkw)
+          ax.text(56.14,5.22,'Higher expected shot quality /\nBetter than expected shot making',ha='right',va='top',**qkw)
+          ax.text(53.06,-1.48,'Lower expected shot quality /\nWorse than expected shot making',ha='left',va='bottom',**qkw)
+          ax.text(56.14,-1.48,'Higher expected shot quality /\nWorse than expected shot making',ha='right',va='bottom',**qkw)
 
-          fig.subplots_adjust(left=0.095,right=0.985,bottom=0.105,top=0.835)
+          fig.subplots_adjust(left=0.10,right=0.985,bottom=0.105,top=0.84)
           fig.canvas.draw()
-          anchors={t:np.array(ax.transData.transform((x,y)),float) for t,x,y in data}
-          pos={t:p.copy() for t,p in anchors.items()}
-          teams=[t for t,_,_ in data]
 
-          min_sep=195.0
-          max_disp=115.0
-          pref={
-            'WAS':(-28,20),'DAL':(30,-16),'LAC':(34,24),'BOS':(-34,-20),
-            'ATL':(-38,-17),'MIN':(40,22),'SAS':(-42,28),'CLE':(45,-24),
-            'GSW':(-36,22),'DET':(40,-24),'CHI':(28,18),'POR':(-26,-26),
-            'PHI':(-34,19),'PHX':(36,-19),'NOP':(-8,-26),'UTA':(-25,12),
-            'OKC':(-20,9),'ORL':(15,-20),'CHA':(-14,-6)
-          }
-          for t,v in pref.items(): pos[t]+=np.array(v,float)
-          for _ in range(360):
-              overlap=False
+          # Lock x EXACTLY to table xEFG. Collision relief is vertical-only.
+          anchors = {t: np.array(ax.transData.transform((x,y)),float) for t,x,y in data}
+          display_y = {t: anchors[t][1] for t,_,_ in data}
+          teams = [t for t,_,_ in data]
+          min_vertical_sep = 112.0
+          max_vertical_disp = 90.0
+
+          for _ in range(500):
+              moved = False
               for i in range(len(teams)):
                   for j in range(i+1,len(teams)):
-                      a,b=teams[i],teams[j]
-                      d=pos[b]-pos[a]; dist=float(np.hypot(d[0],d[1]))
-                      if dist < min_sep:
-                          overlap=True
-                          unit=d/dist if dist>1e-6 else np.array([1.0,0.0])
-                          push=(min_sep-dist)*0.53
-                          pos[a]-=unit*push; pos[b]+=unit*push
+                      a,b = teams[i],teams[j]
+                      dx = abs(anchors[a][0] - anchors[b][0])
+                      if dx > 115:
+                          continue
+                      dy = display_y[b] - display_y[a]
+                      if abs(dy) < min_vertical_sep:
+                          moved = True
+                          sign = 1.0 if dy >= 0 else -1.0
+                          if abs(dy) < 1e-6:
+                              sign = 1.0 if anchors[b][1] >= anchors[a][1] else -1.0
+                          push = (min_vertical_sep - abs(dy)) * 0.52
+                          display_y[a] -= sign * push
+                          display_y[b] += sign * push
               for t in teams:
-                  pos[t]+=(anchors[t]-pos[t])*0.018
-                  d=pos[t]-anchors[t]; dist=float(np.hypot(d[0],d[1]))
-                  if dist>max_disp: pos[t]=anchors[t]+d/dist*max_disp
-              if not overlap: break
+                  display_y[t] += (anchors[t][1] - display_y[t]) * 0.025
+                  disp = display_y[t] - anchors[t][1]
+                  if abs(disp) > max_vertical_disp:
+                      display_y[t] = anchors[t][1] + np.sign(disp) * max_vertical_disp
+              if not moved:
+                  break
 
-          logo_zoom=0.54
+          # Larger clean logos, but no horizontal displacement at all.
+          logo_zoom = 0.60
           for t,x,y in data:
-              delta=pos[t]-anchors[t]
-              dx_pt,dy_pt=delta*72.0/fig.dpi
-              arrow=None
-              if float(np.hypot(delta[0],delta[1]))>17:
-                  arrow=dict(arrowstyle='-',color='#b7b7b7',lw=0.85,shrinkA=52,shrinkB=2)
-              ab=AnnotationBbox(
+              dy_px = display_y[t] - anchors[t][1]
+              dy_pt = dy_px * 72.0 / fig.dpi
+              arrow = None
+              if abs(dy_px) > 14:
+                  arrow = dict(arrowstyle='-',color='#b7b7b7',lw=0.8,shrinkA=52,shrinkB=2)
+              ab = AnnotationBbox(
                   OffsetImage(logos[t],zoom=logo_zoom,resample=True),
-                  (x,y),xybox=(dx_pt,dy_pt),xycoords='data',boxcoords='offset points',
+                  (x,y),
+                  xybox=(0,dy_pt),
+                  xycoords='data',boxcoords='offset points',
                   frameon=False,pad=0,arrowprops=arrow,zorder=5
               )
               ax.add_artist(ab)
 
-          tmp = Path('/tmp/team_xefg_quadrant.png')
-          out = Path('outputs/team_xefg_quadrant_2025_26.png')
-          fig.savefig(tmp,facecolor='white',bbox_inches='tight',pad_inches=0.22)
+          tmp = Path('/tmp/team_xefg_quadrant_clean_exactx.png')
+          out = Path('outputs/team_xefg_quadrant_2025_26_clean_exactx.png')
+          fig.savefig(tmp,facecolor='white',bbox_inches='tight',pad_inches=0.18)
           plt.close(fig)
-          im=Image.open(tmp).convert('RGB')
+
+          im = Image.open(tmp).convert('RGB')
           if im.width > 3000:
-              nh=round(im.height*3000/im.width)
-              im=im.resize((3000,nh),Image.Resampling.LANCZOS)
-          q=im.quantize(colors=256,method=Image.Quantize.MEDIANCUT,dither=Image.Dither.NONE)
+              nh = round(im.height*3000/im.width)
+              im = im.resize((3000,nh),Image.Resampling.LANCZOS)
+          q = im.quantize(colors=256,method=Image.Quantize.MEDIANCUT,dither=Image.Dither.NONE)
           q.save(out,optimize=True,compress_level=9)
           print(out, out.stat().st_size, q.size)
           PY
           python /tmp/render.py
+
+      - name: Upload final PNG
+        uses: actions/upload-artifact@v4
+        with:
+          name: team-xefg-clean-exactx
+          path: outputs/team_xefg_quadrant_2025_26_clean_exactx.png
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Commit final PNG
         shell: bash
@@ -190,6 +210,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add outputs/team_xefg_quadrant_2025_26.png
-          git commit -m "Render clean team xEFG quadrant run ${GITHUB_RUN_ID}"
+          git add outputs/team_xefg_quadrant_2025_26_clean_exactx.png
+          git commit -m "Render clean exact-x team xEFG quadrant run ${GITHUB_RUN_ID}"
           git push
