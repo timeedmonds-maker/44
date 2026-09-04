@@ -47,7 +47,7 @@ jobs:
 
       - name: Prove shared-principal-point joint PTZ state
         run: |
-          python freeze_spin/prove_right_above_rim_joint_intrinsics_v71.py \
+          python -m freeze_spin.prove_right_above_rim_joint_intrinsics_v71 \
             --v70-report source/right_above_rim_physical_event_v70.json \
             --event225-frame source/event_0225_Right_Above_Rim_f06.png \
             --target-frame source/L_Right_Above_Rim_8.562013s_frame0257.png \
