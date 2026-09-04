@@ -1,0 +1,26 @@
+{
+  "season": "2025-26",
+  "season_type": "Regular Season",
+  "source_resource": "NBA shotqualityvideologs",
+  "source_host": "stats.gleague.nba.com",
+  "pbp_source": "ramirobentes/nba_pbp_data pbp-final-2026",
+  "definition": {
+    "defensive_xEFG": "sum(opponent shotQuality * [1.5 if 3PT else 1]) / tracked opponent shots"
+  },
+  "manifest_qa": {
+    "fga": 219158,
+    "games": 1230,
+    "pairs": 25339,
+    "teams": 30
+  },
+  "request_pairs": 25339,
+  "request_errors": 764,
+  "teams": 30,
+  "league_opp_pbp_fga": 219158,
+  "league_tracked_xfg_fga": 200143,
+  "league_xfg_coverage_pct_vs_opp_pbp": 91.32361127588315,
+  "min_team_xfg_coverage_pct_vs_opp_pbp": 84.40183171150544,
+  "max_team_xfg_coverage_pct_vs_opp_pbp": 94.29558011049724,
+  "partition": "18 original modulo-20 shards plus six modulo-60 rescue shards exactly partitioning original shards 15 and 17; no overlap",
+  "note": "No missing xFG is imputed; defensive team is exact opponent from each two-team game."
+}
