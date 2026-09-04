@@ -38,31 +38,25 @@ jobs:
           raw['player_name']=p[1]
           fga=raw.dropna(subset=['player_id','team_abb']).copy()
           fga['player_id']=fga['player_id'].astype(int)
-          teams=(fga.groupby('game_id')['team_abb'].agg(lambda s: sorted(set(map(str,s)))).to_dict())
+          teams=fga.groupby('game_id')['team_abb'].agg(lambda s: sorted(set(map(str,s)))).to_dict()
           bad={g:t for g,t in teams.items() if len(t)!=2}
-          if bad:
-              raise RuntimeError(f'games without exactly two teams: {list(bad.items())[:10]}')
+          if bad: raise RuntimeError(f'games without exactly two teams: {list(bad.items())[:10]}')
           def opp(row):
               a,b=teams[row.game_id]
               return b if str(row.team_abb)==a else a
-          fga['off_team_abb']=fga['team_abb'].astype(str)
           fga['team_abb']=fga.apply(opp,axis=1)
-          manifest=(fga.groupby(['game_id','player_id','player_name','team_abb','off_team_abb'],as_index=False)
+          manifest=(fga.groupby(['game_id','player_id','player_name','team_abb'],as_index=False)
                     .agg(pbp_fga=('event_num','size')).sort_values(['game_id','team_abb','player_id']))
-          manifest[['game_id','player_id','player_name','team_abb','pbp_fga']].to_csv('manifest.csv',index=False)
-          team=fga.groupby('team_abb',as_index=False).size().rename(columns={'size':'opp_pbp_fga'})
-          team.to_csv('pbp_team_opp_fga.csv',index=False)
+          manifest.to_csv('manifest.csv',index=False)
           qa={'fga':int(len(fga)),'games':int(fga.game_id.nunique()),'pairs':int(len(manifest)),
               'teams':int(fga.team_abb.nunique()),'definition':'team_abb is the opponent/defensive team for every shooter-game row'}
-          Path('manifest_qa.json').write_text(json.dumps(qa,indent=2))
-          print(json.dumps(qa,indent=2))
+          Path('manifest_qa.json').write_text(json.dumps(qa,indent=2)); print(json.dumps(qa,indent=2))
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: team-def-xefg-manifest
           path: |
             manifest.csv
-            pbp_team_opp_fga.csv
             manifest_qa.json
           retention-days: 1
           compression-level: 0
@@ -70,11 +64,11 @@ jobs:
   extract:
     needs: prepare
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
-        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -88,8 +82,8 @@ jobs:
           python3 team_xefg_shard_fast.py \
             --manifest input/manifest.csv \
             --shard-index ${{ matrix.shard }} \
-            --num-shards 20 \
-            --workers 2 \
+            --num-shards 60 \
+            --workers 4 \
             --max-attempts 3 \
             --connect-timeout 4 \
             --read-timeout 10 \
@@ -130,6 +124,7 @@ jobs:
           from pathlib import Path
           import pandas as pd
           parts=[pd.read_csv(p) for p in sorted(Path('downloaded').glob('partial_*.csv'))]
+          if len(parts)!=60: raise RuntimeError(f'expected 60 shards, found {len(parts)}')
           df=pd.concat(parts,ignore_index=True)
           sums=['pbp_fga_shard','tracked_fga','tracked_fgm','tracked_3pa','tracked_3pm','actual_efg_num','expected_efg_num','api_official_fga','unlisted_fga','successful_pairs','failed_pairs']
           g=df.groupby('team_abb',as_index=False)[sums].sum()
@@ -154,10 +149,10 @@ jobs:
               'league_xfg_coverage_pct_vs_opp_pbp':float(100*g['tracked_fga'].sum()/g['pbp_fga_shard'].sum()),
               'min_team_xfg_coverage_pct_vs_opp_pbp':float(g['xfg_coverage_pct_vs_opp_pbp_fga'].min()),
               'max_team_xfg_coverage_pct_vs_opp_pbp':float(g['xfg_coverage_pct_vs_opp_pbp_fga'].max()),
-              'note':'No missing xFG is imputed. Defensive team is determined exactly from the two teams in each regular-season game; xEFG is pooled from opponent shot-level sufficient statistics.'}
+              'partition':'60 non-overlapping game-id modulo shards covering all 1230 games',
+              'note':'No missing xFG is imputed. Defensive team is exact opponent from each two-team regular-season game.'}
           (out/'team_def_xefg_2025_26_qa.json').write_text(json.dumps(qa,indent=2))
-          print(g[cols].to_csv(index=False))
-          print(json.dumps(qa,indent=2))
+          print('FULL_TABLE'); print(g[cols].to_csv(index=False)); print('QA'); print(json.dumps(qa,indent=2))
           PY
       - name: Commit outputs
         run: |
