@@ -1,0 +1,167 @@
+name: Team Defensive xEFG Rescue 2025-26
+
+on:
+  push:
+    paths:
+      - '.github/workflows/team-def-xefg-rescue-2025-26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check pandas pyreadr requests
+      - name: Build defensive manifest
+        run: |
+          python3 - <<'PY'
+          import json, requests, pandas as pd, pyreadr
+          from pathlib import Path
+          r=requests.get('https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.rds',timeout=180); r.raise_for_status()
+          Path('data.rds').write_bytes(r.content)
+          df=next(iter(pyreadr.read_r('data.rds').values()))
+          df['game_id']=df['game_id'].astype(str).str.replace(r'\.0$','',regex=True).str.zfill(10)
+          f=df.loc[pd.to_numeric(df['is_field_goal'],errors='coerce').fillna(0).eq(1) & df['game_id'].str.startswith('002'),['game_id','event_num','player1_name','team_abb']].copy()
+          p=f['player1_name'].astype(str).str.extract(r'^\s*(\d+)\s+(.*)$')
+          f['player_id']=pd.to_numeric(p[0],errors='coerce').astype('Int64'); f['player_name']=p[1]
+          f=f.dropna(subset=['player_id','team_abb']).copy(); f['player_id']=f['player_id'].astype(int)
+          teams=f.groupby('game_id')['team_abb'].agg(lambda s: sorted(set(map(str,s)))).to_dict()
+          bad={g:t for g,t in teams.items() if len(t)!=2}
+          if bad: raise RuntimeError(f'bad games: {list(bad.items())[:10]}')
+          def opp(row):
+              a,b=teams[row.game_id]; return b if str(row.team_abb)==a else a
+          f['team_abb']=f.apply(opp,axis=1)
+          m=(f.groupby(['game_id','player_id','player_name','team_abb'],as_index=False).agg(pbp_fga=('event_num','size')).sort_values(['game_id','team_abb','player_id']))
+          m.to_csv('manifest.csv',index=False)
+          qa={'fga':int(m.pbp_fga.sum()),'games':int(m.game_id.nunique()),'pairs':len(m),'teams':int(m.team_abb.nunique())}
+          Path('manifest_qa.json').write_text(json.dumps(qa,indent=2)); print(json.dumps(qa,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-def-rescue-manifest
+          path: |
+            manifest.csv
+            manifest_qa.json
+          retention-days: 1
+          compression-level: 0
+
+  extract:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [15,35,55,17,37,57]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: team-def-rescue-manifest
+          path: input
+      - run: python3 -m pip install --quiet --disable-pip-version-check pandas requests
+      - name: Extract rescue subshard
+        run: |
+          python3 team_xefg_shard_fast.py --manifest input/manifest.csv --shard-index ${{ matrix.shard }} --num-shards 60 --workers 4 --max-attempts 3 --connect-timeout 4 --read-timeout 10 --out-dir out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-def-xefg-rescue-${{ matrix.shard }}
+          path: |
+            out/partial_${{ matrix.shard }}.csv
+            out/errors_${{ matrix.shard }}.csv
+            out/summary_${{ matrix.shard }}.json
+          retention-days: 1
+          compression-level: 0
+
+  merge:
+    needs: extract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download completed original shards
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 33844136494
+          pattern: team-def-xefg-shard-*
+          path: original
+          merge-multiple: true
+      - name: Download rescue shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: team-def-xefg-rescue-*
+          path: rescue
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: team-def-rescue-manifest
+          path: input
+      - run: python3 -m pip install --quiet --disable-pip-version-check pandas
+      - name: Merge exact 18 originals plus rescued 2
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          bad={15,17}
+          parts=[]; used_orig=[]
+          for p in Path('original').glob('partial_*.csv'):
+              idx=int(p.stem.split('_')[1])
+              if idx not in bad:
+                  parts.append(pd.read_csv(p)); used_orig.append(idx)
+          if sorted(used_orig)!=[i for i in range(20) if i not in bad]:
+              raise RuntimeError(f'original shard set incomplete: {sorted(used_orig)}')
+          rescue_files=sorted(Path('rescue').glob('partial_*.csv'))
+          rescue_idx=sorted(int(p.stem.split('_')[1]) for p in rescue_files)
+          if rescue_idx != [15,17,35,37,55,57]:
+              raise RuntimeError(f'rescue shard set incomplete: {rescue_idx}')
+          for p in rescue_files: parts.append(pd.read_csv(p))
+          df=pd.concat(parts,ignore_index=True)
+          sums=['pbp_fga_shard','tracked_fga','tracked_fgm','tracked_3pa','tracked_3pm','actual_efg_num','expected_efg_num','api_official_fga','unlisted_fga','successful_pairs','failed_pairs']
+          g=df.groupby('team_abb',as_index=False)[sums].sum()
+          g['opp_tracked_actual_eFG_pct']=100*g.actual_efg_num/g.tracked_fga
+          g['opp_xEFG_pct']=100*g.expected_efg_num/g.tracked_fga
+          g['opp_eFG_minus_xEFG_pp']=g.opp_tracked_actual_eFG_pct-g.opp_xEFG_pct
+          g['xfg_coverage_pct_vs_opp_pbp_fga']=100*g.tracked_fga/g.pbp_fga_shard
+          g=g.sort_values(['opp_xEFG_pct','tracked_fga'],ascending=[True,False]).reset_index(drop=True)
+          g.insert(0,'rank',range(1,len(g)+1))
+          out=Path('outputs'); out.mkdir(exist_ok=True)
+          cols=['rank','team_abb','tracked_fga','opp_xEFG_pct','opp_tracked_actual_eFG_pct','opp_eFG_minus_xEFG_pp','xfg_coverage_pct_vs_opp_pbp_fga']
+          g[cols].to_csv(out/'team_def_xefg_2025_26.csv',index=False)
+          orig_s=[]
+          for p in Path('original').glob('summary_*.json'):
+              idx=int(p.stem.split('_')[1])
+              if idx not in bad: orig_s.append(json.loads(p.read_text()))
+          rescue_s=[json.loads(p.read_text()) for p in Path('rescue').glob('summary_*.json')]
+          mqa=json.loads(Path('input/manifest_qa.json').read_text())
+          qa={'season':'2025-26','season_type':'Regular Season','source_resource':'NBA shotqualityvideologs','source_host':'stats.gleague.nba.com',
+              'pbp_source':'ramirobentes/nba_pbp_data pbp-final-2026','definition':{'defensive_xEFG':'sum(opponent shotQuality * [1.5 if 3PT else 1]) / tracked opponent shots'},
+              'manifest_qa':mqa,'request_pairs':sum(x['request_pairs'] for x in orig_s+rescue_s),'request_errors':sum(x['errors'] for x in orig_s+rescue_s),
+              'teams':int(len(g)),'league_opp_pbp_fga':int(g.pbp_fga_shard.sum()),'league_tracked_xfg_fga':int(g.tracked_fga.sum()),
+              'league_xfg_coverage_pct_vs_opp_pbp':float(100*g.tracked_fga.sum()/g.pbp_fga_shard.sum()),
+              'min_team_xfg_coverage_pct_vs_opp_pbp':float(g.xfg_coverage_pct_vs_opp_pbp_fga.min()),'max_team_xfg_coverage_pct_vs_opp_pbp':float(g.xfg_coverage_pct_vs_opp_pbp_fga.max()),
+              'partition':'18 original modulo-20 shards plus six modulo-60 rescue shards exactly partitioning original shards 15 and 17; no overlap',
+              'note':'No missing xFG is imputed; defensive team is exact opponent from each two-team game.'}
+          (out/'team_def_xefg_2025_26_qa.json').write_text(json.dumps(qa,indent=2))
+          print('FULL_TABLE'); print(g[cols].to_csv(index=False)); print('QA'); print(json.dumps(qa,indent=2))
+          PY
+      - name: Commit outputs
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add outputs/team_def_xefg_2025_26.csv outputs/team_def_xefg_2025_26_qa.json
+          git commit -m "Save rescued 2025-26 defensive xEFG results" || exit 0
+          git push origin HEAD:main
