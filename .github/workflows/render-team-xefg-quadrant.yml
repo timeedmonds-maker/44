@@ -1,0 +1,196 @@
+name: Render team xEFG quadrant
+
+on:
+  push:
+    paths:
+      - '.github/workflows/render-team-xefg-quadrant.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install renderer dependencies
+        run: python -m pip install matplotlib pillow numpy
+
+      - name: Fetch clean season-correct team logos
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/team_logos_2025_26
+          declare -A slug=(
+            [ATL]=atl [BOS]=bos [BKN]=bkn [CHA]=cha [CHI]=chi [CLE]=cle
+            [DAL]=dal [DEN]=den [DET]=det [GSW]=gs [HOU]=hou [IND]=ind
+            [LAC]=lac [LAL]=lal [MEM]=mem [MIA]=mia [MIL]=mil [MIN]=min
+            [NOP]=no [NYK]=ny [OKC]=okc [ORL]=orl [PHI]=phi [PHX]=phx
+            [POR]=por [SAC]=sac [SAS]=sa [TOR]=tor [UTA]=utah [WAS]=wsh
+          )
+          for team in "${!slug[@]}"; do
+            curl -fL --retry 5 --retry-delay 2 -A 'Mozilla/5.0' \
+              "https://a.espncdn.com/i/teamlogos/nba/500/${slug[$team]}.png" \
+              -o "/tmp/team_logos_2025_26/${team}.png"
+            test -s "/tmp/team_logos_2025_26/${team}.png"
+          done
+
+          # Verified logo-era overrides used by the established lineup-chart workflow.
+          declare -A hist=(
+            [MIL]='https://content.sportslogos.net/logos/6/225/full/milwaukee_bucks_logo_primary_20165763.png'
+            [DET]='https://content.sportslogos.net/logos/6/223/full/detroit_pistons_logo_primary_20185710.png'
+            [SAS]='https://content.sportslogos.net/logos/6/233/full/2547_san_antonio_spurs-primary-2018.png'
+            [HOU]='https://content.sportslogos.net/logos/6/230/full/houston-rockets-logo-primary-2020-3703.png'
+            [DEN]='https://content.sportslogos.net/logos/6/229/full/8926_denver_nuggets-primary-2019.png'
+            [POR]='https://content.sportslogos.net/logos/6/239/full/9725_portland_trail_blazers-primary-2018.png'
+            [ORL]='https://content.sportslogos.net/logos/6/217/full/orlando-magic-logo-primary-2026-21794952026.png'
+          )
+          for abbr in "${!hist[@]}"; do
+            curl -fL --retry 5 --retry-delay 2 -A 'Mozilla/5.0' "${hist[$abbr]}" \
+              -o "/tmp/team_logos_2025_26/${abbr}.png"
+            test -s "/tmp/team_logos_2025_26/${abbr}.png"
+          done
+
+      - name: Render deterministic chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs
+          cat > /tmp/render.py <<'PY'
+          from pathlib import Path
+          import numpy as np
+          import matplotlib.pyplot as plt
+          from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+          from PIL import Image
+
+          data = [
+            ('DEN',54.0499014853,4.9073582904),('MIL',53.7760222765,3.5324916082),
+            ('LAL',54.7302150699,3.3236276132),('LAC',53.9401137761,3.1247693727),
+            ('BOS',53.8806241965,2.7041494072),('NYK',54.2313118092,2.4513525305),
+            ('MIN',54.5127913628,2.3869655370),('CHA',53.7295480881,2.3466396292),
+            ('SAS',55.1320401481,2.1145429954),('ATL',54.4798678920,2.0896323952),
+            ('CLE',55.1759872611,2.0568506723),('OKC',54.9546625414,1.9240250396),
+            ('HOU',54.8224525805,1.2942949566),('MIA',54.2533535234,1.2127419117),
+            ('WAS',53.2205062362,1.0714966985),('DAL',53.2813212857,0.9032439639),
+            ('PHI',53.6731559767,0.7729081633),('MEM',53.4238132462,0.7049530984),
+            ('PHX',53.8232723577,0.6918263647),('TOR',55.2608727273,0.4191272727),
+            ('NOP',53.7810419059,0.2445034443),('SAC',53.5505808117,-0.1015631722),
+            ('CHI',55.4514267641,-0.1168751757),('GSW',55.8406774754,-0.2601910828),
+            ('UTA',55.1683680805,-0.2654205607),('DET',55.8574769881,-0.3346159650),
+            ('IND',54.6319128925,-0.4574084792),('BKN',53.8909022669,-0.5805885002),
+            ('POR',55.4344815188,-0.8968718539),('ORL',54.8256558699,-0.9197493771),
+          ]
+          league_x = 54.4296086874
+          logo_dir = Path('/tmp/team_logos_2025_26')
+
+          def prepare_logo(path):
+              im = Image.open(path).convert('RGBA')
+              arr = np.array(im, copy=True)
+              rgb = arr[:,:,:3]
+              near_white = (rgb[:,:,0] > 250) & (rgb[:,:,1] > 250) & (rgb[:,:,2] > 250)
+              arr[near_white,3] = 0
+              im = Image.fromarray(arr)
+              bb = im.getchannel('A').getbbox()
+              if bb: im = im.crop(bb)
+              canvas = Image.new('RGBA',(360,360),(255,255,255,0))
+              im.thumbnail((326,326),Image.Resampling.LANCZOS)
+              canvas.alpha_composite(im,((360-im.width)//2,(360-im.height)//2))
+              return np.asarray(canvas)
+
+          logos = {t: prepare_logo(logo_dir/f'{t}.png') for t,_,_ in data}
+
+          fig, ax = plt.subplots(figsize=(16.0,11.4), dpi=220)
+          fig.patch.set_facecolor('white'); ax.set_facecolor('white')
+          ax.set_xlim(52.92,56.28); ax.set_ylim(-1.58,5.38)
+          ax.set_xticks([53.0,53.5,54.0,54.5,55.0,55.5,56.0])
+          ax.set_yticks([-1.5,-1.0,0,1,2,3,4,5])
+          ax.tick_params(axis='both',labelsize=13,length=5,width=1)
+          ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
+          ax.spines['left'].set_linewidth(1); ax.spines['bottom'].set_linewidth(1)
+          ax.axvline(league_x,ls='--',lw=1.25,c='#9b9b9b',zorder=0)
+          ax.axhline(0,ls='--',lw=1.25,c='#9b9b9b',zorder=0)
+
+          fig.suptitle('Shot Quality & Shot Making',fontsize=36,fontweight='bold',y=0.975)
+          ax.set_title('2025-26 Regular Season | NBA shot-level tracking data',fontsize=18.5,pad=23)
+          ax.set_xlabel('xEFG% (shot quality)',fontsize=19,fontweight='bold',labelpad=13)
+          ax.set_ylabel('eFG% − xEFG% (percentage points)',fontsize=19,fontweight='bold',labelpad=16)
+          qkw=dict(fontsize=13.5,fontstyle='italic',color='#555555',linespacing=1.25)
+          ax.text(53.06,5.20,'Lower shot quality /\nAbove expected',ha='left',va='top',**qkw)
+          ax.text(56.14,5.20,'Higher shot quality /\nAbove expected',ha='right',va='top',**qkw)
+          ax.text(53.06,-1.46,'Lower shot quality /\nBelow expected',ha='left',va='bottom',**qkw)
+          ax.text(56.14,-1.46,'Higher shot quality /\nBelow expected',ha='right',va='bottom',**qkw)
+
+          fig.subplots_adjust(left=0.095,right=0.985,bottom=0.105,top=0.835)
+          fig.canvas.draw()
+          anchors={t:np.array(ax.transData.transform((x,y)),float) for t,x,y in data}
+          pos={t:p.copy() for t,p in anchors.items()}
+          teams=[t for t,_,_ in data]
+
+          min_sep=145.0
+          max_disp=88.0
+          pref={
+            'WAS':(-28,20),'DAL':(30,-16),'LAC':(34,24),'BOS':(-34,-20),
+            'ATL':(-38,-17),'MIN':(40,22),'SAS':(-42,28),'CLE':(45,-24),
+            'GSW':(-36,22),'DET':(40,-24),'CHI':(28,18),'POR':(-26,-26),
+            'PHI':(-34,19),'PHX':(36,-19),'NOP':(-8,-26),'UTA':(-25,12),
+            'OKC':(-20,9),'ORL':(15,-20),'CHA':(-14,-6)
+          }
+          for t,v in pref.items(): pos[t]+=np.array(v,float)
+          for _ in range(320):
+              overlap=False
+              for i in range(len(teams)):
+                  for j in range(i+1,len(teams)):
+                      a,b=teams[i],teams[j]
+                      d=pos[b]-pos[a]; dist=float(np.hypot(d[0],d[1]))
+                      if dist < min_sep:
+                          overlap=True
+                          unit=d/dist if dist>1e-6 else np.array([1.0,0.0])
+                          push=(min_sep-dist)*0.53
+                          pos[a]-=unit*push; pos[b]+=unit*push
+              for t in teams:
+                  pos[t]+=(anchors[t]-pos[t])*0.020
+                  d=pos[t]-anchors[t]; dist=float(np.hypot(d[0],d[1]))
+                  if dist>max_disp: pos[t]=anchors[t]+d/dist*max_disp
+              if not overlap: break
+
+          logo_zoom=0.36
+          for t,x,y in data:
+              delta=pos[t]-anchors[t]
+              dx_pt,dy_pt=delta*72.0/fig.dpi
+              arrow=None
+              if float(np.hypot(delta[0],delta[1]))>17:
+                  arrow=dict(arrowstyle='-',color='#b7b7b7',lw=0.85,shrinkA=36,shrinkB=2)
+              ab=AnnotationBbox(
+                  OffsetImage(logos[t],zoom=logo_zoom,resample=True),
+                  (x,y),xybox=(dx_pt,dy_pt),xycoords='data',boxcoords='offset points',
+                  frameon=False,pad=0,arrowprops=arrow,zorder=5
+              )
+              ax.add_artist(ab)
+
+          tmp = Path('/tmp/team_xefg_quadrant.png')
+          out = Path('outputs/team_xefg_quadrant_2025_26.png')
+          fig.savefig(tmp,facecolor='white',bbox_inches='tight',pad_inches=0.22)
+          plt.close(fig)
+          im=Image.open(tmp).convert('RGB')
+          if im.width > 3000:
+              nh=round(im.height*3000/im.width)
+              im=im.resize((3000,nh),Image.Resampling.LANCZOS)
+          q=im.quantize(colors=256,method=Image.Quantize.MEDIANCUT,dither=Image.Dither.NONE)
+          q.save(out,optimize=True,compress_level=9)
+          print(out, out.stat().st_size, q.size)
+          PY
+          python /tmp/render.py
+
+      - name: Commit final PNG
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add outputs/team_xefg_quadrant_2025_26.png
+          git commit -m "Render clean team xEFG quadrant run ${GITHUB_RUN_ID}"
+          git push
