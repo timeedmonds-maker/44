@@ -38,9 +38,7 @@ jobs:
           raw['player_name']=p[1]
           fga=raw.dropna(subset=['player_id','team_abb']).copy()
           fga['player_id']=fga['player_id'].astype(int)
-          teams=(fga.groupby('game_id')['team_abb']
-                   .agg(lambda s: sorted(set(map(str,s))))
-                   .to_dict())
+          teams=(fga.groupby('game_id')['team_abb'].agg(lambda s: sorted(set(map(str,s)))).to_dict())
           bad={g:t for g,t in teams.items() if len(t)!=2}
           if bad:
               raise RuntimeError(f'games without exactly two teams: {list(bad.items())[:10]}')
@@ -50,10 +48,7 @@ jobs:
           fga['off_team_abb']=fga['team_abb'].astype(str)
           fga['team_abb']=fga.apply(opp,axis=1)
           manifest=(fga.groupby(['game_id','player_id','player_name','team_abb','off_team_abb'],as_index=False)
-                    .agg(pbp_fga=('event_num','size'))
-                    .sort_values(['game_id','team_abb','player_id']))
-          # Existing extractor only needs game_id/player_id/player_name/team_abb/pbp_fga;
-          # here team_abb is deliberately the DEFENSIVE opponent key.
+                    .agg(pbp_fga=('event_num','size')).sort_values(['game_id','team_abb','player_id']))
           manifest[['game_id','player_id','player_name','team_abb','pbp_fga']].to_csv('manifest.csv',index=False)
           team=fga.groupby('team_abb',as_index=False).size().rename(columns={'size':'opp_pbp_fga'})
           team.to_csv('pbp_team_opp_fga.csv',index=False)
@@ -81,11 +76,11 @@ jobs:
       matrix:
         shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: team-def-xefg-manifest
           path: input
-      - uses: actions/checkout@v4
       - name: Install dependencies
         run: python3 -m pip install --quiet --disable-pip-version-check pandas requests
       - name: Extract defensive shard
