@@ -1,0 +1,174 @@
+name: Team Defensive xEFG 2025-26
+
+on:
+  push:
+    paths:
+      - '.github/workflows/team-def-xefg-2025-26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Install dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas pyreadr requests
+      - name: Build defensive player-game manifest
+        run: |
+          python3 - <<'PY'
+          import json, requests, pandas as pd, pyreadr
+          from pathlib import Path
+          url='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.rds'
+          r=requests.get(url,timeout=180); r.raise_for_status()
+          Path('data.rds').write_bytes(r.content)
+          df=next(iter(pyreadr.read_r('data.rds').values()))
+          df['game_id']=df['game_id'].astype(str).str.replace(r'\.0$','',regex=True).str.zfill(10)
+          is_fg=pd.to_numeric(df['is_field_goal'],errors='coerce').fillna(0).eq(1)
+          reg=df['game_id'].str.startswith('002')
+          raw=df.loc[is_fg & reg,['game_id','event_num','player1_name','team_abb']].copy()
+          p=raw['player1_name'].astype(str).str.extract(r'^\s*(\d+)\s+(.*)$')
+          raw['player_id']=pd.to_numeric(p[0],errors='coerce').astype('Int64')
+          raw['player_name']=p[1]
+          fga=raw.dropna(subset=['player_id','team_abb']).copy()
+          fga['player_id']=fga['player_id'].astype(int)
+          teams=(fga.groupby('game_id')['team_abb']
+                   .agg(lambda s: sorted(set(map(str,s))))
+                   .to_dict())
+          bad={g:t for g,t in teams.items() if len(t)!=2}
+          if bad:
+              raise RuntimeError(f'games without exactly two teams: {list(bad.items())[:10]}')
+          def opp(row):
+              a,b=teams[row.game_id]
+              return b if str(row.team_abb)==a else a
+          fga['off_team_abb']=fga['team_abb'].astype(str)
+          fga['team_abb']=fga.apply(opp,axis=1)
+          manifest=(fga.groupby(['game_id','player_id','player_name','team_abb','off_team_abb'],as_index=False)
+                    .agg(pbp_fga=('event_num','size'))
+                    .sort_values(['game_id','team_abb','player_id']))
+          # Existing extractor only needs game_id/player_id/player_name/team_abb/pbp_fga;
+          # here team_abb is deliberately the DEFENSIVE opponent key.
+          manifest[['game_id','player_id','player_name','team_abb','pbp_fga']].to_csv('manifest.csv',index=False)
+          team=fga.groupby('team_abb',as_index=False).size().rename(columns={'size':'opp_pbp_fga'})
+          team.to_csv('pbp_team_opp_fga.csv',index=False)
+          qa={'fga':int(len(fga)),'games':int(fga.game_id.nunique()),'pairs':int(len(manifest)),
+              'teams':int(fga.team_abb.nunique()),'definition':'team_abb is the opponent/defensive team for every shooter-game row'}
+          Path('manifest_qa.json').write_text(json.dumps(qa,indent=2))
+          print(json.dumps(qa,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-def-xefg-manifest
+          path: |
+            manifest.csv
+            pbp_team_opp_fga.csv
+            manifest_qa.json
+          retention-days: 1
+          compression-level: 0
+
+  extract:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: team-def-xefg-manifest
+          path: input
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas requests
+      - name: Extract defensive shard
+        run: |
+          python3 team_xefg_shard_fast.py \
+            --manifest input/manifest.csv \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 20 \
+            --workers 2 \
+            --max-attempts 3 \
+            --connect-timeout 4 \
+            --read-timeout 10 \
+            --out-dir out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: team-def-xefg-shard-${{ matrix.shard }}
+          path: |
+            out/partial_${{ matrix.shard }}.csv
+            out/errors_${{ matrix.shard }}.csv
+            out/summary_${{ matrix.shard }}.json
+          retention-days: 1
+          compression-level: 0
+
+  merge:
+    needs: extract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: team-def-xefg-shard-*
+          path: downloaded
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: team-def-xefg-manifest
+          path: input
+      - name: Install pandas
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas
+      - name: Pool defensive sufficient statistics and QA
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          parts=[pd.read_csv(p) for p in sorted(Path('downloaded').glob('partial_*.csv'))]
+          df=pd.concat(parts,ignore_index=True)
+          sums=['pbp_fga_shard','tracked_fga','tracked_fgm','tracked_3pa','tracked_3pm','actual_efg_num','expected_efg_num','api_official_fga','unlisted_fga','successful_pairs','failed_pairs']
+          g=df.groupby('team_abb',as_index=False)[sums].sum()
+          g['opp_tracked_actual_eFG_pct']=100*g['actual_efg_num']/g['tracked_fga']
+          g['opp_xEFG_pct']=100*g['expected_efg_num']/g['tracked_fga']
+          g['opp_eFG_minus_xEFG_pp']=g['opp_tracked_actual_eFG_pct']-g['opp_xEFG_pct']
+          g['xfg_coverage_pct_vs_opp_pbp_fga']=100*g['tracked_fga']/g['pbp_fga_shard']
+          g=g.sort_values(['opp_xEFG_pct','tracked_fga'],ascending=[True,False]).reset_index(drop=True)
+          g.insert(0,'rank',range(1,len(g)+1))
+          out=Path('outputs'); out.mkdir(exist_ok=True)
+          cols=['rank','team_abb','tracked_fga','opp_xEFG_pct','opp_tracked_actual_eFG_pct','opp_eFG_minus_xEFG_pp','xfg_coverage_pct_vs_opp_pbp_fga']
+          g[cols].to_csv(out/'team_def_xefg_2025_26.csv',index=False)
+          summaries=[json.loads(p.read_text()) for p in sorted(Path('downloaded').glob('summary_*.json'))]
+          mqa=json.loads(Path('input/manifest_qa.json').read_text())
+          qa={'season':'2025-26','season_type':'Regular Season','source_resource':'NBA shotqualityvideologs',
+              'source_host':'stats.gleague.nba.com','pbp_source':'ramirobentes/nba_pbp_data pbp-final-2026',
+              'definition':{'defensive_xEFG':'sum(opponent shotQuality * [1.5 if 3PT else 1]) / tracked opponent shots',
+                            'actual_opp_eFG':'sum(opponent success * [1.5 if 3PT else 1]) / tracked opponent shots'},
+              'manifest_qa':mqa,'request_pairs':sum(x['request_pairs'] for x in summaries),
+              'request_errors':sum(x['errors'] for x in summaries),'teams':int(len(g)),
+              'league_opp_pbp_fga':int(g['pbp_fga_shard'].sum()),'league_tracked_xfg_fga':int(g['tracked_fga'].sum()),
+              'league_xfg_coverage_pct_vs_opp_pbp':float(100*g['tracked_fga'].sum()/g['pbp_fga_shard'].sum()),
+              'min_team_xfg_coverage_pct_vs_opp_pbp':float(g['xfg_coverage_pct_vs_opp_pbp_fga'].min()),
+              'max_team_xfg_coverage_pct_vs_opp_pbp':float(g['xfg_coverage_pct_vs_opp_pbp_fga'].max()),
+              'note':'No missing xFG is imputed. Defensive team is determined exactly from the two teams in each regular-season game; xEFG is pooled from opponent shot-level sufficient statistics.'}
+          (out/'team_def_xefg_2025_26_qa.json').write_text(json.dumps(qa,indent=2))
+          print(g[cols].to_csv(index=False))
+          print(json.dumps(qa,indent=2))
+          PY
+      - name: Commit outputs
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add outputs/team_def_xefg_2025_26.csv outputs/team_def_xefg_2025_26_qa.json
+          git commit -m "Save 2025-26 defensive xEFG results" || exit 0
+          git push origin HEAD:main
