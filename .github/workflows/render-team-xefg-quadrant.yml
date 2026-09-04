@@ -39,7 +39,6 @@ jobs:
             test -s "/tmp/team_logos_2025_26/${team}.png"
           done
 
-          # Verified logo-era overrides used by the established lineup-chart workflow.
           declare -A hist=(
             [MIL]='https://content.sportslogos.net/logos/6/225/full/milwaukee_bucks_logo_primary_20165763.png'
             [DET]='https://content.sportslogos.net/logos/6/223/full/detroit_pistons_logo_primary_20185710.png'
@@ -130,8 +129,8 @@ jobs:
           pos={t:p.copy() for t,p in anchors.items()}
           teams=[t for t,_,_ in data]
 
-          min_sep=145.0
-          max_disp=88.0
+          min_sep=195.0
+          max_disp=115.0
           pref={
             'WAS':(-28,20),'DAL':(30,-16),'LAC':(34,24),'BOS':(-34,-20),
             'ATL':(-38,-17),'MIN':(40,22),'SAS':(-42,28),'CLE':(45,-24),
@@ -140,7 +139,7 @@ jobs:
             'OKC':(-20,9),'ORL':(15,-20),'CHA':(-14,-6)
           }
           for t,v in pref.items(): pos[t]+=np.array(v,float)
-          for _ in range(320):
+          for _ in range(360):
               overlap=False
               for i in range(len(teams)):
                   for j in range(i+1,len(teams)):
@@ -152,18 +151,18 @@ jobs:
                           push=(min_sep-dist)*0.53
                           pos[a]-=unit*push; pos[b]+=unit*push
               for t in teams:
-                  pos[t]+=(anchors[t]-pos[t])*0.020
+                  pos[t]+=(anchors[t]-pos[t])*0.018
                   d=pos[t]-anchors[t]; dist=float(np.hypot(d[0],d[1]))
                   if dist>max_disp: pos[t]=anchors[t]+d/dist*max_disp
               if not overlap: break
 
-          logo_zoom=0.36
+          logo_zoom=0.54
           for t,x,y in data:
               delta=pos[t]-anchors[t]
               dx_pt,dy_pt=delta*72.0/fig.dpi
               arrow=None
               if float(np.hypot(delta[0],delta[1]))>17:
-                  arrow=dict(arrowstyle='-',color='#b7b7b7',lw=0.85,shrinkA=36,shrinkB=2)
+                  arrow=dict(arrowstyle='-',color='#b7b7b7',lw=0.85,shrinkA=52,shrinkB=2)
               ab=AnnotationBbox(
                   OffsetImage(logos[t],zoom=logo_zoom,resample=True),
                   (x,y),xybox=(dx_pt,dy_pt),xycoords='data',boxcoords='offset points',
