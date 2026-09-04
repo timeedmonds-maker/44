@@ -39,20 +39,11 @@ jobs:
             test -s "/tmp/team_logos_2025_26/${team}.png"
           done
 
-          declare -A hist=(
-            [MIL]='https://content.sportslogos.net/logos/6/225/full/milwaukee_bucks_logo_primary_20165763.png'
-            [DET]='https://content.sportslogos.net/logos/6/223/full/detroit_pistons_logo_primary_20185710.png'
-            [SAS]='https://content.sportslogos.net/logos/6/233/full/2547_san_antonio_spurs-primary-2018.png'
-            [HOU]='https://content.sportslogos.net/logos/6/230/full/houston-rockets-logo-primary-2020-3703.png'
-            [DEN]='https://content.sportslogos.net/logos/6/229/full/8926_denver_nuggets-primary-2019.png'
-            [POR]='https://content.sportslogos.net/logos/6/239/full/9725_portland_trail_blazers-primary-2018.png'
-            [ORL]='https://content.sportslogos.net/logos/6/217/full/orlando-magic-logo_primary_2026-21794952026.png'
-          )
-          for abbr in "${!hist[@]}"; do
-            curl -fL --retry 5 --retry-delay 2 -A 'Mozilla/5.0' "${hist[$abbr]}" \
-              -o "/tmp/team_logos_2025_26/${abbr}.png"
-            test -s "/tmp/team_logos_2025_26/${abbr}.png"
-          done
+          # Houston 2025-26 historical primary override; ESPN latest is the 2026-27 rebrand.
+          curl -fL --retry 5 --retry-delay 2 -A 'Mozilla/5.0' \
+            'https://i.logos-download.com/4082/920-s1280-1020ee5598bbbcd5a9a661828c19fa77.png/Houston_Rockets_Logo_2019-s1280.png?dl=' \
+            -o '/tmp/team_logos_2025_26/HOU.png'
+          test -s '/tmp/team_logos_2025_26/HOU.png'
 
       - name: Render deterministic chart
         shell: bash
@@ -132,7 +123,6 @@ jobs:
           fig.subplots_adjust(left=0.10,right=0.985,bottom=0.105,top=0.84)
           fig.canvas.draw()
 
-          # Lock x EXACTLY to table xEFG. Collision relief is vertical-only.
           anchors = {t: np.array(ax.transData.transform((x,y)),float) for t,x,y in data}
           display_y = {t: anchors[t][1] for t,_,_ in data}
           teams = [t for t,_,_ in data]
@@ -164,7 +154,6 @@ jobs:
               if not moved:
                   break
 
-          # Larger clean logos, but no horizontal displacement at all.
           logo_zoom = 0.60
           for t,x,y in data:
               dy_px = display_y[t] - anchors[t][1]
