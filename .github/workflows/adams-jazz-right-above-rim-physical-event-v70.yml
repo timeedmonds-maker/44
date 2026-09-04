@@ -1,0 +1,83 @@
+name: Adams Jazz Right Above Rim physical event camera v70
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_physical_event_v70.py'
+      - '.github/workflows/adams-jazz-right-above-rim-physical-event-v70.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_physical_event_v70.py'
+      - '.github/workflows/adams-jazz-right-above-rim-physical-event-v70.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-physical-event-camera:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic v70 runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover accepted v69 official source evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-event225-floor-v69-33813487930
+          path: source
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33813487930
+      - name: Verify immutable official frames and accepted floor
+        run: |
+          test -f source/event_0225_Right_Above_Rim_f06.png
+          test -f source/L_Right_Above_Rim_8.562013s_frame0257.png
+          test -f source/right_above_rim_event225_floor_v69.json
+          echo '7092757ccbc61ebe97f38620afa9535564c7636f70647fd3f8cbfb58aa91178b  source/event_0225_Right_Above_Rim_f06.png' | sha256sum -c -
+          echo '0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a  source/L_Right_Above_Rim_8.562013s_frame0257.png' | sha256sum -c -
+      - name: Prove physical centre and exact impact optics
+        run: |
+          python freeze_spin/prove_right_above_rim_physical_event_v70.py \
+            --event225-frame source/event_0225_Right_Above_Rim_f06.png \
+            --target-frame source/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --floor-proof source/right_above_rim_event225_floor_v69.json \
+            --out v70
+      - name: Enforce camera-2 promotion and replay lock
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v70/right_above_rim_physical_event_v70.json'))
+          assert q['status']=='PASS_RIGHT_ABOVE_RIM_PHYSICAL_EVENT_V70', q['status']
+          assert all(q['gates'].values()), q['gates']
+          assert q['permissions']['physical_camera_center_allowed'] is True
+          assert q['permissions']['metric_event_camera_allowed'] is True
+          assert q['permissions']['static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          print('CENTER_CM', q['physical_center_cm'])
+          print('BASELINE_TO_LAR_CM', q['baseline_to_left_above_rim_cm'])
+          print('EVENT_PERT', q['event225']['perturbation_64'])
+          print('TARGET_PERT', q['target_frame_c']['perturbation_64'])
+          PY
+      - name: Package v70 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v70/*.json delivery/ 2>/dev/null || true
+          cp v70/*.png delivery/ 2>/dev/null || true
+          cp source/event_0225_Right_Above_Rim_f06.png delivery/ 2>/dev/null || true
+          cp source/L_Right_Above_Rim_8.562013s_frame0257.png delivery/ 2>/dev/null || true
+      - name: Upload v70 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-physical-event-v70-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
