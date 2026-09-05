@@ -42,7 +42,7 @@ jobs:
 
       - name: Mine recurring same-game Broadcast optical states
         run: |
-          python freeze_spin/mine_same_game_camera_states_v1.py \
+          python -m freeze_spin.mine_same_game_camera_states_v1 \
             --game-id 0022500301 \
             --camera-label 'Broadcast' \
             --target-frame frame_c/A_Broadcast_9.194613s_frame0276.png \
