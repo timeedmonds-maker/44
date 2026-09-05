@@ -1,0 +1,74 @@
+name: Adams Jazz Right Slash intrinsics diagnostic v101
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [right-slash-v100b-run]
+    paths:
+      - 'freeze_spin/diagnose_right_slash_intrinsics_v101.py'
+      - '.github/workflows/adams-jazz-right-slash-intrinsics-v101.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose-right-slash-intrinsics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable v100b geometry bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-distributed-geometry-v100b-33980277033
+          path: bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33980277033
+      - name: Verify v100b provenance
+        run: |
+          test -f bank/distributed_same_game_geometry_bank_v100.json
+          test -f bank/event_415_frames/f06.png
+          test -f bank/event_540_frames/f02.png
+          test -f bank/event_690_frames/f02.png
+          python - <<'PY'
+          import json
+          q=json.load(open('bank/distributed_same_game_geometry_bank_v100.json'))
+          print('BANK_STATUS', q.get('status'))
+          print('TOP_KEYS', sorted(q)[:20])
+          assert q.get('status') in ('V100B_DISTRIBUTED_GEOMETRY_BANK_OK','DISTRIBUTED_GEOMETRY_BANK_OK')
+          PY
+      - name: Run bidirectional intrinsics diagnostic
+        run: |
+          python -m freeze_spin.diagnose_right_slash_intrinsics_v101 --bank bank --out v101
+      - name: Enforce diagnostic-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v101/right_slash_intrinsics_v101.json'))
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          print('STATUS', q['status'])
+          print('PASSING_EVENTS', q['independent_passing_event_count'])
+          print('PP', q.get('shared_principal_point_px'))
+          print('MAX_LOO', q.get('max_leave_one_event_out_pp_shift_px'))
+          print('RADIAL_COHERENT', q.get('coherent_radial_distortion_pattern_detected'))
+          PY
+      - name: Package v101 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v101/*.json delivery/ 2>/dev/null || true
+          cp bank/distributed_same_game_geometry_bank_v100.json delivery/v100b_source_manifest.json
+      - name: Upload v101 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-intrinsics-v101-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
