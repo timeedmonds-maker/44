@@ -1,0 +1,15 @@
+{
+  "team": "CLE",
+  "season": "2025-26",
+  "pbp_fga": 7381,
+  "player_game_pairs": 850,
+  "players": 24,
+  "games": 82,
+  "source_resource": "NBA shotqualityvideologs",
+  "headshot_source": "official NBA CDN 1040x760/260x190",
+  "players_with_tracked_xfg": 23,
+  "tracked_xfg_fga": 6287,
+  "request_errors": 93,
+  "headshots_or_placeholders_rendered": 23,
+  "note": "No missing xFG imputed. Player eFG and xEFG use identical tracked-shot denominators. Headshots are downloaded on GitHub Actions and composited deterministically with Pillow; no generative imagery."
+}
