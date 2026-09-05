@@ -82,3 +82,5 @@ jobs:
           retention-days: 14
           if-no-files-found: error
           compression-level: 0
+
+# trigger 2026-09-06: rerun exact restored v100 geometry discovery
