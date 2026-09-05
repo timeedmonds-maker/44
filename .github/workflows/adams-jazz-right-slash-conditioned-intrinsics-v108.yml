@@ -1,0 +1,89 @@
+name: Adams Jazz Right Slash conditioned intrinsics v108
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [right-slash-v100b-run]
+    paths:
+      - 'freeze_spin/prove_right_slash_conditioned_intrinsics_v108.py'
+      - '.github/workflows/adams-jazz-right-slash-conditioned-intrinsics-v108.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-conditioned-intrinsics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable v100b bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-distributed-geometry-v100b-33980277033
+          path: base_bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33980277033
+      - name: Recover immutable v105 bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-expanded-geometry-v105-33992973825
+          path: expanded_bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33992973825
+      - name: Verify and merge source banks
+        run: |
+          python - <<'PY'
+          import json
+          a=json.load(open('base_bank/distributed_same_game_geometry_bank_v100.json'))
+          b=json.load(open('expanded_bank/distributed_same_game_geometry_bank_v100.json'))
+          assert a['successful_clip_count']==18 and b['successful_clip_count']==28
+          assert a['camera_label']==b['camera_label']=='Right Slash'
+          assert a['game_id']==b['game_id']=='0022500301'
+          assert all(v is False for v in a['permissions'].values())
+          assert all(v is False for v in b['permissions'].values())
+          PY
+          mkdir -p bank
+          cp -a base_bank/event_*_frames bank/
+          for d in expanded_bank/event_*_frames; do
+            [ -d "$d" ] || continue
+            bn=$(basename "$d")
+            if [ -d "bank/$bn" ]; then cp -a "$d"/. "bank/$bn"/; else cp -a "$d" bank/; fi
+          done
+          echo MERGED_EVENT_DIRS $(find bank -maxdepth 1 -type d -name 'event_*_frames' | wc -l)
+          test -f bank/event_540_frames/f02.png
+      - name: Run exhaustive conditioned intrinsic search
+        run: python -m freeze_spin.prove_right_slash_conditioned_intrinsics_v108 --bank bank --out v108 --top-singles 6 --top-pair-pool 4
+      - name: Report promotion gate
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v108/right_slash_conditioned_intrinsics_v108.json'))
+          print('STATUS',q['status'])
+          print('CANDIDATES',len(q['candidate_census']))
+          print('SELECTED',q.get('selected_solution'))
+          print('PRIOR_ALLOWED',q['principal_point_prior_allowed'])
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          PY
+      - name: Package v108 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v108/*.json delivery/ 2>/dev/null || true
+          cp base_bank/distributed_same_game_geometry_bank_v100.json delivery/v100b_source_manifest.json
+          cp expanded_bank/distributed_same_game_geometry_bank_v100.json delivery/v105_source_manifest.json
+      - name: Upload v108 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-conditioned-intrinsics-v108-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
