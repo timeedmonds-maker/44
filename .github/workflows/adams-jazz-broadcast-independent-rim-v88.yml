@@ -1,0 +1,80 @@
+name: Adams Jazz Broadcast independent rim v88
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-broadcast-independent-rim-v88.yml'
+      - 'freeze_spin/adams_jazz_frame_c_broadcast_floor_v86.json'
+      - 'freeze_spin/adams_jazz_broadcast_target_lines_v87.json'
+      - 'freeze_spin/adams_jazz_broadcast_rim_v88.json'
+      - 'freeze_spin/solve_broadcast_direct_target_lines_v87.py'
+      - 'freeze_spin/validate_broadcast_independent_rim_v88.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install solver runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.13.1 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify immutable Broadcast target
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+
+      - name: Validate v87 against independent held-out rim
+        run: |
+          python -m freeze_spin.validate_broadcast_independent_rim_v88 \
+            --frame frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --floor freeze_spin/adams_jazz_frame_c_broadcast_floor_v86.json \
+            --target-lines freeze_spin/adams_jazz_broadcast_target_lines_v87.json \
+            --rim freeze_spin/adams_jazz_broadcast_rim_v88.json \
+            --out broadcast_rim_v88 \
+            --perturbation-trials 64
+
+      - name: Enforce fail-closed v88 classification
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('broadcast_rim_v88/broadcast_independent_rim_v88.json'))
+          assert p['status']=='DISCOVERY_ONLY_BROADCAST_INDEPENDENT_RIM_V88'
+          assert all(v is False for v in p['permissions'].values())
+          assert p['candidate_passes_projection_only_gates'] is True
+          assert p['gates']['half_pixel_center_shift_at_most_75cm'] is False
+          assert p['candidate_passes_all_gates'] is False
+          assert p['classification']['same_frame_projection_geometry_independently_validated'] is True
+          assert p['classification']['physical_center_identifiability_resolved'] is False
+          print('V88_FAIL_CLOSED_OK')
+          print('nominal_rim',p['nominal']['independent_rim'])
+          print('perturb',p['half_pixel_perturbation_64'])
+          print('diagnosis',p['classification']['diagnosis'])
+          PY
+
+      - name: Upload v88 diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-independent-rim-v88-${{ github.run_id }}
+          path: broadcast_rim_v88/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
