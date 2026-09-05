@@ -1,0 +1,74 @@
+name: Adams Jazz Broadcast event155 burst v89
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-broadcast-event155-burst-v89.yml'
+      - 'freeze_spin/mine_same_game_camera_states_v1.py'
+      - 'freeze_spin/scan_same_game_camera_priors.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+      - name: Recover immutable Frame C
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Extract dense event155 burst and score every frame
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, subprocess, cv2
+          import nba_video_worker as w
+          from freeze_spin.scan_same_game_camera_priors import inventory_camera
+          from freeze_spin.mine_same_game_camera_states_v1 import analyze_frame
+          out=Path('broadcast_event155_burst_v89'); out.mkdir()
+          frame_dir=out/'frames'; frame_dir.mkdir()
+          url,title=inventory_camera('0022500301',155,'Broadcast')
+          clip=out/'event155_Broadcast_SOURCE.mp4'
+          w.download_hls_source(url,clip)
+          q=w.probe_video(clip); dur=float(q['duration'])
+          target=Path('frame_c/A_Broadcast_9.194613s_frame0276.png')
+          gray=cv2.imread(str(target),cv2.IMREAD_GRAYSCALE)
+          sift=cv2.SIFT_create(nfeatures=8000,contrastThreshold=0.02,edgeThreshold=10)
+          kp,desc=sift.detectAndCompute(gray,None)
+          # v80 f02 is dur*0.393333...; inspect a dense +/-1.0 s burst around it.
+          tc=dur*(0.18 + 2*(0.82-0.18)/6)
+          rows=[]
+          for i in range(41):
+              t=tc-1.0+i*0.05
+              p=frame_dir/f'b{i:02d}_{t:.3f}s.png'
+              subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-ss',f'{t:.5f}','-i',str(clip),'-frames:v','1',str(p)],check=True)
+              a=analyze_frame(kp,desc,p)
+              rows.append({'index':i,'time_s':t,'file':str(p.relative_to(out)),'analysis':a})
+          rows.sort(key=lambda r:r['analysis'].get('discovery_score_lower_is_better',1e9))
+          payload={'status':'DISCOVERY_ONLY_EVENT155_BURST_V89','title':title,'duration_s':dur,'burst_center_s':tc,'rows':rows,'permissions':{'broadcast_metric_camera_allowed':False,'replay_render_allowed':False}}
+          (out/'event155_burst_v89.json').write_text(json.dumps(payload,indent=2))
+          print('best',[(r['index'],round(r['time_s'],3),round(r['analysis'].get('discovery_score_lower_is_better',1e9),3),r['analysis'].get('full_scene',{}).get('ransac_inliers'),r['analysis'].get('cross_depth',{}).get('support_residual',{}).get('median_px')) for r in rows[:12]])
+          clip.unlink()
+          PY
+      - name: Upload burst
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-event155-burst-v89-${{ github.run_id }}
+          path: broadcast_event155_burst_v89/
+          retention-days: 14
+          compression-level: 0
