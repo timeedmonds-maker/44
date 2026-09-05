@@ -1,0 +1,103 @@
+name: Adams Jazz Left Slash event75 dense burst v91
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-event75-burst-v91.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-event75-burst-v91.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install discovery runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Recover immutable Frame C
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Mine event75 around the v58b near-miss
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, subprocess
+          import cv2, numpy as np
+          import nba_video_worker as w
+          from freeze_spin.scan_same_game_camera_priors import inventory_camera
+          from freeze_spin.audit_same_game_camera_transfer_v58b import sift_matches, transfer_errors, stats
+
+          out=Path('left_slash_event75_burst_v91'); out.mkdir()
+          frames=out/'frames'; frames.mkdir()
+          target=Path('frame_c/G_Left_Slash_8.868843s_frame0266.png')
+          if not target.exists(): raise RuntimeError('immutable Left Slash Frame C missing')
+          url,title=inventory_camera('0022500301',75,'Left Slash')
+          clip=out/'event75_Left_Slash_SOURCE.mp4'
+          w.download_hls_source(url,clip)
+          q=w.probe_video(clip); dur=float(q['duration'])
+          # v58b f03 is the fourth of nine evenly spaced samples: fraction 0.42.
+          tc=dur*0.42
+          b=cv2.imread(str(target))
+          rows=[]
+          for i in range(61):
+              t=tc-1.20+i*0.04
+              p=frames/f'b{i:02d}_{t:.3f}s.png'
+              subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-ss',f'{t:.5f}','-i',str(clip),'-frames:v','1',str(p)],check=True)
+              a=cv2.imread(str(p)); src,dst=sift_matches(a,b)
+              if len(src)<8:
+                  rows.append({'index':i,'time_s':t,'file':str(p.relative_to(out)),'status':'insufficient_matches','match_count':int(len(src)),'score':1e9}); continue
+              x,y=src[:,0],src[:,1]
+              basket=(x>300)&(x<850)&(y>20)&(y<230)
+              action=(x>250)&(x<800)&(y>170)&(y<530)
+              training=~basket & ~action
+              if int(training.sum())<4:
+                  rows.append({'index':i,'time_s':t,'file':str(p.relative_to(out)),'status':'insufficient_training','match_count':int(len(src)),'score':1e9}); continue
+              cv2.setRNGSeed(910075+i)
+              H,mask=cv2.findHomography(src[training],dst[training],cv2.RANSAC,1.5,maxIters=20000,confidence=0.999)
+              if H is None or mask is None:
+                  rows.append({'index':i,'time_s':t,'file':str(p.relative_to(out)),'status':'homography_failed','match_count':int(len(src)),'score':1e9}); continue
+              inl=mask.ravel().astype(bool)
+              tr=transfer_errors(H,src[training][inl],dst[training][inl]); be=transfer_errors(H,src[basket],dst[basket])
+              ts=stats(tr); bs=stats(be)
+              plausible=be[be<=12.0]
+              ps=stats(plausible)
+              good3=int(np.sum(be<=3.0)); good2=int(np.sum(be<=2.0))
+              # Discovery ranking only: reward repeatable static basket support, penalise floor/background transfer error.
+              score=(ts['p95_px'] if ts['p95_px'] is not None else 99.0) + 0.20*(ps['p90_px'] if ps['p90_px'] is not None else 30.0) - 0.025*good3 - 0.003*int(inl.sum())
+              rows.append({'index':i,'time_s':t,'file':str(p.relative_to(out)),'status':'ok','match_count':int(len(src)),'training_inliers':int(inl.sum()),'training_error':ts,'basket_all_error':bs,'basket_plausible_error':ps,'basket_good_within_2px':good2,'basket_good_within_3px':good3,'H_source_to_frame_c':H.tolist(),'score':float(score)})
+          rows.sort(key=lambda r:r['score'])
+          payload={'status':'DISCOVERY_ONLY_LEFT_SLASH_EVENT75_BURST_V91','title':title,'duration_s':dur,'burst_center_s':tc,'rows':rows,'permissions':{'left_slash_metric_camera_allowed':False,'replay_render_allowed':False}}
+          (out/'event75_burst_v91.json').write_text(json.dumps(payload,indent=2))
+          print('best',[(r['index'],round(r['time_s'],3),round(r['score'],3),r.get('training_inliers'),r.get('basket_good_within_3px'),None if not r.get('basket_plausible_error') else r['basket_plausible_error'].get('p90_px')) for r in rows[:15]])
+          clip.unlink()
+          PY
+
+      - name: Upload dense burst
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-slash-event75-burst-v91-${{ github.run_id }}
+          path: left_slash_event75_burst_v91/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

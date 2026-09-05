@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "game_id": "0022500301",
+  "event_id": 489,
+  "camera_label": "Play by Play",
+  "image": "D_Play_by_Play_9.150953s_frame0275.png",
+  "image_sha256": "a774c9ee4cad8e5978dc0ee0299d0c5ab913d166225f43517278d910ce9c4c2d",
+  "annotation_policy": "Deterministic source-pixel samples on clearly visible static NBA court paint in the immutable native 960x540 Frame C only. The free-throw family uses only the visibly isolated solid 6-foot semicircle; pixels on the free-throw line, paint boundaries, players, ball, bodies, inferred geometry, generated pixels, and dashed/occluded circle segments are excluded. A fourth family samples the long clean paint sideline from the free-throw line toward the basket using the visible colour-boundary centreline; it is held out independently and constrains the projective root. The opposite paint sideline contributes only its clearly visible pre-occlusion segment; no pixels are inferred through players.",
+  "observations_px": {
+    "three_point_arc": [[90.0,337.0],[95.0,317.0],[95.0,356.5],[100.0,308.0],[100.0,366.0],[105.0,301.0],[105.0,372.5],[110.0,378.0],[115.0,383.0],[120.0,387.5],[125.0,391.5],[130.0,394.5],[135.0,398.5],[140.0,401.5],[145.0,404.5],[150.0,407.5],[155.0,410.0],[160.0,413.0],[165.0,415.0],[170.0,417.5],[175.0,420.0],[180.0,422.0],[185.0,424.0],[190.0,426.0],[195.0,428.0],[200.0,430.0],[205.0,432.0],[210.0,434.0],[215.0,435.5],[220.0,437.0],[225.0,439.0],[230.0,440.0],[235.0,442.0],[240.0,443.0],[245.0,445.0],[250.0,446.0],[260.0,449.0],[265.0,450.0],[270.0,451.0],[275.0,453.0],[280.0,454.0],[285.0,455.0],[290.0,456.0],[295.0,457.0],[300.0,458.0],[305.0,459.5],[310.0,460.0],[315.0,461.0],[320.0,462.0],[325.0,463.0],[330.0,464.0],[335.0,465.0],[340.0,466.0],[345.0,467.0],[350.0,468.0],[360.0,469.0],[365.0,470.0],[370.0,471.0],[375.0,472.0],[380.0,472.0],[385.0,473.0],[390.0,474.0],[395.0,474.0],[400.0,475.0],[410.0,476.0],[415.0,477.0],[420.0,477.0],[425.0,478.0],[430.0,478.0],[435.0,479.0],[440.0,478.0]],
+    "free_throw_line": [[272.0,300.0],[280.0,309.0],[288.0,319.5],[297.0,329.5],[305.0,338.0],[312.0,348.0],[321.0,357.0],[329.0,368.0],[338.0,377.0],[346.0,387.0]],
+    "free_throw_front_semicircle": [[181.0,349.0],[182.5,352.5],[186.0,355.0],[194.0,361.5],[203.0,366.0],[207.0,368.0],[210.5,320.0],[214.0,371.0],[220.5,373.0],[228.0,374.0],[236.0,376.0],[243.0,377.0],[250.5,378.5]],
+    "lane_sideline": [[275.0,295.0],[285.0,294.0],[295.0,293.0],[305.0,292.0],[315.0,291.0],[325.0,290.0],[335.0,289.0],[345.0,288.0],[355.0,287.0],[365.0,286.0],[375.0,285.0],[385.0,284.0],[395.0,283.0],[405.0,282.0],[415.0,281.0],[425.0,280.0],[435.0,279.0]],
+    "opposite_lane_sideline": [[355.0,390.0],[365.0,389.0],[375.0,388.0],[385.0,387.0],[395.0,386.0],[405.0,384.0],[415.0,384.0],[425.0,382.0],[435.0,381.0]]
+  },
+  "held_out_indices": {
+    "three_point_arc": [0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68],
+    "free_throw_front_semicircle": [1,5,9],
+    "free_throw_line": [2,6],
+    "lane_sideline": [1,5,9,13],
+    "opposite_lane_sideline": [1,4,7]
+  },
+  "regulation_geometry": {
+    "coordinate_system": "basket-local centimetres: +X from backboard face toward court, +Y across court, Z=0 floor",
+    "basket_center_x_from_backboard_face_in": 15.0,
+    "free_throw_line_x_from_backboard_face_ft": 15.0,
+    "free_throw_circle_radius_ft": 6.0,
+    "three_point_arc_radius_ft": 23.75,
+    "corner_three_distance_from_basket_center_ft": 22.0,
+    "paint_half_width_ft": 8.0,
+    "lane_sideline_y_ft": 8.0,
+    "opposite_lane_sideline_y_ft": -8.0
+  },
+  "numerical_seed_homography_world_to_source_px": [[-0.6596750499079495,-0.08689688924249889,590.5690715176764],[0.017119492237403472,-0.10720730027342266,313.2233551137811],[-0.00012809907046015378,0.00023088272007976704,1.0]],
+  "notes": "The prior full-circle extraction was rejected because straight paint-boundary pixels contaminated the FT-circle candidate set. This v65 input intentionally uses only the isolated visible solid FT semicircle; held-out pixels are never used in fitting. The lane-sideline sign is a basket-local +Y convention; the mirror-equivalent court orientation remains a later cross-camera alignment check and does not authorize metric promotion. The paired +/-8ft paint sidelines fix the lateral orientation rather than relying on a mirror-equivalent single-line root."
+}

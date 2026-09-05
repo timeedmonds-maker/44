@@ -1,0 +1,69 @@
+# trigger existing v53a workflow; acquisition semantics unchanged
+name: Adams Jazz In Arena same-game scan v53a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-in-arena-same-game-scan-v53a.yml'
+      - 'freeze_spin/scan_same_game_camera_priors.py'
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native-frame runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Acquire diverse same-game In Arena states
+        run: |
+          python freeze_spin/scan_same_game_camera_priors.py \
+            --game-id 0022500301 \
+            --camera-label 'In Arena' \
+            --count 8 \
+            --event-start 5 \
+            --event-stop 1205 \
+            --event-step 10 \
+            --out in_arena_scan_v53a
+
+      - name: Assert acquisition-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('in_arena_scan_v53a/same_game_camera_prior_scan.json').read_text())
+          ok=[e for e in p['events'] if e.get('status')=='ok']
+          assert p['camera_label']=='In Arena'
+          assert p['promotion_allowed'] is False
+          assert len(ok)>=4
+          print('IN ARENA CLIPS',len(ok))
+          print([e['event_probe'] for e in ok])
+          PY
+
+      - name: Package native state evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp in_arena_scan_v53a/same_game_camera_prior_scan.json delivery/ || true
+          cp in_arena_scan_v53a/event_*_In_Arena_sheet.png delivery/ || true
+          for d in in_arena_scan_v53a/event_*_frames; do
+            [ -d "$d" ] || continue
+            cp -a "$d" delivery/
+          done
+
+      - name: Upload v53a scan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-in-arena-same-game-scan-v53a-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

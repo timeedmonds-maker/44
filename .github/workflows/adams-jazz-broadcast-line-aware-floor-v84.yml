@@ -1,0 +1,94 @@
+name: Adams Jazz Broadcast line-aware floor v84
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/validate_broadcast_line_aware_floor_v84.py'
+      - '.github/workflows/adams-jazz-broadcast-line-aware-floor-v84.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic geometry runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Recover v83 discovery evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-broadcast-line-width-v83-33945432322
+          path: v83_evidence
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33945432322
+      - name: Verify exact Broadcast Frame C
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+      - name: Run strict line-aware Broadcast floor validation
+        run: |
+          python -m freeze_spin.validate_broadcast_line_aware_floor_v84 \
+            --frame frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --observations freeze_spin/adams_jazz_frame_c_broadcast_floor_v82.json \
+            --out broadcast_v84 \
+            --max-heldout-p95-px 2.0 \
+            --max-root-p95-shift-px 2.0 \
+            --max-half-pixel-p95-shift-px 2.0 \
+            --perturbation-trials 64
+      - name: Enforce floor-only promotion semantics
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('broadcast_v84/broadcast_frame_c_floor_v84.json'))
+          assert p['status']=='PASS_BROADCAST_LINE_AWARE_PINHOLE_FLOOR_V84'
+          assert all(bool(v) for v in p['gates'].values())
+          assert p['competitive_root_count'] >= 3
+          assert p['max_competitive_pairwise_p95_shift_px'] <= 0.5
+          assert p['max_heldout_feature_p95_px'] <= 2.0
+          assert p['max_support_reduction_p95_shift_px'] <= 2.0
+          assert p['max_half_pixel_p95_shift_px'] <= 2.0
+          assert p['permissions']['broadcast_floor_homography_allowed'] is True
+          assert p['permissions']['broadcast_physical_camera_center_allowed'] is False
+          assert p['permissions']['broadcast_metric_event_camera_allowed'] is False
+          assert p['permissions']['replay_render_allowed'] is False
+          print('V84_STATUS',p['status'])
+          print('HELDOUT_MAX',p['max_heldout_feature_p95_px'])
+          print('SUPPORT_REDUCTION_MAX',p['max_support_reduction_p95_shift_px'])
+          print('ROOT_COUNT',p['competitive_root_count'])
+          print('ROOT_PAIRWISE_MAX',p['max_competitive_pairwise_p95_shift_px'])
+          print('HALF_PIXEL_MAX',p['max_half_pixel_p95_shift_px'])
+          print('HELDOUT_FEATURES',{k:round(v['p95_px'],4) for k,v in p['heldout_pixel_error'].items()})
+          PY
+      - name: Package v84 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp broadcast_v84/*.json delivery/ 2>/dev/null || true
+          cp broadcast_v84/*.png delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_broadcast_floor_v82.json delivery/v82_observations.json
+          cp v83_evidence/*.json delivery/ 2>/dev/null || true
+          cp frame_c/A_Broadcast_9.194613s_frame0276.png delivery/
+      - name: Upload v84 strict evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-line-aware-floor-v84-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

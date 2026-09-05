@@ -1,0 +1,117 @@
+name: Adams Jazz locked Frame C true orbit v23
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_frame_c_true_orbit_v23.py'
+      - 'freeze_spin/prepare_locked_frame_c_sources.py'
+      - '.github/workflows/adams-jazz-frame-c-true-orbit-v23.yml'
+
+jobs:
+  frame-c-true-orbit-v23:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native vision and MoGe runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve and real-media QA all 12 official angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out jazz_dunk_source --workers 8
+
+      - name: Map immutable Right Slash Frame C to all current camera timelines
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips jazz_dunk_source/clips --out frame_c_v23
+
+      - name: Solve reciprocal cameras and render rigid constant-radius orbit
+        run: |
+          python freeze_spin/build_frame_c_true_orbit_v23.py \
+            --frames-dir frame_c_v23/frames --options-json frame_c_v23/options.json \
+            --out frame_c_true_orbit_v23 --reference 'Left Slash' \
+            --pivot-u 500 --pivot-v 104 --tokens 1600 --max-degree 5.0 --frames 31
+
+      - name: Enforce hard no-zoom, unchanged camera gates, and source-pose QA
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_true_orbit_v23/frame_c_true_orbit_qa_v22.json'))
+          lock=q['freeze_timing_lock']
+          assert lock['authority_camera']=='Right Slash' and lock['chooser_option']=='C'
+          assert abs(lock['right_slash_local_time']-8.275733)<5e-7 and lock['decoded_right_slash_frame_index']==248
+          assert q['prototype']=='frame_c_reciprocal_static_true_orbit_v23'
+          assert q['calibration_candidate_matcher']['acceptance_gate_change']=='none'
+          assert q['source_resolution']==[960,540] and q['render_resolution']==[960,540]
+          assert q['max_radius_drift']<=1e-6
+          assert q['max_pivot_drift_px']<=0.05
+          assert q['focal_constant'] and q['fov_constant']
+          assert q['actual_max_angular_displacement_deg']>=3.0
+          assert q['secondary_fill_policy'].startswith('STATIC ONLY')
+          for s in q['stills']:
+              for f in s['fills']: assert f['dynamic_fill']==0
+          print('REFERENCE',q['reference_camera'])
+          print('TARGET_REAL_CAMERA',q['target_direction_camera'])
+          print('TARGET_REAL_BASELINE_DEG',q['target_real_baseline_angle_deg'])
+          print('COVERAGE_STATUS',q['coverage_status'])
+          print('RENDER_MAX_DEG',q['render_max_degree'])
+          print('ACTUAL_MAX_DEG',q['actual_max_angular_displacement_deg'])
+          print('MAX_RADIUS_DRIFT',q['max_radius_drift'])
+          print('MAX_PIVOT_DRIFT_PX',q['max_pivot_drift_px'])
+          print('FOCAL',q['reference_focal_px'],'FOV',q['reference_fov_deg'])
+          print('PASSED_BASELINES',q['passed_camera_baselines_deg'])
+          for label,s in q['camera_solves'].items():
+              if s.get('passed'): print('PASSED_CAMERA',label,s)
+          for s in q['stills']:
+              print('STILL_QA',s['nominal_degree'],'actual',s['actual_degree'],'resolved',round(s['resolved_fraction'],6),'holes',s['unresolved_pixels'])
+          PY
+
+      - name: Encode native 960x540 orbit preview
+        run: |
+          ffmpeg -y -framerate 30 -i frame_c_true_orbit_v23/motion_%03d.png \
+            -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart \
+            frame_c_true_orbit_v23/adams_jazz_frame_c_true_orbit_native_960x540.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 frame_c_true_orbit_v23/adams_jazz_frame_c_true_orbit_native_960x540.mp4)" = "960"
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 frame_c_true_orbit_v23/adams_jazz_frame_c_true_orbit_native_960x540.mp4)" = "540"
+
+      - name: Package visual and diagnostic proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp frame_c_true_orbit_v23/frame_c_true_orbit_00deg_native.png delivery/ 2>/dev/null || true
+          cp frame_c_true_orbit_v23/frame_c_true_orbit_03deg_native.png delivery/ 2>/dev/null || true
+          cp frame_c_true_orbit_v23/frame_c_true_orbit_05deg_native.png delivery/ 2>/dev/null || true
+          cp frame_c_true_orbit_v23/frame_c_unresolved_03deg.png delivery/ 2>/dev/null || true
+          cp frame_c_true_orbit_v23/frame_c_unresolved_05deg.png delivery/ 2>/dev/null || true
+          cp frame_c_true_orbit_v23/frame_c_true_orbit_qa_v22.json delivery/frame_c_true_orbit_qa_v23.json 2>/dev/null || true
+          cp frame_c_true_orbit_v23/adams_jazz_frame_c_true_orbit_native_960x540.mp4 delivery/ 2>/dev/null || true
+          cp frame_c_v23/options.json delivery/frame_c_synchronized_options.json 2>/dev/null || true
+          cp frame_c_v23/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
+          cp frame_c_v23/frames/G_Left_Slash_*.png delivery/ 2>/dev/null || true
+          cp frame_c_v23/frames/H_Right_Slash_*.png delivery/ 2>/dev/null || true
+          cp frame_c_v23/frames/I_Left_HandHeld_*.png delivery/ 2>/dev/null || true
+          cp frame_c_true_orbit_v23/*_dynamic_mask.png delivery/ 2>/dev/null || true
+          (cd delivery && zip -q adams_jazz_frame_c_true_orbit_v23_diagnostics.zip ./* || true)
+
+      - name: Upload Frame C true-orbit proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-true-orbit-v23-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

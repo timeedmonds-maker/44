@@ -1,0 +1,69 @@
+name: Adams Jazz Right Slash held-out transfer v96
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths: ['.github/workflows/adams-jazz-right-slash-heldout-v96.yml']
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy opencv-python-headless==4.10.0.84
+      - uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-slash-event489-burst-v93-33955558281
+          path: right_slash_v93
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 33955558281
+      - name: Independent withheld-region audit
+        run: |
+          python - <<'PY'
+          import json, hashlib
+          from pathlib import Path
+          import cv2, numpy as np
+          from freeze_spin.audit_right_slash_same_game_transfer import audit_pair
+          root=Path('right_slash_v93/frames')
+          out=Path('right_slash_v96'); out.mkdir()
+          target=root/'b40_8.276s.png'
+          manifest=json.loads(Path('right_slash_v93/event489_burst_v93.json').read_text())
+          expected={r['file'].split('/')[-1]:r['sha256'] for r in manifest['rows']}
+          candidates=[p for p in sorted(root.glob('*.png')) if 44<=int(p.name[1:3])<=58]
+          for p in [target]+candidates:
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==expected[p.name], str(p)
+          # Reuse the pre-existing withheld-region thresholds without modification.
+          # No error-based filtering is applied to withheld observations.
+          rows=[]
+          for p in candidates:
+              cv2.setRNGSeed(960489)
+              row=audit_pair(p,target)
+              row['source_sha256']=expected[p.name]
+              rows.append(row)
+              print(p.name,json.dumps(row),flush=True)
+          passed=[r for r in rows if r.get('gate',{}).get('pass')]
+          report={
+              'status':'HELDOUT_TRANSFER_CANDIDATES_FOUND_V96' if passed else 'NO_HELDOUT_TRANSFER_CANDIDATE_V96',
+              'game_id':'0022500301','event_id':489,'camera':'Right Slash',
+              'source_run_id':33955558281,'source_artifact_id':9966246530,
+              'target_sha256':expected[target.name],
+              'candidate_count':len(rows),'pass_count':len(passed),'results':rows,
+              'limitations':[
+                  'The inherited rectangular basket holdout also includes spectators; it is not a semantic basket-only proof.',
+                  'A homography transfer pass does not establish metric scale, optical-centre uniqueness, or sufficient non-coplanar support.',
+                  'v95 scores were conditioned on global RANSAC inliers; these withheld scores are not.',
+              ],
+              'permissions':{'right_slash_metric_camera_allowed':False,'replay_render_allowed':False},
+          }
+          (out/'right_slash_heldout_v96.json').write_text(json.dumps(report,indent=2)+'\n')
+          print('FINAL',report['status'],'passed',len(passed),'of',len(rows),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-jazz-right-slash-heldout-v96-${{ github.run_id }}
+          path: right_slash_v96/
+          retention-days: 14
+          if-no-files-found: error

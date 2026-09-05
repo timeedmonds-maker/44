@@ -1,0 +1,134 @@
+name: Adams Jazz Right Slash fixed-center diagnostic v95
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-fixed-center-diagnostic-v95.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-fixed-center-diagnostic-v95.yml'
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install diagnostic runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable v93 exact-event burst
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-slash-event489-burst-v93-33955558281
+          path: right_slash_v93
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 33955558281
+
+      - name: Test single global homography across non-coplanar static depth strata
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, re
+          import cv2, numpy as np
+
+          ROOT=Path('right_slash_v93/frames')
+          OUT=Path('right_slash_fixed_center_v95'); OUT.mkdir()
+
+          def stats(a,b):
+              im1=cv2.imread(str(ROOT/a)); im2=cv2.imread(str(ROOT/b))
+              if im1 is None or im2 is None: raise RuntimeError(f'missing {a} or {b}')
+              g1=cv2.cvtColor(im1,cv2.COLOR_BGR2GRAY); g2=cv2.cvtColor(im2,cv2.COLOR_BGR2GRAY)
+              mask=np.full(g1.shape,255,np.uint8)
+              # Exclude dynamic action and scorebug. Keep stands, basket/stanchion, court edges.
+              cv2.rectangle(mask,(220,185),(800,520),0,-1)
+              cv2.rectangle(mask,(0,500),(959,539),0,-1)
+              sift=cv2.SIFT_create(nfeatures=10000,contrastThreshold=0.008,edgeThreshold=12)
+              k1,d1=sift.detectAndCompute(g1,mask); k2,d2=sift.detectAndCompute(g2,mask)
+              bf=cv2.BFMatcher()
+              good=[]
+              for pair in bf.knnMatch(d1,d2,k=2):
+                  if len(pair)==2 and pair[0].distance < 0.75*pair[1].distance:
+                      good.append(pair[0])
+              if len(good)<8: raise RuntimeError('insufficient feature matches')
+              p1=np.float32([k1[m.queryIdx].pt for m in good]); p2=np.float32([k2[m.trainIdx].pt for m in good])
+              H,inmask=cv2.findHomography(p1,p2,cv2.RANSAC,1.5,maxIters=20000,confidence=0.9995)
+              if H is None or inmask is None: raise RuntimeError('homography failed')
+              pred=cv2.perspectiveTransform(p1[:,None,:],H)[:,0,:]
+              err=np.linalg.norm(pred-p2,axis=1); inl=inmask.ravel().astype(bool)
+              regions={
+                  'stands': p1[:,1] < 180,
+                  'basket': (p1[:,0]>350)&(p1[:,0]<760)&(p1[:,1]<220),
+                  'left_background': p1[:,0] < 260,
+                  'right_background': p1[:,0] > 760,
+                  'floor': p1[:,1] > 300,
+              }
+              rr={}
+              for name,r in regions.items():
+                  z=r & inl
+                  rr[name]={
+                      'inliers':int(z.sum()),
+                      'median_px':float(np.median(err[z])) if z.any() else None,
+                      'p95_px':float(np.percentile(err[z],95)) if z.any() else None,
+                  }
+              return {
+                  'a':a,'b':b,'ratio_test_matches':len(good),'ransac_inliers':int(inl.sum()),
+                  'inlier_fraction':float(inl.mean()),
+                  'median_px':float(np.median(err[inl])),
+                  'p95_px':float(np.percentile(err[inl],95)),
+                  'regions':rr,
+                  'H':H.tolist(),
+              }
+
+          pairs={
+              'sharp_short':stats('b51_8.826s.png','b55_9.026s.png'),
+              'sharp_long':stats('b48_8.676s.png','b55_9.026s.png'),
+              'frame_c_bridge':stats('b40_8.276s.png','b55_9.026s.png'),
+          }
+
+          a=pairs['sharp_short']; b=pairs['sharp_long']; c=pairs['frame_c_bridge']
+          gates={
+              'sharp_short_global_p95_le_1_6':a['p95_px']<=1.6,
+              'sharp_short_inliers_ge_400':a['ransac_inliers']>=400,
+              'sharp_short_stands_ge_200_p95_le_1_6':a['regions']['stands']['inliers']>=200 and a['regions']['stands']['p95_px']<=1.6,
+              'sharp_short_basket_ge_80_p95_le_1_6':a['regions']['basket']['inliers']>=80 and a['regions']['basket']['p95_px']<=1.6,
+              'sharp_short_floor_ge_50_p95_le_1_6':a['regions']['floor']['inliers']>=50 and a['regions']['floor']['p95_px']<=1.6,
+              'sharp_long_global_p95_le_1_6':b['p95_px']<=1.6,
+              'sharp_long_floor_ge_40_p95_le_1_6':b['regions']['floor']['inliers']>=40 and b['regions']['floor']['p95_px']<=1.6,
+              'frame_c_bridge_global_p95_le_1_7':c['p95_px']<=1.7,
+              'frame_c_bridge_inliers_ge_60':c['ransac_inliers']>=60,
+              'frame_c_bridge_basket_ge_15_p95_le_1_7':c['regions']['basket']['inliers']>=15 and c['regions']['basket']['p95_px']<=1.7,
+              'frame_c_bridge_floor_ge_8_p95_le_1_7':c['regions']['floor']['inliers']>=8 and c['regions']['floor']['p95_px']<=1.7,
+          }
+          passed=all(gates.values())
+          report={
+              'status':'PASS_RIGHT_SLASH_FIXED_CENTER_DIAGNOSTIC_V95' if passed else 'FAIL_RIGHT_SLASH_FIXED_CENTER_DIAGNOSTIC_V95',
+              'game_id':'0022500301','event_id':489,'camera_label':'Right Slash',
+              'method':'one global image homography across stands + basket/stanchion + court strata; dynamic action masked',
+              'interpretation':'Passing is evidence consistent with pan/tilt/zoom about one optical centre and permits a shared-centre metric attempt. It does not itself promote a metric camera.',
+              'pairs':pairs,'gates':gates,
+              'permissions':{
+                  'right_slash_shared_center_metric_attempt_allowed':passed,
+                  'right_slash_metric_camera_allowed':False,
+                  'replay_render_allowed':False,
+              }
+          }
+          (OUT/'right_slash_fixed_center_v95.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2),flush=True)
+          if not passed: raise SystemExit(2)
+          PY
+
+      - name: Upload v95 diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-fixed-center-v95-${{ github.run_id }}
+          path: right_slash_fixed_center_v95/
+          retention-days: 14
+          if-no-files-found: error

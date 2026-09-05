@@ -1,0 +1,119 @@
+name: Adams Jazz Right Slash exact-event burst v93
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-event489-burst-v93.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-event489-burst-v93.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  burst:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install extraction runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Extract exact-event Right Slash burst
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, hashlib, subprocess
+          import cv2, numpy as np
+          import nba_video_worker as w
+          from freeze_spin.scan_same_game_camera_priors import inventory_camera
+
+          OUT=Path('right_slash_event489_burst_v93'); OUT.mkdir()
+          FR=OUT/'frames'; FR.mkdir()
+          target=Path('frame_c/H_Right_Slash_8.275733s_frame0248.png')
+          if not target.exists(): raise RuntimeError('immutable Right Slash Frame C missing')
+          def sha(p):
+              h=hashlib.sha256(); h.update(p.read_bytes()); return h.hexdigest()
+          target_sha=sha(target)
+
+          url,title=inventory_camera('0022500301',489,'Right Slash')
+          clip=OUT/'event489_Right_Slash_SOURCE.mp4'
+          w.download_hls_source(url,clip)
+          q=w.probe_video(clip)
+          dur=float(q['duration'])
+          tc=8.275733
+          rows=[]
+          for i in range(81):
+              t=tc-2.0+i*0.05
+              if t < 0 or t > dur: continue
+              p=FR/f'b{i:02d}_{t:.3f}s.png'
+              subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-ss',f'{t:.6f}','-i',str(clip),'-frames:v','1',str(p)],check=True)
+              im=cv2.imread(str(p))
+              g=cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
+              sharp=float(cv2.Laplacian(g,cv2.CV_64F).var())
+              # Basket/stanchion static-support feature count; discovery ranking only.
+              mask=np.zeros(g.shape,np.uint8)
+              cv2.rectangle(mask,(180,0),(960,300),255,-1)
+              sift=cv2.SIFT_create(nfeatures=4000,contrastThreshold=0.012,edgeThreshold=12)
+              kp,_=sift.detectAndCompute(g,mask)
+              # Visible-court line support: bright low-saturation pixels in lower 2/3.
+              hsv=cv2.cvtColor(im,cv2.COLOR_BGR2HSV)
+              court=((hsv[:,:,1] < 100) & (hsv[:,:,2] > 130))
+              court[:180,:]=False
+              court_px=int(court.sum())
+              rows.append({'index':i,'time_s':t,'file':str(p.relative_to(OUT)),'sha256':sha(p),'sharpness':sharp,'basket_feature_count':0 if kp is None else len(kp),'court_bright_low_sat_px':court_px})
+          rows.sort(key=lambda r:(-r['basket_feature_count'],-r['sharpness']))
+          payload={'status':'DISCOVERY_ONLY_RIGHT_SLASH_EXACT_EVENT_BURST_V93','game_id':'0022500301','event_id':489,'camera_label':'Right Slash','title':title,'duration_s':dur,'synchronized_frame_c_time_s':tc,'immutable_frame_c_sha256':target_sha,'rows':rows,'permissions':{'right_slash_metric_camera_allowed':False,'replay_render_allowed':False}}
+          (OUT/'event489_burst_v93.json').write_text(json.dumps(payload,indent=2))
+          print('TARGET_SHA',target_sha)
+          print('TOP',[(round(r['time_s'],3),round(r['sharpness'],1),r['basket_feature_count'],r['court_bright_low_sat_px'],r['file']) for r in rows[:20]])
+          clip.unlink()
+          PY
+
+      - name: Build contact sheet
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, cv2, numpy as np
+          out=Path('right_slash_event489_burst_v93')
+          p=json.loads((out/'event489_burst_v93.json').read_text())
+          # Force temporal coverage, not only sharpness ranking.
+          rows=sorted(p['rows'],key=lambda r:r['time_s'])
+          picks=[]
+          for target_t in np.linspace(p['synchronized_frame_c_time_s']-2.0,p['synchronized_frame_c_time_s']+2.0,20):
+              picks.append(min(rows,key=lambda r:abs(r['time_s']-target_t)))
+          tiles=[]
+          for r in picks:
+              im=cv2.imread(str(out/r['file']))
+              cv2.putText(im,f"{r['time_s']:.3f}s sh={r['sharpness']:.0f}",(12,28),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,255,255),2,cv2.LINE_AA)
+              tiles.append(im)
+          sheet=np.vstack([np.hstack(tiles[i:i+4]) for i in range(0,20,4)])
+          cv2.imwrite(str(out/'temporal_contact_sheet.png'),sheet)
+          PY
+
+      - name: Upload v93 burst
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-event489-burst-v93-${{ github.run_id }}
+          path: right_slash_event489_burst_v93/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

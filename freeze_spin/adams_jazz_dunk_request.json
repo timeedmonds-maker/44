@@ -1,0 +1,25 @@
+{
+  "player": "Steven Adams",
+  "player_id": 203500,
+  "season": "2025-26",
+  "selection": "Free-viewpoint prototype: Steven Adams dunk vs Utah immediately after his block; freeze just before dunk completion",
+  "expected_count": 1,
+  "events": [
+    {
+      "rank": 1,
+      "game_date": "2025-11-30",
+      "game_id": "0022500301",
+      "event_id": 489,
+      "period": 3,
+      "clock": "04:03.00",
+      "team_home": "UTA",
+      "team_away": "HOU",
+      "player": "203500 Steven Adams",
+      "description": "Steven Adams dunk vs Utah immediately after his block",
+      "preceding_blocked_shot_event_id": 486,
+      "preceding_block_stat_event_id": 487,
+      "video_anchor": "made dunk event_id",
+      "freeze_intent": "last clean airborne/extension frame before ball is forced through rim"
+    }
+  ]
+}

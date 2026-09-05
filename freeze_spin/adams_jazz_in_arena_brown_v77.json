@@ -1,0 +1,58 @@
+{
+  "freeze_lock": {
+    "game_id": "0022500301",
+    "event_id": 489,
+    "camera": "In Arena",
+    "synchronized_local_time": 9.062573,
+    "decoded_frame_index": 272,
+    "frame": "E_In_Arena_9.062573s_frame0272.png",
+    "sha256_png": "a3ae19c3b7439e21ca33a49f2140a9da605e2f62fa1b6759fb5233341d8e38f4"
+  },
+  "geometry_source": "Identical immutable native-pixel target/floor/rim/rotation evidence as v76. No observations are changed after the v76 result.",
+  "target_inner_corners_px": {
+    "target_inner_top_left": [549.0, 79.7],
+    "target_inner_top_right": [571.5, 89.7],
+    "target_inner_bottom_right": [571.5, 121.0]
+  },
+  "target_corner_weight": 1.0,
+  "perturbation_half_pixel": 0.5,
+  "distortion_model": {
+    "name": "shared Brown-Conrady k1,k2,p1,p2",
+    "centre": "each optical state's fitted principal point",
+    "normalization_scale_px": 480.0,
+    "coefficient_bounds": {"k1": 0.08, "k2": 0.04, "p1": 0.01, "p2": 0.01},
+    "max_grid_displacement_px": 20.0,
+    "min_radial_scale": 0.80,
+    "max_radial_scale": 1.20,
+    "min_jacobian_det": 0.70,
+    "max_jacobian_det": 1.30,
+    "max_abs_fraction_of_coefficient_bound": 0.95
+  },
+  "thresholds": {
+    "max_target_corner_rmse_px": 1.5,
+    "max_target_corner_max_px": 2.5,
+    "max_floor_line_p95_px": 3.0,
+    "max_restricted_p95_px": 3.0,
+    "max_free_throw_holdout_p95_px": 6.5,
+    "max_rim_center_error_px": 2.0,
+    "max_rim_major_axis_holdout_error_px": 7.0,
+    "max_rim_minor_axis_holdout_error_px": 5.0,
+    "max_rim_angle_holdout_error_deg": 5.0,
+    "max_rotation_homography_p95_px": 3.0,
+    "principal_point_crop_margin_px": 160.0,
+    "min_camera_height_cm": 500.0,
+    "max_camera_height_cm": 2500.0,
+    "min_abs_camera_y_cm": 762.0,
+    "max_camera_distance_from_basket_cm": 6000.0,
+    "minimum_multistart_root_count": 5,
+    "max_competitive_root_center_shift_cm": 5.0,
+    "max_competitive_root_action_volume_p95_px": 0.5,
+    "max_leave_one_target_center_shift_cm": 25.0,
+    "max_leave_one_target_action_volume_p95_px": 2.0,
+    "max_support_removal_center_shift_cm": 25.0,
+    "max_support_removal_action_volume_p95_px": 2.0,
+    "max_half_pixel_center_shift_cm": 25.0,
+    "max_half_pixel_action_volume_p95_px": 2.0
+  },
+  "guardrail": "v77 changes only the camera image model by adding one shared, tightly bounded four-coefficient Brown-Conrady distortion vector. Every v76 geometric acceptance and robustness threshold is unchanged. Distortion must also satisfy the pre-frozen v45-style mild/non-folding plausibility gates. No failed threshold may be relaxed after the result; replay rendering remains forbidden."
+}

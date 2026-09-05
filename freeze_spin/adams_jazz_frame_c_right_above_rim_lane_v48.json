@@ -1,0 +1,56 @@
+{
+  "game_id": "0022500301",
+  "event_id": 489,
+  "view": "Right Above Rim",
+  "reference_file": "L_Right_Above_Rim_8.562013s_frame0257.png",
+  "requested_local_time_seconds": 8.562013,
+  "decoded_frame_index": 257,
+  "image_geometry": "960x540 native NBA frame",
+  "purpose": "Resolve the rotational ambiguity in v47 with asymmetric regulation lane sidelines while retaining rim and restricted-area anchors",
+  "geometry": {
+    "rim_inner_radius_in": 9.0,
+    "rim_center_from_backboard_in": 15.0,
+    "rim_height_ft": 10.0,
+    "restricted_area_radius_ft": 4.0,
+    "paint_width_ft": 16.0,
+    "baseline_from_backboard_ft": -4.0,
+    "free_throw_line_from_backboard_ft": 15.0
+  },
+  "rim_inner_edge_samples_px": [
+    [461.0,253.0],[478.0,249.0],[496.0,250.0],[514.0,257.0],[527.0,272.0],
+    [533.0,291.0],[532.0,311.0],[525.0,328.0],[511.0,339.0],[490.0,341.0],
+    [469.0,337.0],[452.0,325.0],[444.0,309.0],[441.0,291.0],[445.0,272.0]
+  ],
+  "restricted_area_centerline_samples_px": [
+    [392.0,274.0],[385.0,282.0],[378.0,292.0],[372.0,303.0],[368.0,312.0],
+    [364.0,323.0],[361.0,332.0],[359.0,342.0],[359.0,351.0],
+    [594.0,290.0],[599.0,299.0],[603.0,308.0],[607.0,319.0],[610.0,328.0],
+    [612.0,339.0],[614.0,348.0],[615.0,358.0],[615.0,365.0]
+  ],
+  "left_lane_sideline_samples_px": [
+    [289.1,20.0],[282.8,60.0],[276.4,100.0],[270.1,140.0],[263.8,180.0],
+    [257.5,220.0],[251.2,260.0],[244.9,300.0],[238.5,340.0]
+  ],
+  "right_lane_sideline_samples_px": [
+    [715.1,20.0],[717.7,60.0],[720.4,100.0],[723.0,140.0],[725.6,180.0],
+    [728.2,220.0],[730.8,260.0],[733.4,300.0],[736.0,340.0]
+  ],
+  "lane_observation_derivation": {
+    "method": "deterministic colour-restricted robust straight-line fit to cyan regulation paint pixels inside predeclared left/right lane-edge corridors on the immutable source frame",
+    "left_image_line_x_of_y": "x = -0.1579007926442772*y + 292.23116102461495",
+    "right_image_line_x_of_y": "x = 0.06524191813686131*y + 713.8298777359772",
+    "fit_pixels_left": 289,
+    "fit_pixels_right": 348,
+    "player_ball_pixels_used": false
+  },
+  "gates": {
+    "max_combined_anchor_rms_px": 3.0,
+    "max_combined_anchor_p95_px": 6.0,
+    "max_competitive_root_action_volume_p95_shift_px": 0.5,
+    "max_support_reduction_action_volume_p95_shift_px": 2.0,
+    "max_half_pixel_camera_center_shift_cm": 75.0,
+    "max_half_pixel_action_volume_p95_shift_px": 2.0,
+    "min_distinct_camera_baseline_cm": 50.0
+  },
+  "guardrail": "No player, ball, pose, silhouette, prior replay output, Broadcast calibration, or Left Above Rim camera parameters may contribute to the Right Above Rim solve. The accepted Left Above Rim center is used only after solving to verify physical-baseline distinctness."
+}

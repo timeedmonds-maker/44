@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "game_id": "0022500301",
+  "event_id": 489,
+  "date": "2025-11-30",
+  "camera_label": "Broadcast",
+  "image": "A_Broadcast_9.194613s_frame0276.png",
+  "freeze_lock": {
+    "authority_camera": "Right Slash",
+    "chooser_option": "C",
+    "right_slash_local_time": 8.275733,
+    "right_slash_decoded_frame_index": 248,
+    "broadcast_synchronized_time": 9.194613,
+    "broadcast_decoded_frame_index": 276
+  },
+  "annotation_policy": "v81 correction audit. All non-three-point observations remain byte-for-byte numerically identical to v44. The three-point arc samples were re-centered on the visible black painted stripe in the immutable native Frame C after a visual evidence audit found a systematic timber-side bias. No solver output, cross-camera transfer, player/ball evidence or generated pixels were used to place the corrected samples.",
+  "observations_px": {
+    "three_point_arc": [
+      [92, 324], [90, 340], [96, 357], [106, 374], [120, 387], [135, 398], [153, 409], [172, 419], [192, 427], [212, 434], [261, 449], [291, 456], [321, 462], [351, 468], [381, 472], [410, 476]
+    ],
+    "free_throw_front_semicircle": [[278,310],[260,311],[240,312],[220,317],[203,322],[191,330],[183,340],[181,347],[187,359],[198,366],[212,371],[230,374],[250,376],[270,378],[290,379],[310,379],[330,379],[340,378]],
+    "free_throw_line": [[267,296],[276,306],[285,316],[294,326],[303,336],[312,346],[321,356],[330,366],[339,376],[348,386],[351,390]],
+    "lane_negative_y": [[267,296],[300,292],[335,288],[370,283],[405,278],[435,274]],
+    "lane_positive_y": [[351,390],[385,388],[420,384],[539,371],[575,367],[612,363],[646,359],[685,355],[718,352]]
+  },
+  "held_out_indices": {
+    "three_point_arc": [2,5,8,11,14],
+    "free_throw_front_semicircle": [1,4,7,10,13,16],
+    "free_throw_line": [1,4,7,9],
+    "lane_negative_y": [1,4],
+    "lane_positive_y": [1,4,7]
+  },
+  "regulation_geometry": {
+    "coordinate_system": "basket-local centimetres: +X from backboard face toward court, +Y across court, Z=0 floor",
+    "basket_center_x_from_backboard_face_in": 15.0,
+    "baseline_x_from_backboard_face_ft": -4.0,
+    "free_throw_line_x_from_backboard_face_ft": 15.0,
+    "free_throw_circle_radius_ft": 6.0,
+    "three_point_arc_radius_ft": 23.75,
+    "corner_three_distance_from_basket_center_ft": 22.0,
+    "paint_width_ft": 16.0
+  },
+  "seed_only_correspondences": {
+    "note": "These four approximate lane corners initialize the nonlinear solver only; they are excluded from every residual and metric gate.",
+    "world_cm": [[457.2,-243.84],[457.2,243.84],[-121.92,-243.84],[-121.92,243.84]],
+    "image_px": [[267,296],[351,390],[640,239],[718,352]]
+  },
+  "evidence_correction_v81": {
+    "source_observation_file": "freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json",
+    "reason": "Several v44 three-point-arc samples were visibly on adjacent timber rather than the black regulation stripe, producing a systematic same-side offset that can masquerade as lens distortion.",
+    "scope": "three_point_arc only; all other observation groups and held-out indices unchanged",
+    "original_three_point_arc_px": [[91,324],[90,340],[94,358],[103,376],[116,391],[132,403],[150,415],[170,424],[190,433],[210,440],[260,454],[290,462],[320,468],[350,473],[380,477],[410,480]],
+    "corrected_three_point_arc_px": [[92,324],[90,340],[96,357],[106,374],[120,387],[135,398],[153,409],[172,419],[192,427],[212,434],[261,449],[291,456],[321,462],[351,468],[381,472],[410,476]],
+    "euclidean_shift_px": [1.0,0.0,2.236,3.606,5.657,5.831,6.708,5.385,6.325,6.325,5.099,6.083,6.083,5.099,5.099,4.0],
+    "median_shift_px": 5.242,
+    "p95_shift_px": 6.42,
+    "max_shift_px": 6.708,
+    "placement_method": "Native-frame visual stripe-centre audit, cross-checked by local grayscale normal profiles. Coordinates are rounded to integer source pixels. This is a diagnostic re-annotation, not solver-derived evidence.",
+    "permissions": {
+      "broadcast_metric_camera_allowed": false,
+      "replay_render_allowed": false
+    }
+  },
+  "notes": "v81 is a controlled annotation-error test. The original v44 file is preserved unchanged. The solve must compare original and corrected evidence under the same v44/v45 models before any conclusion about Broadcast lens distortion is retained."
+}

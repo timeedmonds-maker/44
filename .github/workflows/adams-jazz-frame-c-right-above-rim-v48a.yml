@@ -1,0 +1,35 @@
+name: Adams Jazz Frame C Right Above Rim lane roots v48a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/diagnose_right_above_rim_lane_roots_v48a.py'
+      - '.github/workflows/adams-jazz-frame-c-right-above-rim-v48a.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-lane-roots-v48a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Run diagnostic-only multistart root check
+        run: |
+          python -m freeze_spin.diagnose_right_above_rim_lane_roots_v48a \
+            --observations freeze_spin/adams_jazz_frame_c_right_above_rim_lane_v48.json \
+            --out v48a
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-lane-roots-v48a-${{ github.run_id }}
+          path: v48a/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

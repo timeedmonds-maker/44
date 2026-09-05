@@ -1,0 +1,99 @@
+name: Adams Jazz manual freeze chooser
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-manual-freeze-chooser.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  chooser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg and OpenCV
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve all official Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out jazz_dunk_source --workers 8
+      - name: Export full one-second Right Slash manual chooser
+        run: |
+          mkdir -p manual_freeze_chooser
+          python - <<'PY'
+          import cv2, json
+          import numpy as np
+          from pathlib import Path
+
+          clips=list(Path('jazz_dunk_source/clips').glob('*_489_Right_Slash_SOURCE.mp4'))
+          if len(clips)!=1: raise RuntimeError(f'Expected one Right Slash clip, got {clips}')
+          p=clips[0]
+
+          fps=29.97003
+          end_time=9.210000
+          times=[end_time-(30-i)/fps for i in range(31)]
+          labels=list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')+['AA','AB','AC','AD','AE']
+          assert len(labels)==len(times)==31
+
+          cap=cv2.VideoCapture(str(p))
+          rows=[]; previews=[]
+          for lab,t in zip(labels,times):
+              cap.set(cv2.CAP_PROP_POS_MSEC,float(t)*1000.0)
+              ok,im=cap.read()
+              if not ok: raise RuntimeError(f'Could not decode {lab} at {t:.6f}')
+              if im.shape[:2]!=(540,960): raise RuntimeError(f'Unexpected native shape {im.shape}')
+              fi=int(round(cap.get(cv2.CAP_PROP_POS_FRAMES)-1))
+              out=Path('manual_freeze_chooser')/f'{lab}_{t:.6f}s_frame{fi:04d}.png'
+              cv2.imwrite(str(out),im)
+              show=cv2.resize(im,(480,270),interpolation=cv2.INTER_AREA)
+              cv2.rectangle(show,(0,0),(480,42),(0,0,0),-1)
+              cv2.putText(show,f'{lab}   {t:.3f}s   f{fi}',(10,29),cv2.FONT_HERSHEY_SIMPLEX,.70,(255,255,255),2,cv2.LINE_AA)
+              previews.append(show)
+              rows.append({'option':lab,'right_slash_local_time':round(float(t),6),'decoded_frame_index':fi,'file':out.name})
+          cap.release()
+
+          def sheet(items, cols=4):
+              blank=np.zeros_like(items[0])
+              padded=list(items)
+              while len(padded)%cols: padded.append(blank.copy())
+              return cv2.vconcat([cv2.hconcat(padded[i:i+cols]) for i in range(0,len(padded),cols)])
+
+          cv2.imwrite('manual_freeze_chooser/Jazz_Dunk_Chooser_A-P.png',sheet(previews[:16],4))
+          cv2.imwrite('manual_freeze_chooser/Jazz_Dunk_Chooser_Q-AE.png',sheet(previews[16:],4))
+
+          Path('manual_freeze_chooser/options.json').write_text(json.dumps({
+              'event':{'game_id':'0022500301','event_id':489},
+              'camera':'Right Slash',
+              'range':{'first_time':round(times[0],6),'last_time':round(times[-1],6),'span_seconds':round(times[-1]-times[0],6),'fps':fps},
+              'instruction':'User selects one option A-AE. That exact real Right Slash frame becomes the authoritative frozen player/ball state. No automatic apex selector is used.',
+              'options':rows
+          },indent=2))
+          print('OPTIONS',len(rows),'FIRST',rows[0],'LAST',rows[-1])
+          PY
+      - name: Publish chooser sheets to branch
+        run: |
+          mkdir -p freeze_spin/manual_chooser_extended
+          cp manual_freeze_chooser/Jazz_Dunk_Chooser_A-P.png freeze_spin/manual_chooser_extended/
+          cp manual_freeze_chooser/Jazz_Dunk_Chooser_Q-AE.png freeze_spin/manual_chooser_extended/
+          cp manual_freeze_chooser/options.json freeze_spin/manual_chooser_extended/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add freeze_spin/manual_chooser_extended/
+          git commit -m 'Publish Jazz manual freeze chooser sheets' || true
+          git push
+      - name: Upload chooser
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-manual-freeze-chooser-extended-${{ github.run_id }}
+          path: manual_freeze_chooser/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

@@ -1,0 +1,53 @@
+{
+  "game_id": "0022500527",
+  "event_id": 18,
+  "event": "Sidy Cissoko driving dunk blocked by Steven Adams",
+  "purpose": "Exact visual-state mapping for the first static free-view reconstruction proof",
+  "state_version": "v1",
+  "selected_state": "initial_deflection",
+  "status": "locked_for_foreground_reconstruction_v1",
+  "rationale": [
+    "audio synchronization is used only as the coarse alignment layer",
+    "per-feed frame offsets are selected from the common 3D ball trajectory and visual hand/ball contact state",
+    "initial deflection is preferred over the fully occluded contact instant because the basketball is already moving outbound but remains essentially at the Adams/Cissoko hand interaction, giving a dramatic and more reconstructable single-ball state",
+    "the immediately preceding and following synchronized states are retained as explicit QA neighbors rather than discarded"
+  ],
+  "reference_camera": "In Arena",
+  "selected_frames": {
+    "In Arena": 26,
+    "Left Slash": 27,
+    "Left HandHeld": 25,
+    "Left Above Rim": 24
+  },
+  "relative_frame_offsets_vs_in_arena": {
+    "In Arena": 0,
+    "Left Slash": 1,
+    "Left HandHeld": -1,
+    "Left Above Rim": -2
+  },
+  "qa_neighbors": {
+    "pre_contact_or_contact_start": {
+      "In Arena": 25,
+      "Left Slash": 26,
+      "Left HandHeld": 24,
+      "Left Above Rim": 23
+    },
+    "post_initial_deflection": {
+      "In Arena": 27,
+      "Left Slash": 28,
+      "Left HandHeld": 26,
+      "Left Above Rim": 25
+    }
+  },
+  "evidence": {
+    "ball_trajectory": "The synchronized frame relationship produces a smooth physically plausible reconstructed ball path from approximately rim height downward/outward after the block.",
+    "camera_motion_compensation": "Rigid basket/background geometry is tracked through the candidate frame window so pan/tilt/zoom does not masquerade as feed latency.",
+    "left_slash_manual_state": "Adjacent-frame inspection previously identified Left Slash F26 as contact/start-separation and F27 as beginning deflection; the multi-view geometry independently places F27 in the selected initial-deflection state.",
+    "semantic_check": "Selected frames show Cissoko still extended at the rim, Adams' blocking arm at the ball interaction, and a single distinguishable ball beginning its outbound path."
+  },
+  "do_not_assume": [
+    "Do not replace this mapping with one global frame index across all feeds.",
+    "Do not use raw audio alignment as exact visual synchrony.",
+    "Do not change the freeze state merely to make a renderer easier unless the alternate state passes the same multi-view semantic/geometry QA."
+  ]
+}

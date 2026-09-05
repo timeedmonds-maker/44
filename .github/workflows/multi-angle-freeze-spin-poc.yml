@@ -1,0 +1,116 @@
+name: Multi-angle freeze-spin POC
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "freeze_spin/**"
+      - ".github/workflows/multi-angle-freeze-spin-poc.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg zip
+          python -m pip install --upgrade pip
+          python -m pip install numpy opencv-python-headless==4.10.0.84
+
+      - name: Retrieve all validated native angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 8
+
+      - name: Build audio synchronization timelines
+        run: |
+          python freeze_spin/estimate_audio_offsets.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_offsets.json
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+
+      - name: Extract manual and graph-synchronized freeze frames
+        run: |
+          python freeze_spin/extract_synced_frames.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out synchronized_frames
+          python freeze_spin/extract_graph_synced_frames.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --out audio_synced_frames
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/diagnose_view_overlap.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --frames synchronized_frames \
+            --out diagnostics/view_overlap.json
+
+      - name: Render original Level-C proof of concept
+        run: |
+          python freeze_spin/build_freeze_spin_poc.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --frames synchronized_frames \
+            --clips source_output/clips \
+            --work render_work \
+            --out delivery/sidy_cissoko_block_freeze_spin_poc_native.mp4
+
+      - name: Render refined layered no-warp orbit
+        run: |
+          python freeze_spin/build_refined_layered_orbit.py \
+            --windows contact_windows \
+            --work refined_render_work \
+            --out delivery/sidy_cissoko_block_refined_layered_orbit_native.mp4
+
+      - name: Assemble refined full replay
+        run: |
+          python freeze_spin/build_refined_full_replay.py \
+            --windows contact_windows \
+            --orbit delivery/sidy_cissoko_block_refined_layered_orbit_native.mp4 \
+            --work refined_full_work \
+            --out delivery/sidy_cissoko_block_refined_freeze_spin_full_native.mp4
+
+      - name: Package QA and diagnostics
+        run: |
+          cp source_output/qa.json delivery/source_video_qa.json
+          cp diagnostics/audio_offsets.json delivery/audio_offsets.json
+          cp diagnostics/audio_sync_graph.json delivery/audio_sync_graph.json
+          cp diagnostics/view_overlap.json delivery/view_overlap.json
+          cp freeze_spin/sidy_cissoko_sync_map.json delivery/sync_map.json
+          mkdir -p delivery/synchronized_frames delivery/audio_synced_frames delivery/contact_windows
+          cp synchronized_frames/*.png synchronized_frames/manifest.json delivery/synchronized_frames/
+          cp audio_synced_frames/*.png audio_synced_frames/manifest.json delivery/audio_synced_frames/
+          cp contact_windows/*.mp4 contact_windows/manifest.json delivery/contact_windows/
+          cd delivery
+          zip -9 sidy_cissoko_block_freeze_spin_poc_native.zip \
+            sidy_cissoko_block_freeze_spin_poc_native.mp4 \
+            sidy_cissoko_block_freeze_spin_poc_native.qa.json \
+            sidy_cissoko_block_refined_layered_orbit_native.mp4 \
+            sidy_cissoko_block_refined_layered_orbit_native.qa.json \
+            sidy_cissoko_block_refined_freeze_spin_full_native.mp4 \
+            source_video_qa.json audio_offsets.json audio_sync_graph.json \
+            view_overlap.json sync_map.json
+
+      - name: Upload proof of concept
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-cissoko-freeze-spin-poc-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error

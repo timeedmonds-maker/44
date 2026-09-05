@@ -1,0 +1,74 @@
+name: Adams Jazz Broadcast lane evidence v86
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-broadcast-lane-evidence-v86.yml'
+      - 'freeze_spin/adams_jazz_frame_c_broadcast_floor_v86.json'
+      - 'freeze_spin/diagnose_broadcast_lane_evidence_v86.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install solver runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.13.1 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify immutable Broadcast target
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+
+      - name: Run lane evidence audit and robustness comparison
+        run: |
+          python -m freeze_spin.diagnose_broadcast_lane_evidence_v86 \
+            --frame frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --baseline freeze_spin/adams_jazz_frame_c_broadcast_floor_v82.json \
+            --observations freeze_spin/adams_jazz_frame_c_broadcast_floor_v86.json \
+            --out broadcast_lane_v86
+
+      - name: Enforce discovery-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('broadcast_lane_v86/broadcast_lane_evidence_v86.json'))
+          assert p['status']=='DISCOVERY_ONLY_BROADCAST_LANE_EVIDENCE_V86'
+          assert all(v is False for v in p['permissions'].values())
+          assert p['immutable_frame_sha256']=='7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c'
+          print('V86_DISCOVERY_ONLY_OK')
+          print('baseline nominal',p['baseline_v82']['nominal_max_heldout_feature_p95_px'])
+          print('v86 nominal',p['audited_v86']['nominal_max_heldout_feature_p95_px'])
+          print('baseline loo',p['baseline_v82']['single_observation_leave_one_out']['max_curve_p95_shift_px'])
+          print('v86 loo',p['audited_v86']['single_observation_leave_one_out']['max_curve_p95_shift_px'])
+          print('baseline perturb',p['baseline_v82']['half_pixel_perturbation']['max_curve_p95_shift_px'])
+          print('v86 perturb',p['audited_v86']['half_pixel_perturbation']['max_curve_p95_shift_px'])
+          PY
+
+      - name: Upload v86 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-lane-evidence-v86-${{ github.run_id }}
+          path: broadcast_lane_v86/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

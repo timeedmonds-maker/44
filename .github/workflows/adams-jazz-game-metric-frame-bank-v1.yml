@@ -1,0 +1,54 @@
+name: Adams Jazz fixed-camera metric frame bank v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/export_game_metric_frame_bank_v1.py'
+      - '.github/workflows/adams-jazz-game-metric-frame-bank-v1.yml'
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lean native-video runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Export native multi-event frames for fixed-centre candidates
+        run: |
+          python freeze_spin/export_game_metric_frame_bank_v1.py \
+            --game-id 0022500301 \
+            --events 40,220,440,540,620 \
+            --labels 'Broadcast,Mobile Broadcast,Left Above Rim' \
+            --frames-per-clip 5 \
+            --out game_metric_frame_bank
+          python - <<'PY'
+          import json
+          q=json.load(open('game_metric_frame_bank/metric_frame_bank_manifest_v1.json'))
+          assert q['source_resolution']==[960,540]
+          assert q['successful_clip_count']==15
+          assert q['expected_clip_count']==15
+          print('METRIC_FRAME_BANK', q['successful_clip_count'], 'clips', q['frames_per_clip'], 'frames each')
+          PY
+
+      - name: Package only native calibration frames and visual sheets
+        run: |
+          mkdir -p delivery
+          cp game_metric_frame_bank/metric_frame_bank_manifest_v1.json delivery/
+          find game_metric_frame_bank -type f \( -name '*.png' -o -name '*_sheet.jpg' \) -exec cp --parents {} delivery/ \;
+
+      - name: Upload metric frame bank
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-game-metric-frame-bank-v1-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

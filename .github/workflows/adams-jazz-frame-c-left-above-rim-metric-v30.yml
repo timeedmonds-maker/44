@@ -1,0 +1,152 @@
+name: Adams Jazz Frame C Left Above Rim metric camera v30
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_left_above_rim_game_intrinsics_v30.py'
+      - 'freeze_spin/prove_frame_c_left_above_rim_metric_camera_v29.py'
+      - 'freeze_spin/build_same_game_calibration_manifest_v1.py'
+      - 'freeze_spin/export_same_camera_transfer_samples_v1.py'
+      - 'freeze_spin/adams_jazz_game_camera_registry_v1.json'
+      - 'freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json'
+      - '.github/workflows/adams-jazz-frame-c-left-above-rim-metric-v30.yml'
+
+jobs:
+  prove-many-frame-intrinsics-and-event-camera:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native-video and metric runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve exact target event official angles fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+
+      - name: Recreate immutable Frame C synchronized views
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7
+          assert int(lar['decoded_frame_index'])==259
+          print('FRAME_C_LOCK', lock)
+          PY
+
+      - name: Discover broad same-game calibration evidence
+        run: |
+          python freeze_spin/build_same_game_calibration_manifest_v1.py \
+            --game-id 0022500301 --game-date 2025-11-30 --target-event 489 \
+            --event-count 15 --min-angles 8 --out same_game_manifest.json
+          python - <<'PY'
+          import json
+          q=json.load(open('same_game_manifest.json'))
+          ev=[e['event_id'] for e in q['events'] if e['event_id']!=489 and 'Left Above Rim' in e['discovered_angle_labels']]
+          if len(ev)<5:
+              raise SystemExit(f'Only {len(ev)} discovered independent events expose Left Above Rim: {ev}')
+          open('lar_event_ids.txt','w').write(','.join(map(str,ev)))
+          print('LEFT_ABOVE_RIM_DISCOVERED_EVENTS', ev)
+          PY
+
+      - name: Acquire native Left Above Rim samples across all discovered events
+        run: |
+          EVENTS="$(cat lar_event_ids.txt)"
+          python freeze_spin/export_same_camera_transfer_samples_v1.py \
+            --game-id 0022500301 --events "$EVENTS" --label 'Left Above Rim' \
+            --out left_above_rim_samples
+          python - <<'PY'
+          import json
+          q=json.load(open('left_above_rim_samples/sample_manifest.json'))
+          assert q['source_resolution']==[960,540]
+          assert len(q['events'])>=5
+          print('NATIVE_EVENT_COUNT',len(q['events']),'NATIVE_SAMPLE_COUNT',sum(len(x['samples']) for x in q['events']))
+          PY
+
+      - name: Prove shared principal point from many accepted frames
+        run: |
+          python -m freeze_spin.prove_left_above_rim_game_intrinsics_v30 \
+            --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --target-landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v1.json \
+            --samples left_above_rim_samples --camera-label 'Left Above Rim' \
+            --out game_intrinsics_v30 \
+            --min-independent-events 5 --min-passing-frames 8 \
+            --max-frame-rmse-px 1.5 \
+            --max-loo-event-pp-shift-px 8.0 \
+            --perturbation-trials 24 \
+            --max-half-pixel-pp-shift-px 5.0
+          python - <<'PY'
+          import json
+          q=json.load(open('game_intrinsics_v30/left_above_rim_game_intrinsics_v30.json'))
+          assert q['status']=='PASS_GAME_INTRINSICS_PRIOR'
+          assert q['principal_point_prior_allowed'] is True
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          print('GAME_INTRINSICS_V30',q['accepted_independent_events'],q['accepted_frame_count'],q['shared_principal_point_px'],q['max_leave_one_event_out_principal_point_shift_px'],q['max_half_pixel_principal_point_shift_px'])
+          PY
+
+      - name: Prove exact Frame C metric camera with independently learned game priors
+        run: |
+          python -m freeze_spin.prove_frame_c_left_above_rim_metric_camera_v29 \
+            --frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v1.json \
+            --game-intrinsics game_intrinsics_v30/left_above_rim_game_intrinsics_v30.json \
+            --camera-label 'Left Above Rim' --out metric_event_v30 \
+            --max-fit-rmse-px 1.0 --max-fit-p95-px 1.5 \
+            --max-loo-median-px 2.0 --max-loo-max-px 4.0 \
+            --max-direct-center-disagreement-cm 10.0 \
+            --perturbation-trials 24 \
+            --max-projective-p95-px 1.5 --max-projective-max-px 3.0 \
+            --max-perturb-focal-fraction 0.05 --max-perturb-rotation-deg 0.75
+          python - <<'PY'
+          import json
+          q=json.load(open('metric_event_v30/frame_c_left_above_rim_metric_camera_v29.json'))
+          assert q['status']=='PASS_METRIC_EVENT_CAMERA'
+          assert q['metric_event_camera_allowed'] is True
+          assert q['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          print('FRAME_C_METRIC_CAMERA',q['camera']['camera_center_world_cm'],q['camera']['principal_point_px'],q['camera']['focal_px'])
+          print('PROJECTIVE_STABILITY',q['half_pixel_perturbation']['max_dense_projective_p95_px'],q['half_pixel_perturbation']['max_dense_projective_max_px'])
+          PY
+
+      - name: Package proof and visual QA source pixels
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp same_game_manifest.json delivery/ 2>/dev/null || true
+          cp lar_event_ids.txt delivery/ 2>/dev/null || true
+          cp left_above_rim_samples/sample_manifest.json delivery/ 2>/dev/null || true
+          cp game_intrinsics_v30/left_above_rim_game_intrinsics_v30.json delivery/ 2>/dev/null || true
+          cp metric_event_v30/frame_c_left_above_rim_metric_camera_v29.json delivery/frame_c_left_above_rim_metric_camera_v30.json 2>/dev/null || true
+          cp metric_event_v30/frame_c_left_above_rim_metric_overlay_v29.png delivery/frame_c_left_above_rim_metric_overlay_v30.png 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp freeze_spin/adams_jazz_game_camera_registry_v1.json delivery/ 2>/dev/null || true
+
+      - name: Upload v30 proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-left-above-rim-metric-v30-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

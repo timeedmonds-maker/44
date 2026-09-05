@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "status": "PASS_WIDE_COURT_FLOOR_HOMOGRAPHY_V35",
+  "game_id": "0022500301",
+  "event_id": 489,
+  "date": "2025-11-30",
+  "camera_label": "Left Above Rim",
+  "frame": "K_Left_Above_Rim_8.653093s_frame0259.png",
+  "coordinate_system": "basket-local regulation NBA centimetres: +X from board toward court, +Y across board, +Z upward",
+  "floor_homography_world_to_image": [
+    [-0.22200049655997262, 0.38885362789336986, 477.3686128779793],
+    [-0.06686780309133367, -0.0027516140600307376, 299.2907913320195],
+    [-0.0004731796756566257, -0.000006994209114286347, 1.0]
+  ],
+  "floor_homography_image_to_world": [
+    [0.022453306122833083, 13.376668338399238, -4014.2321559838592],
+    [2.5495464863455486, -0.13235819785860353, -1177.4598798783188],
+    [0.00002845650938071589, 0.006328641844816191, -0.9076884702023911]
+  ],
+  "evidence": {
+    "workflow_run_id": 33654394334,
+    "workflow_commit": "032b6df58b52f7541a999502239bc9929b1c75bb",
+    "artifact_id": 9856323622,
+    "artifact_sha256": "899a26eaee1e8c3166b9fd8a29f8b515e8d4f2cd2171ad7a95bb3f12824a1823",
+    "heldout_three_point_arc_p95_px": 0.8726081860136143,
+    "heldout_free_throw_arc_p95_px": 0.6561648955524088,
+    "heldout_straight_line_p95_world_error_cm": 4.89923802449652,
+    "half_pixel_perturbation_trials": 64,
+    "max_half_pixel_three_point_p95_shift_px": 2.496878098256003,
+    "max_half_pixel_free_throw_p95_shift_px": 1.8601195982341843,
+    "accelerated_vs_full_multistart_max_three_point_p95_disagreement_px": 0.000007330947420956274,
+    "accelerated_vs_full_multistart_max_free_throw_p95_disagreement_px": 0.000007513678532872163
+  },
+  "retired_v26_floor_anchor_diagnostic": {
+    "baseline_left_lane_disagreement_px": 20.366848167038288,
+    "baseline_right_lane_disagreement_px": 15.106617267507406,
+    "ft_left_lane_disagreement_px": 3.139733038845487,
+    "ft_right_lane_disagreement_px": 1.9473776208227962,
+    "conclusion": "The v26 baseline-lane pair is retired and must not be used to establish a physical camera centre or event camera."
+  },
+  "permissions": {
+    "floor_homography_allowed": true,
+    "physical_camera_center_allowed": false,
+    "metric_event_camera_allowed": false,
+    "replay_render_allowed": false
+  },
+  "next_gate": "Re-prove the game-level physical camera centre from multiple same-game frames using the accepted wide-court floor geometry and independent source-pixel correspondences; do not use the retired v26 baseline anchors or the v1 centre prior."
+}

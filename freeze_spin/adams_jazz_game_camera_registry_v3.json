@@ -1,0 +1,97 @@
+{
+  "schema_version": 3,
+  "game_id": "0022500301",
+  "date": "2025-11-30",
+  "coordinate_system": "basket-local regulation NBA centimetres: +X from board toward court, +Y across board, +Z upward",
+  "supersedes": "freeze_spin/adams_jazz_game_camera_registry_v2.json",
+  "policy": {
+    "visual_qa_authoritative": true,
+    "player_or_ball_points_for_camera_promotion_forbidden": true,
+    "retired_v26_baseline_floor_anchors_forbidden": true,
+    "legacy_v26_backboard_target_for_camera_fit_forbidden": true,
+    "principal_point_diagnostic_is_not_reusable_prior": true,
+    "one_metric_event_camera_does_not_authorize_replay": true
+  },
+  "retired_priors": {
+    "Left Above Rim v1": {
+      "physical_camera_center_prior_cm": [1283.71488906808, -2.342538028552996, 298.388659094841],
+      "status": "RETIRED_METHODOLOGICAL_CONTAMINATION",
+      "reason": "v1 transferred the retired v26 metric landmark set through homographies and therefore was not independent metric evidence."
+    },
+    "Left Above Rim v36": {
+      "physical_camera_center_prior_cm": [2059.0348757844413, -19.823100096709034, 399.0967372899972],
+      "status": "FLOOR_PLANE_GAUGE_SUPERSEDED_BY_NONCOPLANAR_V41",
+      "reason": "v36 was independently repeatable but constrained only by the floor plane. v41 adds regulation-defined non-coplanar rim-centre evidence from four independent same-game events with event 489 excluded, resolving the remaining absolute camera gauge."
+    }
+  },
+  "cameras": {
+    "Left Above Rim": {
+      "status": "NONCOPLANAR_PHYSICAL_CENTRE_AND_EVENT489_CAMERA_ACCEPTED_V41_V42",
+      "physical_camera_center_prior_cm": [1954.0944213029006, -20.657870280048282, 370.3129555117168],
+      "source_resolution_px": [960, 540],
+      "physical_center_evidence": {
+        "stage": "v41",
+        "workflow_run_id": 33702118011,
+        "workflow_job_id": 100483432144,
+        "independent_same_game_events": [40, 220, 440, 620],
+        "selected_samples": {
+          "40": "Left_Above_Rim__event0040__s0.png",
+          "220": "Left_Above_Rim__event0220__s0.png",
+          "440": "Left_Above_Rim__event0440__s1.png",
+          "620": "Left_Above_Rim__event0620__s2.png"
+        },
+        "shared_rms_px": 0.24568584356304413,
+        "max_leave_one_event_center_shift_cm": 1.0407557732800627,
+        "half_pixel_correspondence_and_rim_perturbation_trials": 24,
+        "max_perturbation_center_shift_cm": 2.1292157437542203,
+        "shared_principal_point_diagnostic_px": [456.73317592143826, 478.2559173623032],
+        "principal_point_prior_allowed": false
+      },
+      "event_cameras": {
+        "489": {
+          "status": "PASS_FIXED_FLOOR_RIM_EVENT_CAMERA_V42",
+          "freeze_frame": "K_Left_Above_Rim_8.653093s_frame0259.png",
+          "local_time_seconds": 8.653093,
+          "decoded_frame_index": 259,
+          "physical_center_cm": [1954.0944213029006, -20.657870280048282, 370.3129555117168],
+          "rvec": [1.4954660063973284, 1.5111487286290903, -1.0014091659360755],
+          "focal_px": 761.1736548500572,
+          "principal_point_px": [458.5682796328589, 467.3403567937311],
+          "metric_floor_anchor": "freeze_spin/adams_jazz_frame_c_floor_homography_v35.json",
+          "noncoplanar_anchor": "regulation rim centre [38.1,0,304.8] cm",
+          "evidence": {
+            "workflow_run_id": 33702378003,
+            "workflow_job_id": 100484212297,
+            "artifact_id": 9873998525,
+            "artifact_sha256": "f10d21cc8682dada5cdd9e09ad201e5086f668f5abb02b85e54af9bb88e13121",
+            "fixed_floor_grid_points": 175,
+            "fixed_floor_rms_px": 0.07825780754273755,
+            "fixed_floor_p95_px": 0.15057436286042217,
+            "rim_center_error_px": 0.9229224566893018,
+            "multistart_max_pp_pairwise_px": 0.0000011107814459863097,
+            "multistart_focal_spread_fraction": 2.3085365417953046e-10,
+            "perturbation_trials": 24,
+            "max_perturbation_pp_shift_px": 6.1626778051356315,
+            "max_perturbation_focal_fraction": 0.0020640832421214045
+          },
+          "permissions": {
+            "metric_event_camera_allowed": true,
+            "replay_render_allowed": false
+          }
+        }
+      },
+      "permissions": {
+        "physical_camera_center_allowed": true,
+        "metric_event_camera_489_allowed": true,
+        "replay_render_allowed": false
+      },
+      "next_gate": "Calibrate at least one genuinely distinct physical camera for immutable Frame C. Broadcast is first candidate; Mobile Broadcast is fallback. Only then begin two-camera static novel-view geometry."
+    }
+  },
+  "global_permissions": {
+    "one_physical_camera_family_validated": true,
+    "two_distinct_physical_cameras_validated": false,
+    "static_novel_view_allowed": false,
+    "replay_render_allowed": false
+  }
+}

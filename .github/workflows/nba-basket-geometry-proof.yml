@@ -1,0 +1,199 @@
+name: NBA strict four-camera geometry proof V3
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "freeze_spin/sidy_basket_landmarks_v3.json"
+      - "freeze_spin/solve_nba_geometry_proof_v3.py"
+      - "freeze_spin/export_calibrated_cameras_v3.py"
+      - "freeze_spin/export_visual_state_candidates.py"
+      - "freeze_spin/sidy_exact_state_v1.json"
+      - "freeze_spin/export_locked_exact_state.py"
+      - "freeze_spin/sidy_foreground_landmarks_v1.json"
+      - "freeze_spin/triangulate_locked_ball_v1.py"
+      - "freeze_spin/sidy_block_interaction_landmarks_v1.json"
+      - "freeze_spin/triangulate_semantic_points_v1.py"
+      - "freeze_spin/sidy_block_identity_shoulders_v2.json"
+      - "freeze_spin/triangulate_block_identity_v2.py"
+      - "freeze_spin/sidy_block_identity_visual_audit_v3.json"
+      - "freeze_spin/validate_block_identity_visual_v3.py"
+      - "freeze_spin/build_dynamic_sparse_player_cloud_v1.py"
+      - "freeze_spin/validate_dynamic_player_cloud_multiview.py"
+      - ".github/workflows/nba-basket-geometry-proof.yml"
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic geometry runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+
+      - name: Retrieve all validated native NBA angles conservatively
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 2 \
+          || {
+            echo "Two-angle concurrent retrieval did not validate all feeds; re-resolving fresh signed URLs and retrying serially."
+            sleep 3
+            python build_kd_top10_all_angles.py \
+              --request freeze_spin/sidy_cissoko_request.json \
+              --out source_output \
+              --workers 1
+          }
+
+      - name: Synchronize and extract impact frames
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/prepare_kalicalib_inputs.py \
+            --windows contact_windows \
+            --out impact_images
+
+      - name: Assert four proof cameras are present
+        run: |
+          for i in 4 6 8 10; do
+            test -s "impact_images/${i}.png" || { echo "Missing impact_images/${i}.png"; exit 2; }
+          done
+
+      - name: Solve strict metric cameras from NBA basket and court geometry
+        run: |
+          python -m freeze_spin.solve_nba_geometry_proof_v3 \
+            --landmarks freeze_spin/sidy_basket_landmarks_v3.json \
+            --images impact_images \
+            --out geometry_proof_v3
+
+      - name: Export full calibrated camera matrices
+        run: |
+          python -m freeze_spin.export_calibrated_cameras_v3 \
+            --landmarks freeze_spin/sidy_basket_landmarks_v3.json \
+            --out geometry_proof_v3/calibrated_cameras_v3.json
+
+      - name: Export exact visual-state candidates
+        run: |
+          python freeze_spin/export_visual_state_candidates.py \
+            --windows contact_windows \
+            --out visual_state_candidates \
+            --start 23 --end 32
+
+      - name: Export locked exact visual state
+        run: |
+          python freeze_spin/export_locked_exact_state.py \
+            --windows contact_windows \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --out locked_exact_state
+
+      - name: Triangulate locked-state basketball
+        run: |
+          mkdir -p foreground_v1
+          python -m freeze_spin.triangulate_locked_ball_v1 \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --foreground freeze_spin/sidy_foreground_landmarks_v1.json \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --anchor-images impact_images \
+            --locked-images locked_exact_state \
+            --out foreground_v1/ball_triangulation_v1.json
+
+      - name: Triangulate provisional semantic block interaction
+        run: |
+          python -m freeze_spin.triangulate_semantic_points_v1 \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --landmarks freeze_spin/sidy_block_interaction_landmarks_v1.json \
+            --ball foreground_v1/ball_triangulation_v1.json \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --anchor-images impact_images \
+            --locked-images locked_exact_state \
+            --out foreground_v1/semantic_points
+
+      - name: Triangulate candidate block-arm shoulders
+        run: |
+          mkdir -p foreground_v2
+          python -m freeze_spin.triangulate_block_identity_v2 \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --semantic foreground_v1/semantic_points/semantic_points_v1.json \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --shoulders freeze_spin/sidy_block_identity_shoulders_v2.json \
+            --out foreground_v2/block_identity_v2.json
+
+      - name: Enforce source-pixel shoulder identity gate
+        run: |
+          python -m freeze_spin.validate_block_identity_visual_v3 \
+            --audit freeze_spin/sidy_block_identity_visual_audit_v3.json \
+            --shoulders freeze_spin/sidy_block_identity_shoulders_v2.json \
+            --locked-images locked_exact_state \
+            --out foreground_v2/visual_identity_v3
+
+      - name: Build dynamic sparse player cloud
+        run: |
+          python -m freeze_spin.build_dynamic_sparse_player_cloud_v1 \
+            --cameras geometry_proof_v3/calibrated_cameras_v3.json \
+            --ball-report foreground_v1/ball_triangulation_v1.json \
+            --state freeze_spin/sidy_exact_state_v1.json \
+            --candidates visual_state_candidates \
+            --out foreground_v1/player_cloud
+
+      - name: Diagnose genuine multi-view player-cloud consensus
+        continue-on-error: true
+        run: |
+          python -m freeze_spin.validate_dynamic_player_cloud_multiview \
+            --cloud foreground_v1/player_cloud/dynamic_sparse_player_cloud_v1.json \
+            --out foreground_v1/player_cloud/multiview_consensus_qa.json
+
+      - name: Package strict four-camera proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp geometry_proof_v3/* delivery/ 2>/dev/null || true
+          cp impact_images/4.png impact_images/6.png impact_images/8.png impact_images/10.png delivery/ 2>/dev/null || true
+          cp impact_images/mapping.json delivery/impact_mapping.json 2>/dev/null || true
+          cp diagnostics/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp source_output/qa.json delivery/source_video_qa.json 2>/dev/null || true
+          cp freeze_spin/sidy_basket_landmarks_v3.json delivery/ || true
+          cp freeze_spin/solve_nba_geometry_proof_v3.py delivery/ || true
+          cp freeze_spin/export_calibrated_cameras_v3.py delivery/ || true
+          cp freeze_spin/export_visual_state_candidates.py delivery/ || true
+          cp freeze_spin/sidy_exact_state_v1.json delivery/ || true
+          cp freeze_spin/export_locked_exact_state.py delivery/ || true
+          cp freeze_spin/sidy_foreground_landmarks_v1.json delivery/ || true
+          cp freeze_spin/triangulate_locked_ball_v1.py delivery/ || true
+          cp freeze_spin/sidy_block_interaction_landmarks_v1.json delivery/ || true
+          cp freeze_spin/triangulate_semantic_points_v1.py delivery/ || true
+          cp freeze_spin/sidy_block_identity_shoulders_v2.json delivery/ || true
+          cp freeze_spin/triangulate_block_identity_v2.py delivery/ || true
+          cp freeze_spin/sidy_block_identity_visual_audit_v3.json delivery/ || true
+          cp freeze_spin/validate_block_identity_visual_v3.py delivery/ || true
+          cp freeze_spin/build_dynamic_sparse_player_cloud_v1.py delivery/ || true
+          cp freeze_spin/validate_dynamic_player_cloud_multiview.py delivery/ || true
+          cp visual_state_candidates/*_sheet.png delivery/ 2>/dev/null || true
+          cp visual_state_candidates/visual_state_candidates.json delivery/ 2>/dev/null || true
+          cp locked_exact_state/* delivery/ 2>/dev/null || true
+          cp foreground_v1/* delivery/ 2>/dev/null || true
+          cp foreground_v1/semantic_points/* delivery/ 2>/dev/null || true
+          cp foreground_v1/player_cloud/* delivery/ 2>/dev/null || true
+          cp foreground_v2/* delivery/ 2>/dev/null || true
+          cp foreground_v2/visual_identity_v3/* delivery/ 2>/dev/null || true
+
+      - name: Upload strict proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-nba-strict-four-camera-geometry-v3-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error

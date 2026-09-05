@@ -1,0 +1,92 @@
+name: Adams Jazz Left HandHeld exact-event burst v94
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-left-handheld-event489-burst-v94.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-left-handheld-event489-burst-v94.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  burst:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install extraction runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Extract exact-event Left HandHeld burst
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, hashlib, subprocess
+          import cv2, numpy as np
+          import nba_video_worker as w
+          from freeze_spin.scan_same_game_camera_priors import inventory_camera
+          OUT=Path('left_handheld_event489_burst_v94'); OUT.mkdir(); FR=OUT/'frames'; FR.mkdir()
+          target=Path('frame_c/I_Left_HandHeld_8.875603s_frame0266.png')
+          if not target.exists(): raise RuntimeError('immutable Left HandHeld Frame C missing')
+          def sha(p):
+              h=hashlib.sha256(); h.update(p.read_bytes()); return h.hexdigest()
+          url,title=inventory_camera('0022500301',489,'Left HandHeld')
+          clip=OUT/'event489_Left_HandHeld_SOURCE.mp4'; w.download_hls_source(url,clip)
+          q=w.probe_video(clip); dur=float(q['duration']); tc=8.875603
+          rows=[]
+          for i in range(81):
+              t=tc-2.0+i*0.05
+              if t<0 or t>dur: continue
+              p=FR/f'b{i:02d}_{t:.3f}s.png'
+              subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-ss',f'{t:.6f}','-i',str(clip),'-frames:v','1',str(p)],check=True)
+              im=cv2.imread(str(p)); g=cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
+              sharp=float(cv2.Laplacian(g,cv2.CV_64F).var())
+              # Count high-contrast features around the basket/board; discovery only.
+              mask=np.zeros(g.shape,np.uint8); cv2.rectangle(mask,(280,0),(680,260),255,-1)
+              sift=cv2.SIFT_create(nfeatures=4000,contrastThreshold=0.012,edgeThreshold=12)
+              kp,_=sift.detectAndCompute(g,mask)
+              rows.append({'index':i,'time_s':t,'file':str(p.relative_to(OUT)),'sha256':sha(p),'sharpness':sharp,'basket_feature_count':0 if kp is None else len(kp)})
+          rows.sort(key=lambda r:(-r['basket_feature_count'],-r['sharpness']))
+          payload={'status':'DISCOVERY_ONLY_LEFT_HANDHELD_EXACT_EVENT_BURST_V94','game_id':'0022500301','event_id':489,'camera_label':'Left HandHeld','title':title,'duration_s':dur,'synchronized_frame_c_time_s':tc,'immutable_frame_c_sha256':sha(target),'rows':rows,'permissions':{'left_handheld_metric_camera_allowed':False,'replay_render_allowed':False}}
+          (OUT/'event489_burst_v94.json').write_text(json.dumps(payload,indent=2))
+          print('TOP',[(round(r['time_s'],3),round(r['sharpness'],1),r['basket_feature_count'],r['file']) for r in rows[:20]])
+          clip.unlink()
+          PY
+      - name: Build temporal contact sheet
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, cv2, numpy as np
+          out=Path('left_handheld_event489_burst_v94'); p=json.loads((out/'event489_burst_v94.json').read_text())
+          rows=sorted(p['rows'],key=lambda r:r['time_s']); picks=[]
+          for t in np.linspace(p['synchronized_frame_c_time_s']-2,p['synchronized_frame_c_time_s']+2,20): picks.append(min(rows,key=lambda r:abs(r['time_s']-t)))
+          tiles=[]
+          for r in picks:
+              im=cv2.imread(str(out/r['file'])); cv2.putText(im,f"{r['time_s']:.3f}s sh={r['sharpness']:.0f}",(12,28),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,255,255),2,cv2.LINE_AA); tiles.append(im)
+          cv2.imwrite(str(out/'temporal_contact_sheet.png'),np.vstack([np.hstack(tiles[i:i+4]) for i in range(0,20,4)]))
+          PY
+      - name: Upload v94 burst
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-handheld-event489-burst-v94-${{ github.run_id }}
+          path: left_handheld_event489_burst_v94/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

@@ -1,0 +1,739 @@
+{
+  "method": "pairwise transient-audio FFT correlation + robust weighted graph synchronization",
+  "reference_angle": "Left Above Rim",
+  "reference_freeze_time": 8.275733,
+  "sample_rate_hz": 8000,
+  "max_lag_seconds": 2.0,
+  "selected_edge_count": 66,
+  "all_pair_count": 66,
+  "angles": [
+    {
+      "label": "Broadcast",
+      "offset_seconds_vs_reference": 0.54152,
+      "predicted_freeze_time": 8.81725,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.54152,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.5346,
+      "median_incident_graph_residual_seconds": 3e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "Other Broadcast",
+      "offset_seconds_vs_reference": 0.88192,
+      "predicted_freeze_time": 9.15765,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.88192,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.268,
+      "median_incident_graph_residual_seconds": 3e-05,
+      "confidence": "moderate"
+    },
+    {
+      "label": "Mobile Broadcast",
+      "offset_seconds_vs_reference": 0.28416,
+      "predicted_freeze_time": 8.5599,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.28416,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.5263,
+      "median_incident_graph_residual_seconds": 4e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "Play by Play",
+      "offset_seconds_vs_reference": 0.49786,
+      "predicted_freeze_time": 8.77359,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.49786,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.7718,
+      "median_incident_graph_residual_seconds": 3e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "In Arena",
+      "offset_seconds_vs_reference": 0.40948,
+      "predicted_freeze_time": 8.68521,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.40948,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.6063,
+      "median_incident_graph_residual_seconds": 3e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "High Tight",
+      "offset_seconds_vs_reference": 0.21408,
+      "predicted_freeze_time": 8.48981,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.21408,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.7588,
+      "median_incident_graph_residual_seconds": 4e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "Left Slash",
+      "offset_seconds_vs_reference": 0.21575,
+      "predicted_freeze_time": 8.49148,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.21575,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.7865,
+      "median_incident_graph_residual_seconds": 2e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "Right Slash",
+      "offset_seconds_vs_reference": -0.37736,
+      "predicted_freeze_time": 7.89837,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": -0.37736,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.7826,
+      "median_incident_graph_residual_seconds": 3e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "Left HandHeld",
+      "offset_seconds_vs_reference": 0.22251,
+      "predicted_freeze_time": 8.49825,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.22251,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.7749,
+      "median_incident_graph_residual_seconds": 3e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "Right HandHeld",
+      "offset_seconds_vs_reference": 0.03048,
+      "predicted_freeze_time": 8.30621,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.03048,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.7704,
+      "median_incident_graph_residual_seconds": 3e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "Left Above Rim",
+      "offset_seconds_vs_reference": 0.0,
+      "predicted_freeze_time": 8.27573,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": 0.0,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.7868,
+      "median_incident_graph_residual_seconds": 2e-05,
+      "confidence": "high"
+    },
+    {
+      "label": "Right Above Rim",
+      "offset_seconds_vs_reference": -0.09108,
+      "predicted_freeze_time": 8.18465,
+      "manual_freeze_time_for_validation_only": 8.27573,
+      "prediction_minus_manual_seconds": -0.09108,
+      "incident_edge_count": 11,
+      "mean_incident_quality": 0.7699,
+      "median_incident_graph_residual_seconds": 3e-05,
+      "confidence": "high"
+    }
+  ],
+  "selected_edges": [
+    {
+      "from": "Broadcast",
+      "to": "Other Broadcast",
+      "lag_samples": 2723,
+      "lag_seconds": 0.34037,
+      "fft_peak": 0.17614169487647838,
+      "quality": 0.1772,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "Mobile Broadcast",
+      "lag_samples": -2059,
+      "lag_seconds": -0.25738,
+      "fft_peak": 0.9066987222754036,
+      "quality": 0.9114,
+      "graph_residual_seconds": 2e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "Play by Play",
+      "lag_samples": -349,
+      "lag_seconds": -0.04362,
+      "fft_peak": 0.5238620154967932,
+      "quality": 0.5256,
+      "graph_residual_seconds": -4e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "In Arena",
+      "lag_samples": -1056,
+      "lag_seconds": -0.132,
+      "fft_peak": 0.40570045797260534,
+      "quality": 0.4071,
+      "graph_residual_seconds": -4e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "High Tight",
+      "lag_samples": -2620,
+      "lag_seconds": -0.3275,
+      "fft_peak": 0.4724567491695989,
+      "quality": 0.4759,
+      "graph_residual_seconds": 6e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "Left Slash",
+      "lag_samples": -2606,
+      "lag_seconds": -0.32575,
+      "fft_peak": 0.5729628816659783,
+      "quality": 0.5776,
+      "graph_residual_seconds": -2e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "Right Slash",
+      "lag_samples": -7351,
+      "lag_seconds": -0.91887,
+      "fft_peak": 0.5703801116396031,
+      "quality": 0.5804,
+      "graph_residual_seconds": -1e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "Left HandHeld",
+      "lag_samples": -2552,
+      "lag_seconds": -0.319,
+      "fft_peak": 0.5719491189305574,
+      "quality": 0.5761,
+      "graph_residual_seconds": -0.0
+    },
+    {
+      "from": "Broadcast",
+      "to": "Right HandHeld",
+      "lag_samples": -4088,
+      "lag_seconds": -0.511,
+      "fft_peak": 0.5150796342486363,
+      "quality": 0.5214,
+      "graph_residual_seconds": -4e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "Left Above Rim",
+      "lag_samples": -4332,
+      "lag_seconds": -0.5415,
+      "fft_peak": 0.5686932469784847,
+      "quality": 0.5758,
+      "graph_residual_seconds": -2e-05
+    },
+    {
+      "from": "Broadcast",
+      "to": "Right Above Rim",
+      "lag_samples": -5061,
+      "lag_seconds": -0.63262,
+      "fft_peak": 0.5442234937772343,
+      "quality": 0.5516,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "Mobile Broadcast",
+      "lag_samples": -4782,
+      "lag_seconds": -0.59775,
+      "fft_peak": 0.18926731158716803,
+      "quality": 0.1908,
+      "graph_residual_seconds": -1e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "Play by Play",
+      "lag_samples": -3073,
+      "lag_seconds": -0.38412,
+      "fft_peak": 0.2820798305769718,
+      "quality": 0.2823,
+      "graph_residual_seconds": 6e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "In Arena",
+      "lag_samples": -3780,
+      "lag_seconds": -0.4725,
+      "fft_peak": 0.21488847512629683,
+      "quality": 0.2156,
+      "graph_residual_seconds": 6e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "High Tight",
+      "lag_samples": -5343,
+      "lag_seconds": -0.66787,
+      "fft_peak": 0.3107599391476862,
+      "quality": 0.3116,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "Left Slash",
+      "lag_samples": -5329,
+      "lag_seconds": -0.66612,
+      "fft_peak": 0.2803386482762873,
+      "quality": 0.2813,
+      "graph_residual_seconds": -5e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "Right Slash",
+      "lag_samples": -10074,
+      "lag_seconds": -1.25925,
+      "fft_peak": 0.295340954271182,
+      "quality": 0.2988,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "Left HandHeld",
+      "lag_samples": -5275,
+      "lag_seconds": -0.65938,
+      "fft_peak": 0.3100244929099054,
+      "quality": 0.3109,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "Right HandHeld",
+      "lag_samples": -6812,
+      "lag_seconds": -0.8515,
+      "fft_peak": 0.282162584148163,
+      "quality": 0.2839,
+      "graph_residual_seconds": 6e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "Left Above Rim",
+      "lag_samples": -7055,
+      "lag_seconds": -0.88187,
+      "fft_peak": 0.2743422144748815,
+      "quality": 0.2762,
+      "graph_residual_seconds": -5e-05
+    },
+    {
+      "from": "Other Broadcast",
+      "to": "Right Above Rim",
+      "lag_samples": -7784,
+      "lag_seconds": -0.973,
+      "fft_peak": 0.3173524842417734,
+      "quality": 0.3198,
+      "graph_residual_seconds": -0.0
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "Play by Play",
+      "lag_samples": 1709,
+      "lag_seconds": 0.21363,
+      "fft_peak": 0.49982777195904504,
+      "quality": 0.5027,
+      "graph_residual_seconds": 7e-05
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "In Arena",
+      "lag_samples": 1002,
+      "lag_seconds": 0.12525,
+      "fft_peak": 0.38234172751310036,
+      "quality": 0.3827,
+      "graph_residual_seconds": 7e-05
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "High Tight",
+      "lag_samples": -561,
+      "lag_seconds": -0.07013,
+      "fft_peak": 0.5586228219770855,
+      "quality": 0.5603,
+      "graph_residual_seconds": 4e-05
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "Left Slash",
+      "lag_samples": -547,
+      "lag_seconds": -0.06838,
+      "fft_peak": 0.5182475207009565,
+      "quality": 0.5199,
+      "graph_residual_seconds": -4e-05
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "Right Slash",
+      "lag_samples": -5292,
+      "lag_seconds": -0.6615,
+      "fft_peak": 0.5441503317988527,
+      "quality": 0.5511,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "Left HandHeld",
+      "lag_samples": -493,
+      "lag_seconds": -0.06162,
+      "fft_peak": 0.5662357212941169,
+      "quality": 0.5676,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "Right HandHeld",
+      "lag_samples": -2030,
+      "lag_seconds": -0.25375,
+      "fft_peak": 0.5057967084974819,
+      "quality": 0.5095,
+      "graph_residual_seconds": 7e-05
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "Left Above Rim",
+      "lag_samples": -2273,
+      "lag_seconds": -0.28413,
+      "fft_peak": 0.5082425449342374,
+      "quality": 0.5122,
+      "graph_residual_seconds": -4e-05
+    },
+    {
+      "from": "Mobile Broadcast",
+      "to": "Right Above Rim",
+      "lag_samples": -3002,
+      "lag_seconds": -0.37525,
+      "fft_peak": 0.5762369394471754,
+      "quality": 0.5813,
+      "graph_residual_seconds": 1e-05
+    },
+    {
+      "from": "Play by Play",
+      "to": "In Arena",
+      "lag_samples": -707,
+      "lag_seconds": -0.08837,
+      "fft_peak": 0.7572182402573611,
+      "quality": 0.7593,
+      "graph_residual_seconds": 0.0
+    },
+    {
+      "from": "Play by Play",
+      "to": "High Tight",
+      "lag_samples": -2270,
+      "lag_seconds": -0.28375,
+      "fft_peak": 0.9584597855762726,
+      "quality": 0.9619,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "Play by Play",
+      "to": "Left Slash",
+      "lag_samples": -2257,
+      "lag_seconds": -0.28213,
+      "fft_peak": 0.9373786236790222,
+      "quality": 0.9415,
+      "graph_residual_seconds": 2e-05
+    },
+    {
+      "from": "Play by Play",
+      "to": "Right Slash",
+      "lag_samples": -7002,
+      "lag_seconds": -0.87525,
+      "fft_peak": 0.8732925423889883,
+      "quality": 0.8863,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "Play by Play",
+      "to": "Left HandHeld",
+      "lag_samples": -2203,
+      "lag_seconds": -0.27537,
+      "fft_peak": 0.832073695015187,
+      "quality": 0.8353,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "Play by Play",
+      "to": "Right HandHeld",
+      "lag_samples": -3739,
+      "lag_seconds": -0.46737,
+      "fft_peak": 0.9882527148252274,
+      "quality": 0.9954,
+      "graph_residual_seconds": -0.0
+    },
+    {
+      "from": "Play by Play",
+      "to": "Left Above Rim",
+      "lag_samples": -3983,
+      "lag_seconds": -0.49788,
+      "fft_peak": 0.9448798057879894,
+      "quality": 0.952,
+      "graph_residual_seconds": 2e-05
+    },
+    {
+      "from": "Play by Play",
+      "to": "Right Above Rim",
+      "lag_samples": -4711,
+      "lag_seconds": -0.58888,
+      "fft_peak": 0.8397094086336879,
+      "quality": 0.8476,
+      "graph_residual_seconds": -6e-05
+    },
+    {
+      "from": "In Arena",
+      "to": "High Tight",
+      "lag_samples": -1563,
+      "lag_seconds": -0.19537,
+      "fft_peak": 0.7294457349574156,
+      "quality": 0.7302,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "In Arena",
+      "to": "Left Slash",
+      "lag_samples": -1550,
+      "lag_seconds": -0.19375,
+      "fft_peak": 0.7197874833528228,
+      "quality": 0.7211,
+      "graph_residual_seconds": 2e-05
+    },
+    {
+      "from": "In Arena",
+      "to": "Right Slash",
+      "lag_samples": -6295,
+      "lag_seconds": -0.78687,
+      "fft_peak": 0.6724807705864355,
+      "quality": 0.6799,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "In Arena",
+      "to": "Left HandHeld",
+      "lag_samples": -1496,
+      "lag_seconds": -0.187,
+      "fft_peak": 0.6426344192248219,
+      "quality": 0.6435,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "In Arena",
+      "to": "Right HandHeld",
+      "lag_samples": -3032,
+      "lag_seconds": -0.379,
+      "fft_peak": 0.7542019124527735,
+      "quality": 0.7583,
+      "graph_residual_seconds": -0.0
+    },
+    {
+      "from": "In Arena",
+      "to": "Left Above Rim",
+      "lag_samples": -3276,
+      "lag_seconds": -0.4095,
+      "fft_peak": 0.7250570143346182,
+      "quality": 0.7292,
+      "graph_residual_seconds": 2e-05
+    },
+    {
+      "from": "In Arena",
+      "to": "Right Above Rim",
+      "lag_samples": -4004,
+      "lag_seconds": -0.5005,
+      "fft_peak": 0.6378755386478474,
+      "quality": 0.6425,
+      "graph_residual_seconds": -6e-05
+    },
+    {
+      "from": "High Tight",
+      "to": "Left Slash",
+      "lag_samples": 13,
+      "lag_seconds": 0.00162,
+      "fft_peak": 0.8300173994816842,
+      "quality": 0.8307,
+      "graph_residual_seconds": 5e-05
+    },
+    {
+      "from": "High Tight",
+      "to": "Right Slash",
+      "lag_samples": -4731,
+      "lag_seconds": -0.59137,
+      "fft_peak": 0.8199986006245135,
+      "quality": 0.8291,
+      "graph_residual_seconds": -6e-05
+    },
+    {
+      "from": "High Tight",
+      "to": "Left HandHeld",
+      "lag_samples": 68,
+      "lag_seconds": 0.0085,
+      "fft_peak": 0.8793614036520974,
+      "quality": 0.8797,
+      "graph_residual_seconds": -6e-05
+    },
+    {
+      "from": "High Tight",
+      "to": "Right HandHeld",
+      "lag_samples": -1469,
+      "lag_seconds": -0.18363,
+      "fft_peak": 0.9637835247256414,
+      "quality": 0.9672,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "High Tight",
+      "to": "Left Above Rim",
+      "lag_samples": -1713,
+      "lag_seconds": -0.21413,
+      "fft_peak": 0.8451554630443512,
+      "quality": 0.8485,
+      "graph_residual_seconds": 5e-05
+    },
+    {
+      "from": "High Tight",
+      "to": "Right Above Rim",
+      "lag_samples": -2441,
+      "lag_seconds": -0.30512,
+      "fft_peak": 0.9458721126909293,
+      "quality": 0.9514,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "Left Slash",
+      "to": "Right Slash",
+      "lag_samples": -4745,
+      "lag_seconds": -0.59313,
+      "fft_peak": 0.974849406485848,
+      "quality": 0.9848,
+      "graph_residual_seconds": 1e-05
+    },
+    {
+      "from": "Left Slash",
+      "to": "Left HandHeld",
+      "lag_samples": 54,
+      "lag_seconds": 0.00675,
+      "fft_peak": 0.9634300986367177,
+      "quality": 0.9639,
+      "graph_residual_seconds": 1e-05
+    },
+    {
+      "from": "Left Slash",
+      "to": "Right HandHeld",
+      "lag_samples": -1482,
+      "lag_seconds": -0.18525,
+      "fft_peak": 0.9319697258553931,
+      "quality": 0.9345,
+      "graph_residual_seconds": -2e-05
+    },
+    {
+      "from": "Left Slash",
+      "to": "Left Above Rim",
+      "lag_samples": -1726,
+      "lag_seconds": -0.21575,
+      "fft_peak": 0.9918328728962156,
+      "quality": 0.9949,
+      "graph_residual_seconds": -0.0
+    },
+    {
+      "from": "Left Slash",
+      "to": "Right Above Rim",
+      "lag_samples": -2455,
+      "lag_seconds": -0.30688,
+      "fft_peak": 0.8966197250427561,
+      "quality": 0.901,
+      "graph_residual_seconds": 4e-05
+    },
+    {
+      "from": "Right Slash",
+      "to": "Left HandHeld",
+      "lag_samples": 4799,
+      "lag_seconds": 0.59988,
+      "fft_peak": 0.9795292725735154,
+      "quality": 0.9901,
+      "graph_residual_seconds": 0.0
+    },
+    {
+      "from": "Right Slash",
+      "to": "Right HandHeld",
+      "lag_samples": 3263,
+      "lag_seconds": 0.40787,
+      "fft_peak": 0.869904660985346,
+      "quality": 0.8764,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "Right Slash",
+      "to": "Left Above Rim",
+      "lag_samples": 3019,
+      "lag_seconds": 0.37738,
+      "fft_peak": 0.9723265317706409,
+      "quality": 0.9792,
+      "graph_residual_seconds": -1e-05
+    },
+    {
+      "from": "Right Slash",
+      "to": "Right Above Rim",
+      "lag_samples": 2290,
+      "lag_seconds": 0.28625,
+      "fft_peak": 0.9472622198558615,
+      "quality": 0.9522,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "Left HandHeld",
+      "to": "Right HandHeld",
+      "lag_samples": -1536,
+      "lag_seconds": -0.192,
+      "fft_peak": 0.8214718186903887,
+      "quality": 0.8242,
+      "graph_residual_seconds": -3e-05
+    },
+    {
+      "from": "Left HandHeld",
+      "to": "Left Above Rim",
+      "lag_samples": -1780,
+      "lag_seconds": -0.2225,
+      "fft_peak": 0.9514744984612911,
+      "quality": 0.955,
+      "graph_residual_seconds": -1e-05
+    },
+    {
+      "from": "Left HandHeld",
+      "to": "Right Above Rim",
+      "lag_samples": -2509,
+      "lag_seconds": -0.31362,
+      "fft_peak": 0.9722076184586457,
+      "quality": 0.9775,
+      "graph_residual_seconds": 3e-05
+    },
+    {
+      "from": "Right HandHeld",
+      "to": "Left Above Rim",
+      "lag_samples": -244,
+      "lag_seconds": -0.0305,
+      "fft_peak": 0.9451711555849338,
+      "quality": 0.9455,
+      "graph_residual_seconds": 2e-05
+    },
+    {
+      "from": "Right HandHeld",
+      "to": "Right Above Rim",
+      "lag_samples": -972,
+      "lag_seconds": -0.1215,
+      "fft_peak": 0.8561070191611571,
+      "quality": 0.858,
+      "graph_residual_seconds": -6e-05
+    },
+    {
+      "from": "Left Above Rim",
+      "to": "Right Above Rim",
+      "lag_samples": -729,
+      "lag_seconds": -0.09112,
+      "fft_peak": 0.8848898999681312,
+      "quality": 0.8864,
+      "graph_residual_seconds": 5e-05
+    }
+  ]
+}

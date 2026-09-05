@@ -1,0 +1,101 @@
+name: Adams Jazz Right Above Rim event225 floor v69
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_event225_floor_v69.py'
+      - '.github/workflows/adams-jazz-right-above-rim-event225-floor-v69.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_event225_floor_v69.py'
+      - '.github/workflows/adams-jazz-right-above-rim-event225-floor-v69.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-floor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic floor-proof runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests==2.32.3
+
+      - name: Recover immutable synchronized Right Above Rim target
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify exact target state
+        run: |
+          test -f frame_c/L_Right_Above_Rim_8.562013s_frame0257.png
+          echo '0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a  frame_c/L_Right_Above_Rim_8.562013s_frame0257.png' | sha256sum -c -
+
+      - name: Recover durable event225 Right Above Rim native state
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-state-mining-v63a-33742071776
+          path: source225
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33742071776
+
+      - name: Verify immutable event225 state
+        run: |
+          test -f source225/selected_frames/event_0225_Right_Above_Rim_f06.png
+          echo '7092757ccbc61ebe97f38620afa9535564c7636f70647fd3f8cbfb58aa91178b  source225/selected_frames/event_0225_Right_Above_Rim_f06.png' | sha256sum -c -
+
+      - name: Prove event225 regulation floor
+        run: |
+          python freeze_spin/prove_right_above_rim_event225_floor_v69.py \
+            --frame source225/selected_frames/event_0225_Right_Above_Rim_f06.png \
+            --out v69
+
+      - name: Enforce fail-closed floor-only permissions
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v69/right_above_rim_event225_floor_v69.json'))
+          assert q['status']=='PASS_RIGHT_ABOVE_RIM_EVENT225_FLOOR_V69'
+          assert all(q['gates'].values()), q['gates']
+          assert q['permissions']['floor_homography_allowed'] is True
+          assert q['permissions']['physical_camera_center_allowed'] is False
+          assert q['permissions']['metric_event_camera_allowed'] is False
+          assert q['permissions']['static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          print('HELDOUT', q['heldout_pixel'])
+          print('MAX_ROOT_CLUSTER_P95_PX', q['max_low_cost_root_projection_p95_px'])
+          print('HALF_PIXEL_MAX_P95_PX', q['half_pixel_max_projection_p95_px'])
+          PY
+
+      - name: Package v69 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v69/right_above_rim_event225_floor_v69.json delivery/ 2>/dev/null || true
+          cp v69/right_above_rim_event225_floor_overlay_v69.png delivery/ 2>/dev/null || true
+          cp source225/selected_frames/event_0225_Right_Above_Rim_f06.png delivery/ 2>/dev/null || true
+          cp frame_c/L_Right_Above_Rim_8.562013s_frame0257.png delivery/ 2>/dev/null || true
+
+      - name: Upload v69 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-event225-floor-v69-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

@@ -1,0 +1,69 @@
+name: Adams Jazz Broadcast sealed Brown floor refresh v79
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-broadcast-floor-refresh-v79.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  refresh-v45:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable synchronized chooser artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c_archive
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Verify exact Broadcast Frame C
+        run: |
+          test -f frame_c_archive/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c_archive/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+      - name: Reproduce sealed v45 Brown floor proof
+        run: |
+          mkdir -p v45
+          python -m freeze_spin.solve_frame_c_broadcast_floor_v45 \
+            --frame frame_c_archive/A_Broadcast_9.194613s_frame0276.png \
+            --observations freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json \
+            --out v45
+      - name: Enforce unchanged v45 floor-only permission
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v45/broadcast_frame_c_floor_v45.json'))
+          assert q['status']=='PASS_BROADCAST_BROWN_FLOOR_V45', q['status']
+          assert q['permissions']['broadcast_distortion_aware_floor_model_allowed'] is True
+          assert q['permissions']['broadcast_metric_event_camera_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          print('V45_REPRODUCED_FOR_V79_PREFLIGHT')
+          PY
+      - name: Package v79 preflight evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v45/*.json delivery/ 2>/dev/null || true
+          cp v45/*.png delivery/ 2>/dev/null || true
+          cp frame_c_archive/A_Broadcast_9.194613s_frame0276.png delivery/
+          cp frame_c_archive/options.json delivery/frame_c_options.json
+      - name: Upload v79 preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-floor-refresh-v79-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

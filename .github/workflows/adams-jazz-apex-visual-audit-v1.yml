@@ -1,0 +1,137 @@
+name: Adams Jazz apex visual audit v1
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-apex-visual-audit-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  visual-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lightweight runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve all 12 official native Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source --workers 8
+
+      - name: Solve common audio timeline
+        run: |
+          mkdir -p jazz_apex_audit
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('jazz_dunk_source/clips').glob('*_489_*_SOURCE.mp4')):
+              m=re.search(r'_489_(.+)_SOURCE\.mp4$',p.name)
+              if not m: continue
+              rows.append({'label':m.group(1).replace('_',' '),'file':p.name,'freeze_time':9.57658})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 angles, found {len(rows)}')
+          cfg={'event':{'game_id':'0022500301','event_id':489},'source_fps':29.97003,'reference_angle':'Left Above Rim','angles':rows}
+          Path('jazz_apex_audit/provisional_sync_map.json').write_text(json.dumps(cfg,indent=2))
+          PY
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_apex_audit/provisional_sync_map.json \
+            --clips jazz_dunk_source/clips \
+            --reference 'Left Above Rim' --max-lag-seconds 2.0 \
+            --out jazz_apex_audit/audio_sync_graph.json
+          python freeze_spin/refine_jazz_predunk_audio_impact_v2.py \
+            --clips jazz_dunk_source/clips \
+            --sync jazz_apex_audit/audio_sync_graph.json \
+            --config jazz_apex_audit/provisional_sync_map.json \
+            --pre-impact-seconds 0.12 \
+            --out jazz_apex_audit/audio_impact_bound.json
+
+      - name: Export native synchronized apex candidate strips
+        run: |
+          python - <<'PY'
+          import cv2, json, re
+          import numpy as np
+          from pathlib import Path
+
+          out=Path('jazz_apex_audit')
+          clips=Path('jazz_dunk_source/clips')
+          sync=json.load(open(out/'audio_sync_graph.json'))
+          impact=json.load(open(out/'audio_impact_bound.json'))
+          cfg=json.load(open(out/'provisional_sync_map.json'))
+          ref='Left Above Rim'
+          impact_ref=float(impact['estimated_dunk_impact_reference_time'])
+          offsets={r['label']:float(r['offset_seconds_vs_reference']) for r in sync['angles']}
+          files={r['label']:r['file'] for r in cfg['angles']}
+          wanted=['Left Above Rim','In Arena','Play by Play','Left Slash','Right Slash','High Tight','Right HandHeld','Right Above Rim']
+          rel=np.array([-0.36,-0.33,-0.30,-0.27,-0.24,-0.21,-0.18,-0.15,-0.12,-0.09,-0.06,-0.03,0.00],dtype=float)
+          rows=[]
+          font=cv2.FONT_HERSHEY_SIMPLEX
+          for label in wanted:
+              p=clips/files[label]
+              cap=cv2.VideoCapture(str(p))
+              thumbs=[]
+              for d in rel:
+                  tref=impact_ref+float(d)
+                  t=tref+offsets[label]
+                  cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0)
+                  ok,im=cap.read()
+                  if not ok: raise RuntimeError(f'Cannot read {label} at {t:.3f}s')
+                  h,w=im.shape[:2]
+                  tw=320; th=round(h*tw/w)
+                  im=cv2.resize(im,(tw,th),interpolation=cv2.INTER_AREA)
+                  cv2.rectangle(im,(0,0),(tw,28),(0,0,0),-1)
+                  cv2.putText(im,f'{d:+.2f}s',(8,19),font,0.55,(255,255,255),1,cv2.LINE_AA)
+                  thumbs.append(im)
+              cap.release()
+              strip=np.concatenate(thumbs,axis=1)
+              cv2.imwrite(str(out/f"{label.replace(' ','_')}_apex_strip.png"),strip)
+              rows.append({'label':label,'offset_seconds_vs_reference':offsets[label]})
+
+          # 8-camera grid for every third candidate: -0.36 ... 0.00 in 0.09s steps
+          chosen=[0,3,6,9,12]
+          grid_rows=[]
+          for label in wanted:
+              p=clips/files[label]
+              cap=cv2.VideoCapture(str(p))
+              cells=[]
+              for idx in chosen:
+                  d=float(rel[idx]); tref=impact_ref+d; t=tref+offsets[label]
+                  cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0); ok,im=cap.read()
+                  if not ok: raise RuntimeError(f'Cannot read {label} grid at {t:.3f}s')
+                  im=cv2.resize(im,(288,162),interpolation=cv2.INTER_AREA)
+                  cv2.rectangle(im,(0,0),(288,30),(0,0,0),-1)
+                  cv2.putText(im,f'{label} {d:+.2f}s',(6,20),font,0.45,(255,255,255),1,cv2.LINE_AA)
+                  cells.append(im)
+              cap.release()
+              grid_rows.append(np.concatenate(cells,axis=1))
+          grid=np.concatenate(grid_rows,axis=0)
+          cv2.imwrite(str(out/'multi_camera_apex_grid.png'),grid)
+          meta={'impact_reference_time':impact_ref,'reference_angle':ref,'relative_candidate_seconds':rel.tolist(),'camera_rows':rows,'policy':'Visual audit only. No apex accepted automatically. Select a frame only if ball rise/top/fall is visually supported across multiple synchronized cameras.'}
+          (out/'apex_visual_audit_v1.json').write_text(json.dumps(meta,indent=2))
+          PY
+
+      - name: Package native audit
+        run: |
+          mkdir -p delivery
+          cp jazz_apex_audit/*_apex_strip.png delivery/
+          cp jazz_apex_audit/multi_camera_apex_grid.png delivery/
+          cp jazz_apex_audit/apex_visual_audit_v1.json delivery/
+          cp jazz_apex_audit/audio_impact_bound.json delivery/
+          cp jazz_apex_audit/audio_sync_graph.json delivery/
+          cp jazz_dunk_source/qa.json delivery/source_qa.json
+
+      - name: Upload native audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-apex-visual-audit-v1-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

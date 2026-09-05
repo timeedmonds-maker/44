@@ -1,0 +1,106 @@
+name: Adams Jazz metric-anchored multiview v68b
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_metric_anchor_multiview_freeview_v68.py'
+      - 'freeze_spin/build_metric_anchor_multiview_freeview_v68b.py'
+      - '.github/workflows/adams-jazz-metric-anchor-multiview-v68.yml'
+
+jobs:
+  diagnostic-v68b:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic depth runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print('TORCH',torch.__version__,'TORCHVISION',torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+      - name: Retrieve official source and recreate exact Frame C
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out source_v68 --workers 8
+          test "$(find source_v68/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips source_v68/clips --out frame_c_v68
+          test -f frame_c_v68/frames/K_Left_Above_Rim_8.653093s_frame0259.png
+          test -f frame_c_v68/frames/D_Play_by_Play_9.150953s_frame0275.png
+          echo 'a774c9ee4cad8e5978dc0ee0299d0c5ab913d166225f43517278d910ce9c4c2d  frame_c_v68/frames/D_Play_by_Play_9.150953s_frame0275.png' | sha256sum -c -
+      - name: Reproduce accepted Play by Play v65 floor
+        run: |
+          python -m freeze_spin.prove_play_by_play_frame_c_wide_court_v65 \
+            --frame frame_c_v68/frames/D_Play_by_Play_9.150953s_frame0275.png \
+            --observations freeze_spin/adams_jazz_play_by_play_frame_c_wide_court_v65.json \
+            --out pbp_v65
+          python - <<'PY'
+          import json
+          q=json.load(open('pbp_v65/play_by_play_frame_c_wide_court_v65.json'))
+          assert q['status']=='PASS_PLAY_BY_PLAY_WIDE_COURT_FLOOR_V65'
+          assert all(q['gates'].values())
+          PY
+      - name: Run metric-anchored two-view diagnostic v68b
+        run: |
+          python freeze_spin/build_metric_anchor_multiview_freeview_v68b.py \
+            --lar-frame frame_c_v68/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --pbp-frame frame_c_v68/frames/D_Play_by_Play_9.150953s_frame0275.png \
+            --lar-floor freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --pbp-floor-proof pbp_v65/play_by_play_frame_c_wide_court_v65.json \
+            --camera-registry freeze_spin/adams_jazz_game_camera_registry_v4.json \
+            --tokens 1600 --out v68
+      - name: Print decisive v68 diagnostics
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('v68/metric_anchor_multiview_v68.json')
+          if not p.exists():
+              print('NO_V68_REPORT'); raise SystemExit(0)
+          q=json.load(open(p)); print('STATUS',q['status'])
+          p2=q['pbp_diagnostic_pose']
+          print('PBP_CENTER',p2['center_cm'],'BASELINE_CM',p2['baseline_from_lar_cm'],'AZIMUTH_DEG',p2['signed_azimuth_separation_deg'])
+          print('STATIC_COUNT',p2['static_correspondence_count'],'PNP_INLIERS',p2['pnp_inliers'],'BEST',p2['best'])
+          print('DEPTH_P95 LAR',q['lar']['heldout_depth_p95_cm'],'PBP',p2['heldout_depth_p95_cm'])
+          print('ZERO',q['zero_dense_roundtrip'])
+          for f in q['frames']:
+              print('FRAME',f['degree'],'lar_action',f['lar']['action'],'static_action',f['static_multiview']['action'],'full_action',f['full_multiview']['action'],'pbp_full_fill',f['pbp_full_fill_pixels'])
+          print('GATES',q['gates']);print('PERMISSIONS',q['permissions'])
+          PY
+      - name: Package v68 visual evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v68/metric_anchor_multiview_v68.json delivery/ 2>/dev/null || true
+          cp v68/v68_*deg_*.png delivery/ 2>/dev/null || true
+          cp v68/*_dynamic.png delivery/ 2>/dev/null || true
+          cp frame_c_v68/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_v68/frames/D_Play_by_Play_9.150953s_frame0275.png delivery/ 2>/dev/null || true
+          cp pbp_v65/play_by_play_frame_c_wide_court_v65.json delivery/ 2>/dev/null || true
+          test -f delivery/metric_anchor_multiview_v68.json
+      - name: Enforce diagnostic-only policy
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('delivery/metric_anchor_multiview_v68.json'))
+          assert q['permissions']['pbp_metric_camera_promotion_allowed'] is False
+          assert q['permissions']['product_static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          assert q['visual_qa_required'] is True
+          PY
+      - name: Upload v68 diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-metric-anchor-multiview-v68b-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

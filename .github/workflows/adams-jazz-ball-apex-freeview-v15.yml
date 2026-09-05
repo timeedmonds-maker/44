@@ -1,0 +1,177 @@
+name: Adams Jazz accepted-apex free-view v15
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/select_jazz_ball_apex_multiview_v3.py'
+      - 'freeze_spin/build_portable_moge_pnp_freeview_v12.py'
+      - '.github/workflows/adams-jazz-ball-apex-freeview-v15.yml'
+  workflow_dispatch:
+
+jobs:
+  accepted-apex-freeview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install vision audio and MoGe runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve all 12 official native Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source --workers 8
+
+      - name: Establish common audio timeline and impact
+        run: |
+          mkdir -p jazz_apex_v15/locked_frames
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('jazz_dunk_source/clips').glob('*_489_*_SOURCE.mp4')):
+              m=re.search(r'_489_(.+)_SOURCE\.mp4$',p.name)
+              if m: rows.append({'label':m.group(1).replace('_',' '),'file':p.name,'freeze_time':9.57658})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 angles, found {len(rows)}')
+          cfg={'event':{'game_id':'0022500301','event_id':489},'source_fps':29.97003,'reference_angle':'Left Above Rim','angles':rows}
+          Path('jazz_apex_v15/provisional_sync_map.json').write_text(json.dumps(cfg,indent=2))
+          PY
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_apex_v15/provisional_sync_map.json \
+            --clips jazz_dunk_source/clips \
+            --reference 'Left Above Rim' --max-lag-seconds 2.0 \
+            --out jazz_apex_v15/audio_sync_graph.json
+          python freeze_spin/refine_jazz_predunk_audio_impact_v2.py \
+            --clips jazz_dunk_source/clips \
+            --sync jazz_apex_v15/audio_sync_graph.json \
+            --config jazz_apex_v15/provisional_sync_map.json \
+            --pre-impact-seconds 0.12 \
+            --out jazz_apex_v15/audio_impact_bound.json
+
+      - name: Re-prove accepted apex with projection-aware gate
+        run: |
+          python freeze_spin/select_jazz_ball_apex_multiview_v3.py \
+            --clips jazz_dunk_source/clips \
+            --sync jazz_apex_v15/audio_sync_graph.json \
+            --impact-json jazz_apex_v15/audio_impact_bound.json \
+            --out jazz_apex_v15
+          python - <<'PY'
+          import json
+          d=json.load(open('jazz_apex_v15/multiview_apex_selection_v3.json'))
+          if not d.get('passed'): raise SystemExit('Projection-aware apex gate did not pass')
+          expected=9.635413333166447
+          actual=float(d['apex_reference_time'])
+          if abs(actual-expected)>0.04:
+              raise SystemExit(f'Apex moved by more than one native frame: expected {expected}, got {actual}')
+          print('ACCEPTED_APEX_REFERENCE_TIME',actual)
+          print('APEX_SECONDS_BEFORE_IMPACT',d['apex_seconds_before_impact'])
+          print('HEIGHT_CONSENSUS',d['height_apex_consensus_labels'])
+          print('TRACK_CONFIRMATION_COUNT',d['ball_track_confirmation_count'])
+          PY
+
+      - name: Lock all 12 cameras to accepted apex state
+        run: |
+          python - <<'PY'
+          import cv2,json
+          from pathlib import Path
+          apex=json.load(open('jazz_apex_v15/multiview_apex_selection_v3.json'))
+          tref=float(apex['apex_reference_time'])
+          sync=json.load(open('jazz_apex_v15/audio_sync_graph.json'))
+          cfg=json.load(open('jazz_apex_v15/provisional_sync_map.json'))
+          offsets={r['label']:float(r['offset_seconds_vs_reference']) for r in sync['angles']}
+          files={r['label']:r['file'] for r in cfg['angles']}
+          rows=[]
+          for label,file in files.items():
+              t=tref+offsets[label]
+              p=Path('jazz_dunk_source/clips')/file
+              cap=cv2.VideoCapture(str(p)); fps=float(cap.get(cv2.CAP_PROP_FPS) or 29.97003)
+              cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0); ok,im=cap.read(); frame_pos=int(round(cap.get(cv2.CAP_PROP_POS_FRAMES)-1)); cap.release()
+              if not ok: raise RuntimeError(f'Cannot export {label} at {t}')
+              if im.shape[1]!=960 or im.shape[0]!=540: raise RuntimeError(f'{label} not native 960x540: {im.shape}')
+              out=Path('jazz_apex_v15/locked_frames')/f"{label.replace(' ','_')}_apex.png"
+              cv2.imwrite(str(out),im)
+              rows.append({'label':label,'requested_local_time':t,'reference_time':tref,'decoded_frame_index':frame_pos,'fps':fps,'file':out.name})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 locked frames, got {len(rows)}')
+          Path('jazz_apex_v15/locked_frames/locked_frames.json').write_text(json.dumps(rows,indent=2))
+          print('LOCKED_APEX_FRAMES',len(rows),'REFERENCE_TIME',tref)
+          PY
+
+      - name: Add renderer compatibility aliases
+        run: |
+          python - <<'PY'
+          import shutil
+          from pathlib import Path
+          d=Path('jazz_apex_v15/locked_frames')
+          rows=list(d.glob('*_apex.png'))
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 apex frames, found {len(rows)}')
+          for p in rows:
+              shutil.copy2(p,p.with_name(p.name.replace('_apex.png','_predunk.png')))
+          PY
+
+      - name: Run portable MoGe plus static-SIFT PnP native free-view solve
+        run: |
+          python freeze_spin/build_portable_moge_pnp_freeview_v12.py \
+            --locked-dir jazz_apex_v15/locked_frames \
+            --out jazz_apex_freeview_v15 \
+            --reference "In Arena" \
+            --tokens 1600 --max-degree 5.0 --frames 31
+
+      - name: Print native geometry and fill QA
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('jazz_apex_freeview_v15/portable_moge_pnp_qa_v12.json'))
+          assert q['source_resolution']==[960,540] and q['render_resolution']==[960,540]
+          print('PASSED_SECONDARY_CAMERAS',q['passed_secondary_count'])
+          print('TARGET_DIRECTION_CAMERA',q['target_direction_camera'])
+          print('REAL_BASELINE_ANGLE_DEG',q['real_baseline_angle_deg'])
+          for r in q['stills']:
+              print('STILL_QA',r['degree'],'deg','resolved',round(r['resolved_fraction'],6),'holes',r['unresolved_pixels'])
+          PY
+
+      - name: Encode native motion preview only
+        run: |
+          ffmpeg -y -framerate 30 -i jazz_apex_freeview_v15/motion_%03d.png \
+            -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart \
+            jazz_apex_freeview_v15/adams_jazz_ball_apex_freeview_native.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 jazz_apex_freeview_v15/adams_jazz_ball_apex_freeview_native.mp4)" = "960" || exit 1
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 jazz_apex_freeview_v15/adams_jazz_ball_apex_freeview_native.mp4)" = "540" || exit 1
+
+      - name: Package native accepted-apex proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp jazz_apex_freeview_v15/portable_00deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_apex_freeview_v15/portable_03deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_apex_freeview_v15/portable_05deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_apex_freeview_v15/portable_unresolved_03deg.png delivery/ 2>/dev/null || true
+          cp jazz_apex_freeview_v15/portable_unresolved_05deg.png delivery/ 2>/dev/null || true
+          cp jazz_apex_freeview_v15/portable_moge_pnp_qa_v12.json delivery/ 2>/dev/null || true
+          cp jazz_apex_freeview_v15/adams_jazz_ball_apex_freeview_native.mp4 delivery/ 2>/dev/null || true
+          cp jazz_apex_v15/multiview_apex_selection_v3.json delivery/ 2>/dev/null || true
+          cp jazz_apex_v15/audio_impact_bound.json delivery/ 2>/dev/null || true
+          cp jazz_apex_v15/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp jazz_apex_v15/locked_frames/locked_frames.json delivery/ 2>/dev/null || true
+          cp jazz_apex_v15/locked_frames/*_apex.png delivery/ 2>/dev/null || true
+          cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
+
+      - name: Upload native accepted-apex proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-accepted-apex-freeview-v15-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

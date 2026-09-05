@@ -1,0 +1,117 @@
+name: Adams Jazz Right Above Rim zoom PP envelope v72
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_zoom_pp_envelope_v72.py'
+      - '.github/workflows/adams-jazz-right-above-rim-zoom-pp-envelope-v72.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_zoom_pp_envelope_v72.py'
+      - '.github/workflows/adams-jazz-right-above-rim-zoom-pp-envelope-v72.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-zoom-pp-envelope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic v72 runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+
+      - name: Recover exact v70 evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-physical-event-v70-33837157984
+          path: v70_source
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33837157984
+
+      - name: Recover exact v71 one-gate-fail evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-joint-intrinsics-v71-33907159444
+          path: v71_source
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33907159444
+
+      - name: Recover immutable Frame C chooser provenance
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: chooser
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify immutable evidence payloads
+        run: |
+          test -f v70_source/right_above_rim_physical_event_v70.json
+          test -f v71_source/right_above_rim_joint_intrinsics_v71.json
+          test -f chooser/options.json
+          test -f v70_source/event_0225_Right_Above_Rim_f06.png
+          test -f v70_source/L_Right_Above_Rim_8.562013s_frame0257.png
+          echo '7092757ccbc61ebe97f38620afa9535564c7636f70647fd3f8cbfb58aa91178b  v70_source/event_0225_Right_Above_Rim_f06.png' | sha256sum -c -
+          echo '0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a  v70_source/L_Right_Above_Rim_8.562013s_frame0257.png' | sha256sum -c -
+
+      - name: Prove bounded zoom-dependent principal-point envelope
+        run: |
+          python -m freeze_spin.prove_right_above_rim_zoom_pp_envelope_v72 \
+            --v70-report v70_source/right_above_rim_physical_event_v70.json \
+            --v71-report v71_source/right_above_rim_joint_intrinsics_v71.json \
+            --chooser-options chooser/options.json \
+            --event225-frame v70_source/event_0225_Right_Above_Rim_f06.png \
+            --target-frame v70_source/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --out v72
+
+      - name: Enforce camera-2 promotion only on complete v72 proof
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v72/right_above_rim_zoom_pp_envelope_v72.json'))
+          assert q['status']=='PASS_RIGHT_ABOVE_RIM_ZOOM_PP_ENVELOPE_V72', q['status']
+          assert all(q['gates'].values()), q['gates']
+          assert q['game_id']=='0022500301'
+          assert q['intended_basketball_event']==486
+          assert q['frame_c_source_clip_event']==489
+          assert q['permissions']['physical_camera_center_allowed'] is True
+          assert q['permissions']['metric_event_camera_allowed'] is True
+          assert q['permissions']['static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          print('CENTER_CM', q['physical_center_cm'])
+          print('EVENT225_PP', q['event225']['principal_point_px'])
+          print('FRAME_C_PP', q['target_frame_c']['principal_point_px'])
+          print('PP_SEPARATION', q['nominal_state_principal_point_separation_px'])
+          print('FRAME_C_PERT', q['target_frame_c']['perturbation_64'])
+          PY
+
+      - name: Package v72 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v72/*.json delivery/ 2>/dev/null || true
+          cp v72/*.png delivery/ 2>/dev/null || true
+          cp chooser/options.json delivery/frame_c_chooser_options.json 2>/dev/null || true
+          cp v70_source/event_0225_Right_Above_Rim_f06.png delivery/ 2>/dev/null || true
+          cp v70_source/L_Right_Above_Rim_8.562013s_frame0257.png delivery/ 2>/dev/null || true
+
+      - name: Upload v72 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-zoom-pp-envelope-v72-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

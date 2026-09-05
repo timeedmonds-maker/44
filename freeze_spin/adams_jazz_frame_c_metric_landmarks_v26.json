@@ -1,0 +1,73 @@
+{
+  "frame_geometry": "native 960x540 exact synchronized Frame C",
+  "purpose": "Regulation-NBA metric camera proof for immutable Right Slash chooser C physical instant; no automatic freeze selection",
+  "freeze_lock": {
+    "authority_camera": "Right Slash",
+    "chooser_option": "C",
+    "right_slash_local_time": 8.275733,
+    "decoded_frame_index": 248,
+    "game_id": "0022500301",
+    "event_id": 489,
+    "date": "2025-11-30"
+  },
+  "annotation_policy": "Manual deterministic annotation of visible regulation target opening, rim endpoints, backboard outline and court lane intersections in real official NBA source pixels. No generated appearance.",
+  "max_landmark_rmse_px": 3.0,
+  "max_rim_center_error_px": 3.0,
+  "max_rim_major_axis_error_px": 4.0,
+  "max_rim_minor_axis_error_px": 2.0,
+  "max_rim_angle_error_deg": 3.0,
+  "max_backboard_corner_rmse_px": 6.0,
+  "max_half_pixel_camera_center_shift_cm": 75.0,
+  "max_cross_view_backboard_bottom_spread_cm": 5.0,
+  "perturbation_trials": 24,
+  "minimum_required_passed_views": 2,
+  "min_distinct_camera_baseline_cm": 250.0,
+  "views": [
+    {
+      "index": 8,
+      "label": "Left HandHeld",
+      "image": "I_Left_HandHeld_8.875603s_frame0266.png",
+      "principal_point_prior_sigma_px": 40.0,
+      "principal_point_bound_px": 80.0,
+      "focal_prior_px": 900.0,
+      "focal_prior_sigma_log": 0.35,
+      "landmarks": {
+        "target_inner_top_left": [421.0, 78.0],
+        "target_inner_top_right": [485.0, 78.0],
+        "target_inner_bottom_right": [485.0, 121.0],
+        "target_inner_bottom_left": [421.0, 121.0],
+        "rim_left": [419.0, 127.0],
+        "rim_right": [483.0, 127.0]
+      },
+      "backboard_outer_corners_px": {
+        "top_left": [337.0, 4.0],
+        "top_right": [570.0, 4.0],
+        "bottom_right": [568.0, 141.0],
+        "bottom_left": [340.0, 141.0]
+      },
+      "backboard_bottom_initial_cm": 274.32,
+      "backboard_weight": 1.0,
+      "notes": "Near-basket real camera. Rim endpoints are regulation rim side extrema, not the wider orange support/bracket."
+    },
+    {
+      "index": 10,
+      "label": "Left Above Rim",
+      "image": "K_Left_Above_Rim_8.653093s_frame0259.png",
+      "principal_point_prior_sigma_px": 160.0,
+      "principal_point_bound_px": 350.0,
+      "focal_prior_px": 900.0,
+      "focal_prior_sigma_log": 1.8,
+      "landmarks": {
+        "target_inner_top_left": [470.0, 159.0],
+        "target_inner_top_right": [491.0, 159.0],
+        "target_inner_bottom_right": [491.0, 174.0],
+        "target_inner_bottom_left": [470.0, 174.0],
+        "baseline_left_lane": [405.0, 282.0],
+        "baseline_right_lane": [555.0, 282.0],
+        "ft_left_lane": [361.0, 343.0],
+        "ft_right_lane": [600.0, 343.0]
+      },
+      "notes": "Wide overhead real camera. Court-plane lane anchors provide strong non-coplanar conditioning together with the elevated target opening."
+    }
+  ]
+}

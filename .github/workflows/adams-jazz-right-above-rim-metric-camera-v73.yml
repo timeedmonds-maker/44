@@ -1,0 +1,98 @@
+name: Adams Jazz Right Above Rim metric camera v73
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_metric_camera_v73.py'
+      - '.github/workflows/adams-jazz-right-above-rim-metric-camera-v73.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_metric_camera_v73.py'
+      - '.github/workflows/adams-jazz-right-above-rim-metric-camera-v73.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-metric-camera:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic v73 runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+
+      - name: Recover exact v72 diagnostic evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-zoom-pp-envelope-v72-33907587403
+          path: v72_source
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33907587403
+
+      - name: Verify immutable evidence payloads
+        run: |
+          test -f v72_source/right_above_rim_zoom_pp_envelope_v72.json
+          test -f v72_source/event_0225_Right_Above_Rim_f06.png
+          test -f v72_source/L_Right_Above_Rim_8.562013s_frame0257.png
+          echo '7092757ccbc61ebe97f38620afa9535564c7636f70647fd3f8cbfb58aa91178b  v72_source/event_0225_Right_Above_Rim_f06.png' | sha256sum -c -
+          echo '0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a  v72_source/L_Right_Above_Rim_8.562013s_frame0257.png' | sha256sum -c -
+
+      - name: Prove Right Above Rim metric camera
+        run: |
+          python -m freeze_spin.prove_right_above_rim_metric_camera_v73 \
+            --v72-report v72_source/right_above_rim_zoom_pp_envelope_v72.json \
+            --event225-frame v72_source/event_0225_Right_Above_Rim_f06.png \
+            --target-frame v72_source/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --out v73
+
+      - name: Enforce camera-2 promotion only on complete v73 proof
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v73/right_above_rim_metric_camera_v73.json'))
+          assert q['status']=='PASS_RIGHT_ABOVE_RIM_METRIC_CAMERA_V73', q['status']
+          assert all(q['gates'].values()), q['gates']
+          assert q['game_id']=='0022500301'
+          assert q['intended_basketball_event']==486
+          assert q['frame_c_source_clip_event']==489
+          assert q['permissions']['physical_camera_center_allowed'] is True
+          assert q['permissions']['metric_event_camera_allowed'] is True
+          assert q['permissions']['static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          assert q['nominal_state_principal_point_separation_px'] <= 5.0 + 1e-9
+          assert q['dense_curve_convergence']['max_p95_delta_px'] <= 0.01
+          print('CENTER_CM', q['physical_center_cm'])
+          print('EVENT225_PP', q['event225']['principal_point_px'])
+          print('FRAME_C_PP', q['target_frame_c']['principal_point_px'])
+          print('PP_SEPARATION', q['nominal_state_principal_point_separation_px'])
+          print('DENSE_CONVERGENCE', q['dense_curve_convergence']['max_p95_delta_px'])
+          print('FRAME_C_PERT', q['target_frame_c']['perturbation_64'])
+          PY
+
+      - name: Package v73 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v73/*.json delivery/ 2>/dev/null || true
+          cp v73/*.png delivery/ 2>/dev/null || true
+          cp v72_source/right_above_rim_zoom_pp_envelope_v72.json delivery/v72_diagnostic_source.json 2>/dev/null || true
+          cp v72_source/event_0225_Right_Above_Rim_f06.png delivery/ 2>/dev/null || true
+          cp v72_source/L_Right_Above_Rim_8.562013s_frame0257.png delivery/ 2>/dev/null || true
+
+      - name: Upload v73 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-metric-camera-v73-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
