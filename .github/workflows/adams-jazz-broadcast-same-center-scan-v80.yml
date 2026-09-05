@@ -1,0 +1,92 @@
+name: Adams Jazz Broadcast same-center state mining v80
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-broadcast-same-center-scan-v80.yml'
+      - 'freeze_spin/mine_same_game_camera_states_v1.py'
+      - 'freeze_spin/scan_same_game_camera_priors.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native video and feature runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify immutable Broadcast target
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+
+      - name: Mine recurring same-game Broadcast optical states
+        run: |
+          python freeze_spin/mine_same_game_camera_states_v1.py \
+            --game-id 0022500301 \
+            --camera-label 'Broadcast' \
+            --target-frame frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --target-sha256 7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c \
+            --count 24 \
+            --event-start 5 \
+            --event-stop 1205 \
+            --event-step 20 \
+            --samples-per-clip 7 \
+            --keep-top 12 \
+            --out broadcast_state_mining_v80
+
+      - name: Enforce discovery-only semantics and evidence minimum
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('broadcast_state_mining_v80/same_game_physical_state_mining_v1.json').read_text())
+          assert p['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+          assert p['camera_label']=='Broadcast'
+          assert p['immutable_target']['sha256']=='7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c'
+          assert all(v is False for v in p['permissions'].values())
+          ok=[e for e in p['events'] if e.get('status')=='ok']
+          assert len(ok)>=8, len(ok)
+          assert len(p['top_candidates'])>=8
+          print('V80_DISCOVERY_OK',len(ok),'credible',p['credible_candidate_event_count'])
+          print([(r['event_probe'],r['sample_name'],round(r['analysis']['discovery_score_lower_is_better'],3)) for r in p['top_candidates']])
+          PY
+
+      - name: Package v80 state evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp broadcast_state_mining_v80/same_game_physical_state_mining_v1.json delivery/ 2>/dev/null || true
+          cp broadcast_state_mining_v80/top_state_candidates_montage.png delivery/ 2>/dev/null || true
+          cp -a broadcast_state_mining_v80/selected_frames delivery/ 2>/dev/null || true
+          cp frame_c/A_Broadcast_9.194613s_frame0276.png delivery/ 2>/dev/null || true
+
+      - name: Upload v80 discovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-state-mining-v80-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
