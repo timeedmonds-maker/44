@@ -1,0 +1,82 @@
+name: Adams Jazz Broadcast observation bias v81
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_frame_c_broadcast_floor_v81.json'
+      - 'freeze_spin/diagnose_broadcast_observation_bias_v81.py'
+      - '.github/workflows/adams-jazz-broadcast-observation-bias-v81.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic geometry runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify exact Broadcast Frame C
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+
+      - name: Run original-vs-corrected nominal geometry comparison
+        run: |
+          python -m freeze_spin.diagnose_broadcast_observation_bias_v81 \
+            --frame frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --original freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json \
+            --corrected freeze_spin/adams_jazz_frame_c_broadcast_floor_v81.json \
+            --out broadcast_v81
+
+      - name: Enforce discovery-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('broadcast_v81/broadcast_observation_bias_v81.json'))
+          assert p['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+          assert all(v is False for v in p['permissions'].values())
+          assert p['annotation_shift']['median_px'] >= 4.0
+          assert p['annotation_shift']['max_px'] >= 6.0
+          print('V81_INTERPRETATION', p['interpretation'])
+          print('V44_ORIGINAL_PINHOLE_MAX', p['original_v44_evidence']['pinhole_v44']['max_heldout_feature_p95_px'])
+          print('V81_CORRECTED_PINHOLE_MAX', p['corrected_v81_evidence']['pinhole_v44']['max_heldout_feature_p95_px'])
+          print('V45_ORIGINAL_DIST_P95', p['comparison']['brown_distortion_grid_p95_displacement_original_px'])
+          print('V81_CORRECTED_DIST_P95', p['comparison']['brown_distortion_grid_p95_displacement_corrected_px'])
+          PY
+
+      - name: Package v81 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp broadcast_v81/*.json delivery/ 2>/dev/null || true
+          cp broadcast_v81/*.png delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json delivery/original_v44_observations.json
+          cp freeze_spin/adams_jazz_frame_c_broadcast_floor_v81.json delivery/corrected_v81_observations.json
+          cp frame_c/A_Broadcast_9.194613s_frame0276.png delivery/
+
+      - name: Upload v81 diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-observation-bias-v81-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
