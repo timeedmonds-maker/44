@@ -47,7 +47,23 @@ jobs:
           PY
       - name: Run bidirectional intrinsics diagnostic
         run: |
-          python -m freeze_spin.diagnose_right_slash_intrinsics_v101 --bank bank --out v101
+          python - <<'PY'
+          import json, runpy, sys
+          import numpy as np
+          original = json.dumps
+          def dumps(obj, *args, **kwargs):
+              def convert(o):
+                  if isinstance(o, np.generic):
+                      return o.item()
+                  if isinstance(o, np.ndarray):
+                      return o.tolist()
+                  raise TypeError(type(o).__name__)
+              kwargs.setdefault('default', convert)
+              return original(obj, *args, **kwargs)
+          json.dumps = dumps
+          sys.argv = ['diagnose_right_slash_intrinsics_v101', '--bank', 'bank', '--out', 'v101']
+          runpy.run_module('freeze_spin.diagnose_right_slash_intrinsics_v101', run_name='__main__')
+          PY
       - name: Enforce diagnostic-only semantics
         run: |
           python - <<'PY'
