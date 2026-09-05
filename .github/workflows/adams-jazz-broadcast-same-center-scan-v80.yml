@@ -49,8 +49,8 @@ jobs:
             --target-sha256 7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c \
             --count 24 \
             --event-start 5 \
-            --event-stop 1205 \
-            --event-step 20 \
+            --event-stop 1405 \
+            --event-step 10 \
             --samples-per-clip 7 \
             --keep-top 12 \
             --out broadcast_state_mining_v80
