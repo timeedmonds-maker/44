@@ -1,0 +1,49 @@
+name: Adams Jazz Right Slash direct bridge v99
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-direct-bridge-v99.yml'
+      - 'freeze_spin/audit_right_slash_direct_bridge_v99.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-direct-bridge-v99.yml'
+      - 'freeze_spin/audit_right_slash_direct_bridge_v99.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned runtime
+        run: python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+      - name: Recover immutable v93 exact-event burst
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-slash-event489-burst-v93-33955558281
+          path: right_slash_v93
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 33955558281
+      - name: Execute direct bridge proof
+        run: |
+          python freeze_spin/audit_right_slash_direct_bridge_v99.py \
+            --frames right_slash_v93/frames \
+            --manifest right_slash_v93/event489_burst_v93.json \
+            --out right_slash_direct_bridge_v99
+      - name: Upload v99 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-direct-bridge-v99-${{ github.run_id }}
+          path: right_slash_direct_bridge_v99/
+          retention-days: 14
+          if-no-files-found: error
