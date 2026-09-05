@@ -1,3 +1,4 @@
+# trigger strict v90 CI; proof semantics unchanged
 name: Adams Jazz Broadcast shared optical centre v90
 
 on:
