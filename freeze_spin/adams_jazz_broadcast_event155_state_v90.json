@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "game_id": "0022500301",
+  "event_probe": 155,
+  "camera_label": "Broadcast",
+  "image": "b21_7.952s.png",
+  "image_sha256": "ade326fa664002a54a92b506b33d15e1297ca14109449b8edca63cf011150436",
+  "source_artifact": {
+    "workflow_run_id": 33950985599,
+    "artifact_id": 9964820818,
+    "artifact_name": "adams-jazz-broadcast-event155-burst-v89-33950985599",
+    "frame_path": "frames/b21_7.952s.png",
+    "title": "HOU @ UTA 2025/11/30 - Period:1, Clock:01:35.0, Jusuf Nurkic, Rebound -"
+  },
+  "purpose": "Second source state for a strict shared-optical-centre Broadcast test. This state is not allowed to promote the camera unless the joint two-state solve independently satisfies every v90 gate.",
+  "court_region_homography_from_frame_c": {
+    "method": "SIFT source-pixel matches in a broad court-region mask, Lowe ratio 0.72, 2 px RANSAC; dynamic-player matches are treated only as outliers and are not metric anchors",
+    "frame_c_to_event155_H": [
+      [0.989199478, 0.0124653865, 3.07407888],
+      [0.000142702137, 0.993820163, 5.14909145],
+      [0.00000234466228, 0.00000996481476, 1.0]
+    ],
+    "discovery_diagnostics": {
+      "ratio_matches": 155,
+      "ransac_inliers": 106,
+      "inlier_median_px": 0.40997303,
+      "inlier_p95_px": 1.2422475,
+      "inlier_max_px": 1.9613605
+    },
+    "provenance_guardrail": "The homography is source-image evidence used to transfer regulation floor-line observations into this second optical state. It is not a camera-solver output. v90 recomputes the homography from the two immutable source images and fails if the source evidence no longer reproduces."
+  },
+  "observed_target_line_samples_px": {
+    "target_top": [[579,96],[580,97],[581,97],[582,98],[583,98],[584,99],[585,99],[586,100],[587,100],[588,101],[589,101],[590,102],[591,102],[592,103],[593,103]],
+    "target_left": [[578,100],[578,104],[578,108],[578,112],[578,116],[578,120]],
+    "target_right": [[593,104],[593,108],[593,112],[593,116],[593,120],[593,122]]
+  },
+  "target_annotation_policy": "Native 960x540 source pixels only. Samples follow the source-visible centre of the same 2-inch white target stripe line families used by v87. No solver projection, floor homography transfer, player/ball geometry or generated pixel was used to place these elevated target samples.",
+  "heldout_visible_rim_samples_px": [[548,128],[550,126],[552,125],[554,124],[556,124],[558,124],[560,124],[562,124],[564,124],[566,124],[568,124],[570,124]],
+  "rim_annotation_policy": "Native source pixels only. Samples trace only the clearly visible left/upper inside orange rim contour. The orange basketball/occluded right side at larger x is excluded. Rim samples are held out of every v90 fit and are used only for independent basket-depth validation.",
+  "independence": {
+    "rim_used_in_fit": false,
+    "rim_used_in_initialization": false,
+    "target_samples_transferred_from_frame_c": false
+  }
+}
