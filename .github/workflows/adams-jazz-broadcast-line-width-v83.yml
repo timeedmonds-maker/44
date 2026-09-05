@@ -1,0 +1,68 @@
+name: Adams Jazz Broadcast NBA line width v83
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/diagnose_broadcast_nba_line_width_geometry_v83.py'
+      - '.github/workflows/adams-jazz-broadcast-line-width-v83.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic geometry runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Verify exact Broadcast Frame C
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+      - name: Compare legacy versus official line-centre geometry
+        run: |
+          python -m freeze_spin.diagnose_broadcast_nba_line_width_geometry_v83 \
+            --frame frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --observations freeze_spin/adams_jazz_frame_c_broadcast_floor_v82.json \
+            --out broadcast_v83
+      - name: Enforce discovery-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('broadcast_v83/broadcast_nba_line_width_geometry_v83.json'))
+          assert p['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+          assert all(v is False for v in p['permissions'].values())
+          print('V83_INTERPRETATION',p['interpretation'])
+          print('LEGACY_MAX',p['legacy_zero_width_at_outside_dimensions']['pinhole_v44']['max_heldout_feature_p95_px'])
+          print('LINE_AWARE_MAX',p['line_width_aware_centreline_geometry']['pinhole_v44']['max_heldout_feature_p95_px'])
+          print('FEATURES',{k:round(v['p95_px'],4) for k,v in p['line_width_aware_centreline_geometry']['pinhole_v44']['heldout_pixel_error'].items()})
+          PY
+      - name: Package v83 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp broadcast_v83/*.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_broadcast_floor_v82.json delivery/v82_observations.json
+          cp frame_c/A_Broadcast_9.194613s_frame0276.png delivery/
+      - name: Upload v83 diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-line-width-v83-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
