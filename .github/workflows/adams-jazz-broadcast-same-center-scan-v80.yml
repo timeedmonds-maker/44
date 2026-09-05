@@ -1,4 +1,5 @@
 name: Adams Jazz Broadcast same-center state mining v80
+# Rerun after v85 showed the accurate line-aware single-frame homography is under-supported.
 
 on:
   workflow_dispatch:
