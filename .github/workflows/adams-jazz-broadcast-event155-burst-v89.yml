@@ -8,6 +8,11 @@ on:
       - '.github/workflows/adams-jazz-broadcast-event155-burst-v89.yml'
       - 'freeze_spin/mine_same_game_camera_states_v1.py'
       - 'freeze_spin/scan_same_game_camera_priors.py'
+  pull_request:
+    paths:
+      - '.github/workflows/adams-jazz-broadcast-event155-burst-v89.yml'
+      - 'freeze_spin/mine_same_game_camera_states_v1.py'
+      - 'freeze_spin/scan_same_game_camera_priors.py'
 
 permissions:
   contents: read
@@ -49,7 +54,6 @@ jobs:
           target=Path('frame_c/A_Broadcast_9.194613s_frame0276.png')
           gray=cv2.imread(str(target),cv2.IMREAD_GRAYSCALE)
           sift=cv2.SIFT_create(nfeatures=8000,contrastThreshold=0.02,edgeThreshold=10)
-          kp,desc=sift.detectAndCompute(gray,None)
           # v80 f02 is dur*0.393333...; inspect a dense +/-1.0 s burst around it.
           tc=dur*(0.18 + 2*(0.82-0.18)/6)
           rows=[]
