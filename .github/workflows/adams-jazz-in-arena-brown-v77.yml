@@ -1,0 +1,81 @@
+name: Adams Jazz In Arena Brown metric camera v77
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-in-arena-brown-v77.yml'
+      - 'freeze_spin/prove_in_arena_brown_v77.py'
+      - 'freeze_spin/adams_jazz_in_arena_brown_v77.json'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic geometry runtime
+        run: python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 scipy==1.14.1
+      - name: Recover sealed v53b target floor family
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-in-arena-static-scene-v53b-33723851368
+          path: sealed
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33723851368
+      - name: Recover sealed v53a native optical states
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-in-arena-same-game-scan-v53a-33718582878
+          path: states
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33718582878
+      - name: Verify immutable v77 inputs
+        run: |
+          test -f sealed/E_In_Arena_9.062573s_frame0272.png
+          test -f sealed/in_arena_floor_v52.json
+          test -f sealed/in_arena_static_scene_family_v53b.json
+          echo 'a3ae19c3b7439e21ca33a49f2140a9da605e2f62fa1b6759fb5233341d8e38f4  sealed/E_In_Arena_9.062573s_frame0272.png' | sha256sum -c -
+          python - <<'PY'
+          import json
+          a=json.load(open('sealed/in_arena_floor_v52.json')); b=json.load(open('sealed/in_arena_static_scene_family_v53b.json')); s=json.load(open('freeze_spin/adams_jazz_in_arena_brown_v77.json'))
+          assert a['status']=='PASS_IN_ARENA_FLOOR_V52'; assert b['status']=='PASS_IN_ARENA_STATIC_SCENE_FAMILY_V53B'; assert s['freeze_lock']['sha256_png']==b['target_sha256_png']
+          assert s['thresholds']==json.load(open('freeze_spin/adams_jazz_in_arena_target_v76.json'))['thresholds']
+          for r in b['selected_candidates']: assert __import__('pathlib').Path('states',r['file']).is_file(), r['file']
+          print('SEALED V77 INPUTS + UNCHANGED V76 GATES OK')
+          PY
+      - name: Run distortion-aware certification candidate
+        run: |
+          set +e
+          python -m freeze_spin.prove_in_arena_brown_v77 --target sealed/E_In_Arena_9.062573s_frame0272.png --states states --floor-proof sealed/in_arena_floor_v52.json --family-proof sealed/in_arena_static_scene_family_v53b.json --floor-observations freeze_spin/adams_jazz_in_arena_floor_v52.json --target-observations freeze_spin/adams_jazz_in_arena_brown_v77.json --out v77 --root-limit 9 --max-nfev 6500 --perturbation-trials 12
+          code=$?
+          echo "solver_exit_code=$code" >> "$GITHUB_ENV"
+          exit 0
+      - name: Upload v77 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-in-arena-brown-v77-${{ github.run_id }}
+          path: v77/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce frozen v77 certification gate
+        run: |
+          test "${solver_exit_code:-1}" = "0"
+          test -f v77/in_arena_brown_v77.json
+          python - <<'PY'
+          import json
+          p=json.load(open('v77/in_arena_brown_v77.json'))
+          assert p['permissions']['replay_render_allowed'] is False
+          assert p['status']=='PASS_IN_ARENA_BROWN_METRIC_CAMERA_V77', p['status']
+          assert p['permissions']['physical_camera_center_allowed'] is True and p['permissions']['metric_event_camera_allowed'] is True and all(p['gates'].values())
+          q=p['best']; m=p['multistart']; print('V77_CAMERA_PROMOTED'); print('center_cm',q['camera_center_cm']); print('focal_px',q['target_focal_px']); print('pp_px',q['target_principal_point_px']); print('brown',q['distortion']['coefficients']); print('target_rmse_px',q['target_corners']['rmse_px']); print('floor_line_p95_px',q['line_p95_px']); print('ft_holdout_p95_px',q['free_throw_holdout_p95_px']); print('rim_center_px',q['max_rim_center_error_px']); print('competitive_roots',m['competitive_root_count']); print('max_root_center_shift_cm',m['max_competitive_center_shift_cm'])
+          PY
