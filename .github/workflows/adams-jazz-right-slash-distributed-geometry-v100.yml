@@ -1,1 +1,127 @@
-placeholder
+name: Adams Jazz Right Slash distributed geometry v100
+
+on:
+  workflow_dispatch:
+
+jobs:
+  distributed-geometry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/multi-angle-freeze-spin-poc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests pillow opencv-python-headless==4.10.0.84 numpy
+      - name: Mine geometry-rich same-game Right Slash states
+        run: |
+          python - <<'PY'
+          import io, json, math, os, re, subprocess, sys
+          from pathlib import Path
+          import cv2, numpy as np, requests
+          from PIL import Image
+
+          GAME='0022500301'
+          LABEL='Right Slash'
+          OUT=Path('right_slash_v100')
+          OUT.mkdir(exist_ok=True)
+
+          # Reuse the event-video metadata endpoint already proven by v92.
+          url=f'https://cdn.nba.com/static/json/liveData/video/{GAME}/index.json'
+          j=requests.get(url, timeout=30).json()
+          clips=[]
+          for item in j.get('video', j.get('videos', [])):
+              if str(item.get('camera','')).strip()==LABEL or str(item.get('cameraName','')).strip()==LABEL:
+                  clips.append(item)
+          if not clips:
+              # v92 source shape fallback: recursively search any dictionaries that name Right Slash.
+              def walk(x):
+                  if isinstance(x,dict):
+                      vals=' '.join(str(v) for v in x.values() if isinstance(v,(str,int,float)))
+                      if LABEL.lower() in vals.lower(): clips.append(x)
+                      for v in x.values(): walk(v)
+                  elif isinstance(x,list):
+                      for v in x: walk(v)
+              walk(j)
+          # Deduplicate by likely URL/event identity.
+          uniq=[]; seen=set()
+          for c in clips:
+              key=(c.get('eventId') or c.get('eventNum') or c.get('event'), c.get('url') or c.get('videoUrl') or c.get('largeUrl'))
+              if key in seen: continue
+              seen.add(key); uniq.append(c)
+          clips=uniq
+          print('right_slash_candidates',len(clips))
+
+          def find_url(c):
+              for k in ('largeUrl','videoUrl','url','src','hls','hlsUrl'):
+                  v=c.get(k)
+                  if isinstance(v,str) and v.startswith('http'): return v
+              for v in c.values():
+                  if isinstance(v,str) and v.startswith('http') and ('.m3u8' in v or '.mp4' in v): return v
+              return None
+
+          rows=[]
+          # Spread selection across the full game rather than ranking by similarity to event 489.
+          usable=[c for c in clips if find_url(c)]
+          if len(usable)>28:
+              idx=np.linspace(0,len(usable)-1,28).round().astype(int)
+              usable=[usable[i] for i in sorted(set(idx.tolist()))]
+
+          for n,c in enumerate(usable):
+              u=find_url(c)
+              ev=c.get('eventId') or c.get('eventNum') or c.get('event') or n
+              mp4=OUT/f'e{ev}.mp4'; jpg=OUT/f'e{ev}.jpg'
+              try:
+                  subprocess.run(['ffmpeg','-loglevel','error','-y','-i',u,'-vf','select=eq(n\\,30)','-frames:v','1',str(jpg)],check=True,timeout=90)
+                  im=cv2.imread(str(jpg))
+                  if im is None: continue
+                  h,w=im.shape[:2]
+                  gray=cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
+                  sharp=float(cv2.Laplacian(gray,cv2.CV_64F).var())
+                  # Geometry visibility heuristic only: long near-white court/backboard line support + edge support.
+                  hsv=cv2.cvtColor(im,cv2.COLOR_BGR2HSV)
+                  white=cv2.inRange(hsv,np.array([0,0,135]),np.array([180,95,255]))
+                  lines=cv2.HoughLinesP(white,1,np.pi/180,55,minLineLength=max(45,w//12),maxLineGap=12)
+                  lengths=[]; horizontal=vertical=diag=0
+                  if lines is not None:
+                      for q in lines[:,0]:
+                          x1,y1,x2,y2=map(int,q); L=math.hypot(x2-x1,y2-y1); lengths.append(L)
+                          a=abs(math.degrees(math.atan2(y2-y1,x2-x1)))
+                          if a<15 or a>165: horizontal+=1
+                          elif 75<a<105: vertical+=1
+                          else: diag+=1
+                  edge=float((cv2.Canny(gray,80,160)>0).mean())
+                  score=sum(lengths)+120*min(horizontal,4)+120*min(vertical,4)+35*diag+0.20*sharp+5000*edge
+                  rows.append(dict(event=str(ev),url=u,frame=jpg.name,width=w,height=h,sharpness=sharp,line_count=len(lengths),horizontal=horizontal,vertical=vertical,diag=diag,line_length_sum=float(sum(lengths)),edge_fraction=edge,geometry_score=float(score)))
+              except Exception as e:
+                  print('skip',ev,type(e).__name__,e)
+          rows.sort(key=lambda r:r['geometry_score'], reverse=True)
+          Path(OUT/'states.json').write_text(json.dumps(rows,indent=2))
+          # Contact sheet of top states for human/metric landmark selection; no camera promotion here.
+          ims=[]
+          for r in rows[:16]:
+              im=cv2.imread(str(OUT/r['frame']))
+              if im is None: continue
+              cv2.putText(im,f"ev {r['event']} score {r['geometry_score']:.0f}",(12,28),cv2.FONT_HERSHEY_SIMPLEX,.65,(0,255,255),2,cv2.LINE_AA)
+              ims.append(im)
+          if ims:
+              H=270; tiles=[]
+              for im in ims:
+                  s=H/im.shape[0]; tiles.append(cv2.resize(im,(int(im.shape[1]*s),H)))
+              mw=max(x.shape[1] for x in tiles); canvas=[]
+              for i in range(0,len(tiles),4):
+                  row=tiles[i:i+4]; row += [np.zeros((H,mw,3),np.uint8)]*(4-len(row))
+                  row=[cv2.copyMakeBorder(x,0,0,0,mw-x.shape[1],cv2.BORDER_CONSTANT) for x in row]
+                  canvas.append(np.hstack(row))
+              cv2.imwrite(str(OUT/'contact.jpg'),np.vstack(canvas))
+          print('usable_states',len(rows))
+          for r in rows[:10]: print(r['event'],round(r['geometry_score'],1),r['line_count'],r['horizontal'],r['vertical'],round(r['sharpness'],1))
+          assert len(rows)>=6, 'insufficient distributed Right Slash states'
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-distributed-geometry-v100
+          path: right_slash_v100
+          retention-days: 14
