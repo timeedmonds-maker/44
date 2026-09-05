@@ -38,8 +38,12 @@ jobs:
           import json
           q=json.load(open('bank/distributed_same_game_geometry_bank_v100.json'))
           print('BANK_STATUS', q.get('status'))
-          print('TOP_KEYS', sorted(q)[:20])
-          assert q.get('status') in ('V100B_DISTRIBUTED_GEOMETRY_BANK_OK','DISTRIBUTED_GEOMETRY_BANK_OK')
+          print('SUCCESSFUL_CLIPS', q.get('successful_clip_count'))
+          assert q.get('status') == 'DISCOVERY_ONLY_NO_PROMOTION'
+          assert q.get('game_id') == '0022500301'
+          assert q.get('camera_label') == 'Right Slash'
+          assert int(q.get('successful_clip_count', 0)) >= 12
+          assert all(v is False for v in q.get('permissions', {}).values())
           PY
       - name: Run bidirectional intrinsics diagnostic
         run: |
