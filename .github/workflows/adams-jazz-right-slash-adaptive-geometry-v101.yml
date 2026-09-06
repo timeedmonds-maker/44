@@ -1,0 +1,76 @@
+name: Adams Jazz Right Slash adaptive geometry v101
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-adaptive-geometry-v101.yml'
+      - 'freeze_spin/recover_right_slash_geometry_states_v101.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-adaptive-geometry-v101.yml'
+      - 'freeze_spin/recover_right_slash_geometry_states_v101.py'
+
+jobs:
+  geometry-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native video runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Recover geometry-rich Right Slash states across the game
+        run: |
+          python -m freeze_spin.recover_right_slash_geometry_states_v101 \
+            --game-id 0022500301 \
+            --camera-label 'Right Slash' \
+            --event-start 5 \
+            --event-stop 704 \
+            --anchors 18 \
+            --search-radius 16 \
+            --frames-per-clip 9 \
+            --retain-per-clip 2 \
+            --min-successful-anchors 8 \
+            --out right_slash_geometry_v101
+
+      - name: Enforce acquisition-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('right_slash_geometry_v101/right_slash_adaptive_geometry_bank_v101.json').read_text())
+          assert p['permissions']['metric_camera_allowed'] is False
+          assert p['permissions']['replay_render_allowed'] is False
+          assert p['permissions']['shared_center_metric_attempt_allowed'] is True
+          print('V101 STATUS:',p['status'])
+          print('SUCCESSFUL ANCHORS:',p['successful_anchor_count'])
+          PY
+
+      - name: Package v101 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp right_slash_geometry_v101/right_slash_adaptive_geometry_bank_v101.json delivery/ 2>/dev/null || true
+          cp right_slash_geometry_v101/right_slash_adaptive_geometry_montage_v101.png delivery/ 2>/dev/null || true
+          cp right_slash_geometry_v101/event_*_Right_Slash_sheet.png delivery/ 2>/dev/null || true
+          for d in right_slash_geometry_v101/event_*_selected; do
+            [ -d "$d" ] || continue
+            cp -a "$d" delivery/
+          done
+
+      - name: Upload v101 geometry evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-adaptive-geometry-v101-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
