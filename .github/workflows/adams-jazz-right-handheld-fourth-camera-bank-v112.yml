@@ -2,6 +2,7 @@ name: Adams Jazz Right HandHeld fourth-camera bank v112
 
 on:
   push:
+    branches: [right-slash-v100b-run]
     paths:
       - '.github/workflows/adams-jazz-right-handheld-fourth-camera-bank-v112.yml'
   workflow_dispatch:
@@ -18,49 +19,69 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deterministic runtime
         run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
-      - name: Acquire distributed Right HandHeld geometry bank
+      - name: Probe exact event-489 Right HandHeld source
         run: |
-          python -m freeze_spin.scan_distributed_same_game_camera_geometry_v100 \
-            --game-id 0022500301 \
-            --camera-label 'Right HandHeld' \
-            --event-start 5 --event-stop 805 --event-step 5 \
-            --segments 6 --per-segment 3 --frames-per-clip 7 --min-clips 12 \
-            --out right_handheld_bank
-      - name: Acquire exact event-489 Right HandHeld burst
+          python - <<'PY'
+          from pathlib import Path
+          from freeze_spin.scan_same_game_camera_priors import inventory_camera
+          import nba_video_worker as w
+          url,title=inventory_camera('0022500301',489,'Right HandHeld')
+          print('TITLE',title)
+          p=Path('right_handheld_489_probe.mp4')
+          w.download_hls_source(url,p)
+          q=w.probe_video(p)
+          print('EVENT489_PROBE',q)
+          assert q.get('ok'),q
+          PY
+      - name: Acquire exact event-489 Right HandHeld diagnostic burst
         run: |
           python -m freeze_spin.scan_distributed_same_game_camera_geometry_v100 \
             --game-id 0022500301 \
             --camera-label 'Right HandHeld' \
             --event-start 489 --event-stop 489 --event-step 1 \
-            --segments 1 --per-segment 1 --frames-per-clip 13 --min-clips 1 \
+            --segments 1 --per-segment 1 --frames-per-clip 13 --min-clips 0 \
             --out right_handheld_event489
-      - name: Report discovery-only gate
+      - name: Acquire distributed Right HandHeld diagnostic bank
+        run: |
+          python -m freeze_spin.scan_distributed_same_game_camera_geometry_v100 \
+            --game-id 0022500301 \
+            --camera-label 'Right HandHeld' \
+            --event-start 5 --event-stop 805 --event-step 5 \
+            --segments 6 --per-segment 3 --frames-per-clip 7 --min-clips 0 \
+            --out right_handheld_bank
+      - name: Report discovery-only diagnostics
+        if: always()
         run: |
           python - <<'PY'
-          import json
-          a=json.load(open('right_handheld_bank/distributed_same_game_geometry_bank_v100.json'))
-          b=json.load(open('right_handheld_event489/distributed_same_game_geometry_bank_v100.json'))
-          print('BANK_STATUS',a['status'])
-          print('BANK_CLIPS',a['successful_clip_count'])
-          print('BANK_EVENTS',[r['event_probe'] for r in a['events'] if r.get('status')=='ok'])
-          print('EVENT489_STATUS',b['status'])
-          print('EVENT489_CLIPS',b['successful_clip_count'])
-          assert a['camera_label']=='Right HandHeld' and b['camera_label']=='Right HandHeld'
-          assert all(v is False for v in a['permissions'].values())
-          assert all(v is False for v in b['permissions'].values())
+          import json, pathlib
+          for name,path in [('EVENT489','right_handheld_event489/distributed_same_game_geometry_bank_v100.json'),('BANK','right_handheld_bank/distributed_same_game_geometry_bank_v100.json')]:
+            p=pathlib.Path(path)
+            if not p.exists():
+              print(name,'MANIFEST_MISSING');continue
+            q=json.load(open(p))
+            print(name,'STATUS',q['status'],'CLIPS',q['successful_clip_count'])
+            for r in q['events']:
+              print(name,'EVENT',r.get('event_probe'),'STATUS',r.get('status'),'ERROR',r.get('error'),'PROBE',r.get('probe'))
+            assert q['camera_label']=='Right HandHeld'
+            assert all(v is False for v in q['permissions'].values())
           PY
       - name: Package evidence
+        if: always()
         run: |
           mkdir -p delivery
-          cp right_handheld_bank/distributed_same_game_geometry_bank_v100.json delivery/right_handheld_bank_manifest.json
+          cp right_handheld_489_probe.mp4 delivery/ 2>/dev/null || true
+          cp right_handheld_bank/distributed_same_game_geometry_bank_v100.json delivery/right_handheld_bank_manifest.json 2>/dev/null || true
           cp right_handheld_bank/distributed_geometry_candidates_montage.png delivery/right_handheld_bank_montage.png 2>/dev/null || true
-          cp right_handheld_event489/distributed_same_game_geometry_bank_v100.json delivery/right_handheld_event489_manifest.json
+          cp right_handheld_event489/distributed_same_game_geometry_bank_v100.json delivery/right_handheld_event489_manifest.json 2>/dev/null || true
           cp right_handheld_event489/distributed_geometry_candidates_montage.png delivery/right_handheld_event489_montage.png 2>/dev/null || true
           cp -a right_handheld_event489/event_489_frames delivery/event_489_frames 2>/dev/null || true
           for d in right_handheld_bank/event_*_frames; do [ -d "$d" ] && cp -a "$d" delivery/; done
-      - uses: actions/upload-artifact@v4
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: adams-jazz-right-handheld-fourth-camera-bank-v112-${{ github.run_id }}
           path: delivery/
           retention-days: 14
+          if-no-files-found: error
           compression-level: 0
