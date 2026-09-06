@@ -1,0 +1,8 @@
+{
+  "stage": "RIGHT_SLASH_GAME_LEVEL_SHARED_CENTER_V107",
+  "prerequisite": "PASS_RIGHT_SLASH_FIXED_CENTER_AUTHORIZATION_V105",
+  "states": [169, 375, 416, 540],
+  "model": "one physical center; per-state rotation and focal; bounded/shared principal point",
+  "promotion": false,
+  "replay_render_allowed": false
+}
