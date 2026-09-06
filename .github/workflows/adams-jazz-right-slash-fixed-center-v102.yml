@@ -1,0 +1,56 @@
+name: Adams Jazz Right Slash fixed centre v102
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/right-slash-v101-execution]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-fixed-center-v102.yml'
+      - 'freeze_spin/prove_right_slash_multistate_homography_v102.py'
+
+jobs:
+  fixed-center:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install projective runtime
+        run: python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable v101 distributed geometry bank
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-slash-adaptive-geometry-v101-34009445346
+          path: right_slash_v101
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 34009445346
+
+      - name: Prove distributed fixed optical centre projectively
+        run: |
+          python -m freeze_spin.prove_right_slash_multistate_homography_v102 \
+            --v101-root right_slash_v101 \
+            --out right_slash_v102
+
+      - name: Enforce v102 promotion semantics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('right_slash_v102/right_slash_distributed_fixed_center_v102.json').read_text())
+          assert p['status']=='PASS_RIGHT_SLASH_DISTRIBUTED_FIXED_CENTER_V102'
+          assert p['permissions']['shared_center_metric_attempt_allowed'] is True
+          assert p['permissions']['right_slash_metric_camera_allowed'] is False
+          assert p['permissions']['replay_render_allowed'] is False
+          print('V102 PASS:', p['passing_state_count'], 'distributed states')
+          PY
+
+      - name: Upload v102 proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-fixed-center-v102-${{ github.run_id }}
+          path: right_slash_v102/
+          retention-days: 14
+          if-no-files-found: error
