@@ -18,7 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deterministic runtime
-        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          ffmpeg -version | head -1
       - name: Probe exact event-489 Right HandHeld source
         run: |
           python - <<'PY'
@@ -75,7 +79,9 @@ jobs:
           cp right_handheld_event489/distributed_same_game_geometry_bank_v100.json delivery/right_handheld_event489_manifest.json 2>/dev/null || true
           cp right_handheld_event489/distributed_geometry_candidates_montage.png delivery/right_handheld_event489_montage.png 2>/dev/null || true
           cp -a right_handheld_event489/event_489_frames delivery/event_489_frames 2>/dev/null || true
+          shopt -s nullglob
           for d in right_handheld_bank/event_*_frames; do [ -d "$d" ] && cp -a "$d" delivery/; done
+          true
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
