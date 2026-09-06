@@ -3,12 +3,7 @@ name: Adams Jazz Right Slash adaptive geometry v101
 on:
   workflow_dispatch:
   push:
-    branches: [codex/multi-angle-freeze-spin-poc]
-    paths:
-      - '.github/workflows/adams-jazz-right-slash-adaptive-geometry-v101.yml'
-      - 'freeze_spin/recover_right_slash_geometry_states_v101.py'
-  pull_request:
-    branches: [main]
+    branches: [codex/multi-angle-freeze-spin-poc, codex/right-slash-v101-execution]
     paths:
       - '.github/workflows/adams-jazz-right-slash-adaptive-geometry-v101.yml'
       - 'freeze_spin/recover_right_slash_geometry_states_v101.py'
