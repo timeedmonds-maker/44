@@ -1,0 +1,94 @@
+name: Adams Jazz Right Slash targeted cycle intrinsics v111
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [right-slash-v100b-run]
+    paths:
+      - 'freeze_spin/prove_right_slash_targeted_cycle_intrinsics_v111.py'
+      - '.github/workflows/adams-jazz-right-slash-targeted-cycle-intrinsics-v111.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-targeted-cycle-intrinsics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable v100b bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-distributed-geometry-v100b-33980277033
+          path: base_bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33980277033
+      - name: Recover immutable v105 bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-expanded-geometry-v105-33992973825
+          path: expanded_bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33992973825
+      - name: Verify and merge immutable evidence
+        run: |
+          python - <<'PY'
+          import json
+          a=json.load(open('base_bank/distributed_same_game_geometry_bank_v100.json'))
+          b=json.load(open('expanded_bank/distributed_same_game_geometry_bank_v100.json'))
+          assert a['successful_clip_count']==18 and b['successful_clip_count']==28
+          assert a['camera_label']==b['camera_label']=='Right Slash'
+          assert a['game_id']==b['game_id']=='0022500301'
+          assert all(v is False for v in a['permissions'].values())
+          assert all(v is False for v in b['permissions'].values())
+          PY
+          mkdir -p bank
+          cp -a base_bank/event_*_frames bank/
+          for d in expanded_bank/event_*_frames; do
+            [ -d "$d" ] || continue
+            bn=$(basename "$d")
+            if [ -d "bank/$bn" ]; then cp -a "$d"/. "bank/$bn"/; else cp -a "$d" bank/; fi
+          done
+          echo MERGED_EVENTS $(find bank -maxdepth 1 -type d -name 'event_*_frames' | wc -l)
+      - name: Run targeted cycle-closure proof
+        run: python -m freeze_spin.prove_right_slash_targeted_cycle_intrinsics_v111 --bank bank --out v111 --top-frame-pairs 10 --perturbation-trials 12
+      - name: Report gate
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v111/right_slash_targeted_cycle_intrinsics_v111.json'))
+          print('STATUS',q['status'])
+          print('PAIRS',q['pair_count'])
+          print('EDGES',len(q['accepted_edges']))
+          print('CORE',q.get('robust_core_events'))
+          print('PP',q.get('physical_full_fit',{}).get('pp'))
+          print('K1',q.get('physical_full_fit',{}).get('k1'))
+          print('MAX_LOO_PP',q.get('max_leave_one_event_out_pp_shift_px'))
+          print('MAX_HALF_PIXEL_PP',q.get('max_half_pixel_pp_shift_px'))
+          print('GATES',q.get('gates'))
+          print('PRIOR_ALLOWED',q['principal_point_prior_allowed'])
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          PY
+      - name: Package evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v111/*.json delivery/ 2>/dev/null || true
+          cp base_bank/distributed_same_game_geometry_bank_v100.json delivery/v100b_source_manifest.json
+          cp expanded_bank/distributed_same_game_geometry_bank_v100.json delivery/v105_source_manifest.json
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-targeted-cycle-intrinsics-v111-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
