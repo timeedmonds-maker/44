@@ -1,0 +1,53 @@
+name: Adams Jazz Right Slash fixed centre v105
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/right-slash-v101-execution]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-fixed-center-v105.yml'
+      - 'freeze_spin/audit_right_slash_fixed_center_v105.py'
+
+jobs:
+  authorization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Recover fail-closed v104 prerequisite
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-slash-fixed-center-v104-34011169774
+          path: right_slash_v104
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 34011169774
+
+      - name: Audit structural graph versus auxiliary cycle-edge role
+        run: |
+          python -m freeze_spin.audit_right_slash_fixed_center_v105 \
+            --v104-report right_slash_v104/right_slash_fixed_center_graph_v104.json \
+            --out right_slash_v105
+
+      - name: Enforce metric-attempt-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('right_slash_v105/right_slash_fixed_center_authorization_v105.json').read_text())
+          assert p['status']=='PASS_RIGHT_SLASH_FIXED_CENTER_AUTHORIZATION_V105'
+          assert p['permissions']['shared_center_metric_attempt_allowed'] is True
+          assert p['permissions']['right_slash_metric_camera_allowed'] is False
+          assert p['permissions']['replay_render_allowed'] is False
+          print('V105 PASS; metric shared-centre solve authorized.')
+          PY
+
+      - name: Upload v105 authorization
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-fixed-center-v105-${{ github.run_id }}
+          path: right_slash_v105/
+          retention-days: 14
+          if-no-files-found: error
