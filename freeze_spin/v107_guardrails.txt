@@ -1,0 +1,1 @@
+Guardrails: no threshold weakening; no player/ball landmarks; source-visible regulation geometry only; v106 remains discovery-only; metric-camera promotion remains false until multistate heldout/state-out/perturbation gates pass.
