@@ -1,0 +1,66 @@
+name: Adams Jazz Right Slash metric v106
+
+on:
+  push:
+    branches:
+      - codex/right-slash-v101-execution
+    paths:
+      - 'freeze_spin/solve_right_slash_event416_metric_v106.py'
+      - '.github/workflows/adams-jazz-right-slash-metric-v106.yml'
+  workflow_dispatch:
+
+jobs:
+  metric-discovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install metric runtime
+        run: python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 scipy==1.14.1
+
+      - name: Recover immutable v101 geometry bank
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-slash-adaptive-geometry-v101-34009445346
+          path: right_slash_v101
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34009445346
+
+      - name: Recover v105 fixed-centre authorization
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-slash-fixed-center-v105-34011286051
+          path: right_slash_v105
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34011286051
+
+      - name: Solve direct event416 metric camera discovery
+        run: |
+          python -m freeze_spin.solve_right_slash_event416_metric_v106 \
+            --frame right_slash_v101/event_416_selected/f06.png \
+            --v105 right_slash_v105/right_slash_fixed_center_authorization_v105.json \
+            --out right_slash_v106
+
+      - name: Enforce discovery-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('right_slash_v106/right_slash_event416_metric_v106.json').read_text())
+          assert p['status']=='RIGHT_SLASH_EVENT416_METRIC_DISCOVERY_V106'
+          assert p['permissions']['shared_center_metric_attempt_allowed'] is True
+          assert p['permissions']['right_slash_metric_camera_allowed'] is False
+          assert p['permissions']['replay_render_allowed'] is False
+          print('V106 discovery complete; no metric-camera promotion.')
+          PY
+
+      - name: Upload v106 metric discovery
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-metric-v106-${{ github.run_id }}
+          path: right_slash_v106/
+          retention-days: 14
+          if-no-files-found: error
