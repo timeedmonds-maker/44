@@ -1,0 +1,104 @@
+name: Adams Jazz In Arena direct-camera rejection v55a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_in_arena_noncoplanar_center_v54.py'
+      - 'freeze_spin/solve_in_arena_direct_camera_v55a.py'
+      - '.github/workflows/adams-jazz-in-arena-direct-camera-v55a.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reproduce-rejection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic geometry runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 scipy==1.14.1
+
+      - name: Recover sealed v53b target and v52 floor
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-in-arena-static-scene-v53b-33723851368
+          path: sealed
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33723851368
+
+      - name: Verify immutable inputs
+        run: |
+          test -f sealed/E_In_Arena_9.062573s_frame0272.png
+          test -f sealed/in_arena_floor_v52.json
+          echo 'a3ae19c3b7439e21ca33a49f2140a9da605e2f62fa1b6759fb5233341d8e38f4  sealed/E_In_Arena_9.062573s_frame0272.png' | sha256sum -c -
+          python - <<'PY'
+          import json
+          p=json.load(open('sealed/in_arena_floor_v52.json'))
+          assert p['status']=='PASS_IN_ARENA_FLOOR_V52'
+          assert p['floor_homography_allowed'] is True
+          assert p['metric_event_camera_allowed'] is False
+          PY
+
+      - name: Reproduce direct physical-camera test
+        run: |
+          python -m freeze_spin.solve_in_arena_direct_camera_v55a \
+            --image sealed/E_In_Arena_9.062573s_frame0272.png \
+            --floor-proof sealed/in_arena_floor_v52.json \
+            --observations freeze_spin/adams_jazz_in_arena_floor_v52.json \
+            --out v55a \
+            --perturbation-trials 64
+
+      - name: Assert fail-closed rejection semantics
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('v55a/in_arena_direct_camera_v55a.json'))
+          g=p['gates']
+          assert p['status']=='FAIL_IN_ARENA_DIRECT_CAMERA_V55A'
+          assert p['permissions']['metric_event_camera_allowed'] is False
+          assert p['permissions']['replay_render_allowed'] is False
+          # The corrected mount-free rim resolves every nominal image-space
+          # gate.  Promotion remains forbidden because the physical centre is
+          # not stable to support removal or half-pixel annotation changes.
+          assert g['line_endpoint_p95_at_most_3px'] is True
+          assert g['restricted_fit_p95_at_most_3px'] is True
+          assert g['rim_center_at_most_2px'] is True
+          assert g['free_throw_holdout_p95_at_most_6_5px'] is True
+          assert g['rim_major_axis_holdout_at_most_7px'] is True
+          assert g['rim_minor_axis_holdout_at_most_5px'] is True
+          assert g['principal_point_within_160px_crop_margin'] is True
+          assert g['support_removal_action_volume_at_most_2px'] is False
+          assert g['half_pixel_center_shift_at_most_25cm'] is False
+          d=p['rim_source_pixel_diagnostic']
+          assert d['mount_cutoff_x_px_exclusive']==550
+          assert d['ring_pixel_count_after_mount_exclusion']>=250
+          print('EXPECTED V55A REJECTION REPRODUCED')
+          print('centre',p['best']['camera_center_cm'])
+          print('free-throw holdout p95',p['best']['free_throw_holdout_p95_px'])
+          print('max support action-volume p95',max(x['action_volume_p95_shift_px'] for x in p['support_removal']))
+          print('max half-pixel centre shift cm',p['half_pixel_perturbation']['max_camera_center_shift_cm'])
+          PY
+
+      - name: Package rejection evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v55a/*.json delivery/ 2>/dev/null || true
+          cp v55a/*.png delivery/ 2>/dev/null || true
+
+      - name: Upload v55a evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-in-arena-direct-camera-v55a-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

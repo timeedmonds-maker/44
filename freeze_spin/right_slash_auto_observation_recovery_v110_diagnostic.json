@@ -1,0 +1,68 @@
+{
+  "status": "REJECT_GENERIC_AUTO_OBSERVATION_RECOVERY_V110_NOT_A_RIGHT_SLASH_CAMERA_REJECTION",
+  "game_id": "0022500301",
+  "camera_label": "Right Slash",
+  "purpose": "Fail-closed diagnostic of whether projective transfer plus generic local gradient snapping can reproducibly reconstruct the missing source-native 169/375/416 observation package for the v107 shared-center solve.",
+  "source_frames": {
+    "169": {"path": "event_169_selected/f02.png", "sha256": "74b02d5706a89ab3eeb7153db78030295fbbda87bbc2ce13275af5c3844c1c66"},
+    "375": {"path": "event_375_selected/f01.png", "sha256": "51b3e9b85428d30b4a86b1b21a59edbb76ba21cceced44a0050177a6e4a07491"},
+    "416": {"path": "event_416_selected/f06.png", "sha256": "325a0287d58e885e7431d17294360a346f974819094da8d0a6bc571daf487b18"},
+    "540": {"path": "event_540_selected/f00.png", "sha256": "2c10a5be6096181fd423b7d7a8b6136c4b90c97ca8cf9d3442f04ae434cd2bcd"}
+  },
+  "fresh_whole_scene_registration_from_event540": {
+    "169": {"good_matches": 202, "ransac_inliers": 162, "inlier_reprojection_p95_px": 1.6191461086},
+    "375": {"good_matches": 210, "ransac_inliers": 158, "inlier_reprojection_p95_px": 1.9568459988},
+    "416": {"good_matches": 181, "ransac_inliers": 141, "inlier_reprojection_p95_px": 1.4205591679}
+  },
+  "locator_to_native_local_snap_displacement_px": {
+    "169": {
+      "three_point_arc": {"median": 2.25, "p95": 3.8625},
+      "target_top": {"median": 0.75, "p95": 1.125},
+      "target_left": {"median": 0.09375, "p95": 0.309375},
+      "target_right": {"median": 0.09375, "p95": 0.1546875}
+    },
+    "375": {
+      "three_point_arc": {"median": 3.25, "p95": 4.0},
+      "free_throw_line": {"median": 0.75, "p95": 2.8875},
+      "free_throw_front_semicircle": {"median": 1.375, "p95": 4.0},
+      "target_top": {"median": 0.9375, "p95": 1.03125},
+      "target_left": {"median": 0.375, "p95": 0.375},
+      "target_right": {"median": 0.46875, "p95": 0.46875}
+    },
+    "416": {
+      "free_throw_line": {"median": 1.25, "p95": 3.95},
+      "free_throw_front_semicircle": {"median": 1.0, "p95": 4.0},
+      "target_top": {"median": 0.375, "p95": 0.5625},
+      "target_left": {"median": 0.1875, "p95": 0.2484375},
+      "target_right": {"median": 0.1875, "p95": 0.65625}
+    }
+  },
+  "diagnostic_four_state_fit_using_auto_snapped_court_samples": {
+    "authoritative": false,
+    "reason_non_authoritative": "Several court-family snaps reach or nearly reach the +/-4 px local search boundary; the reconstructed court observations therefore fail source-native observation quality before metric fitting.",
+    "shared_center_cm": [16668.2966, -19993.5228, 7306.9272],
+    "shared_principal_point_px": [929.5394, 288.9398],
+    "focal_px_by_state": {"169": 277.2, "375": 798.0, "416": 1341.8, "540": 181.2},
+    "absolute_residual_px": {"median": 1.949, "p95": 28.4245, "max": 46.9906},
+    "drop_416_free_throw_front_semicircle_center_shift_cm": 1116.5,
+    "drop_416_free_throw_line_center_shift_cm": 31.70,
+    "interpretation": "Reject the automatic observation-recovery method. Do NOT interpret this pathological root or the 1116.5 cm support shift as evidence that the physical Right Slash camera itself fails v107."
+  },
+  "decision": {
+    "generic_projective_locator_plus_gradient_snap_allowed_for_v107_observation_reconstruction": false,
+    "event540_source_native_v108_support_remains_valid": true,
+    "right_slash_metric_camera_promoted": false,
+    "camera4_promoted": false,
+    "replay_render_allowed": false,
+    "required_before_any_new_right_slash_acceptance_attempt": "Recover or deterministically re-extract the exact source-native 169/375/416 regulation-line observations with per-family native-pixel QA; only then run full v107/v109 nominal, multistart, support-reduction, +/-0.5 px perturbation, and held-out rim/board/court QA."
+  },
+  "contingency": {
+    "rejected": "Left HandHeld: v57a found a roaming physical viewpoint and underconstrained Frame C.",
+    "next_best_candidate": "Left Slash",
+    "basis": "Existing v58a/v58b/v59/v60 pipeline and v59 regulation target/rim source observations provide a cleaner fixed-camera contingency than the rejected roaming handheld."
+  },
+  "permissions": {
+    "metric_camera_allowed": false,
+    "replay_render_allowed": false
+  }
+}

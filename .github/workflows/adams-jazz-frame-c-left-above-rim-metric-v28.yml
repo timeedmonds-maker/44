@@ -1,0 +1,103 @@
+name: Adams Jazz Frame C Left Above Rim metric camera v28
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_frame_c_left_above_rim_metric_camera_v28.py'
+      - 'freeze_spin/prove_frame_c_left_above_rim_metric_camera_v27.py'
+      - 'freeze_spin/adams_jazz_game_camera_registry_v1.json'
+      - 'freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json'
+      - '.github/workflows/adams-jazz-frame-c-left-above-rim-metric-v28.yml'
+
+jobs:
+  prove-event-camera:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native-video and metric runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve exact target event official angles fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+
+      - name: Recreate immutable Frame C synchronized views
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash'
+          assert lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7
+          assert int(lar['decoded_frame_index'])==259
+          print('FRAME_C_LOCK', lock)
+          print('LEFT_ABOVE_RIM_FRAME', lar)
+          PY
+
+      - name: Prove exact metric camera with dense projective stability
+        run: |
+          python -m freeze_spin.prove_frame_c_left_above_rim_metric_camera_v28 \
+            --frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v1.json \
+            --camera-label 'Left Above Rim' \
+            --out metric_v28 \
+            --max-fit-rmse-px 1.0 \
+            --max-fit-p95-px 1.5 \
+            --max-loo-median-px 2.0 \
+            --max-loo-max-px 4.0 \
+            --max-direct-center-disagreement-cm 10.0 \
+            --perturbation-trials 24 \
+            --max-projective-p95-px 1.5 \
+            --max-projective-max-px 3.0 \
+            --max-perturb-focal-fraction 0.05
+          python - <<'PY'
+          import json
+          q=json.load(open('metric_v28/frame_c_left_above_rim_metric_camera_v28.json'))
+          assert q['status']=='PASS_METRIC_EVENT_CAMERA'
+          assert q['metric_event_camera_allowed'] is True
+          assert q['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          assert q['thresholds']['max_dense_projective_p95_px']==1.5
+          assert q['thresholds']['max_dense_projective_max_px']==3.0
+          print('METRIC_EVENT_CAMERA', q['camera']['camera_center_world_cm'], q['camera']['focal_px'], q['camera']['principal_point_px'])
+          print('PROJECTIVE_STABILITY', q['half_pixel_perturbation']['max_dense_projective_p95_px'], q['half_pixel_perturbation']['max_dense_projective_max_px'])
+          PY
+
+      - name: Package metric event camera proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp metric_v28/frame_c_left_above_rim_metric_camera_v28.json delivery/ 2>/dev/null || true
+          cp metric_v28/frame_c_left_above_rim_metric_overlay_v28.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp frame_c_target/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_game_camera_registry_v1.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json delivery/ 2>/dev/null || true
+
+      - name: Upload metric event camera proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-left-above-rim-metric-v28-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

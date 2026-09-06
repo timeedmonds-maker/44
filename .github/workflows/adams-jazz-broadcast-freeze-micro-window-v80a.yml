@@ -1,0 +1,88 @@
+name: Adams Jazz Broadcast freeze micro-window v80a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/export_broadcast_freeze_micro_window_v80a.py'
+      - '.github/workflows/adams-jazz-broadcast-freeze-micro-window-v80a.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native video runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Recover immutable synchronized Frame C target
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify immutable Broadcast target
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+
+      - name: Retrieve exact event official angles fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+          BROADCAST_CLIP="$(find target_source/clips -name '*_0022500301_489_Broadcast_SOURCE.mp4' | head -n1)"
+          test -n "$BROADCAST_CLIP"
+          echo "$BROADCAST_CLIP" > broadcast_clip_path.txt
+
+      - name: Export and rank adjacent native frames
+        run: |
+          python -m freeze_spin.export_broadcast_freeze_micro_window_v80a \
+            --clip "$(cat broadcast_clip_path.txt)" \
+            --target-frame frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --target-sha256 7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c \
+            --freeze-time 9.194613 \
+            --radius-seconds 0.65 \
+            --step-frames 2 \
+            --out micro_v80a
+          python - <<'PY'
+          import json
+          p=json.load(open('micro_v80a/broadcast_freeze_micro_window_v80a.json'))
+          assert p['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+          assert p['immutable_target']['sha256']=='7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c'
+          assert all(v is False for v in p['permissions'].values())
+          assert len(p['frames'])>=15
+          print('V80A_MICRO_WINDOW',len(p['frames']),'credible',len(p['credible_frames']))
+          PY
+
+      - name: Package v80a evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp micro_v80a/broadcast_freeze_micro_window_v80a.json delivery/ 2>/dev/null || true
+          cp micro_v80a/credible_micro_window_montage.png delivery/ 2>/dev/null || true
+          cp -a micro_v80a/frames delivery/ 2>/dev/null || true
+          cp frame_c/A_Broadcast_9.194613s_frame0276.png delivery/ 2>/dev/null || true
+
+      - name: Upload v80a discovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-freeze-micro-v80a-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

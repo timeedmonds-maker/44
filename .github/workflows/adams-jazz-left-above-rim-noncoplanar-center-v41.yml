@@ -1,0 +1,77 @@
+name: Adams Jazz Left Above Rim noncoplanar centre v41
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_left_above_rim_rim_center_v41.py'
+      - 'freeze_spin/adams_jazz_left_above_rim_independent_rim_centers_v41.json'
+      - '.github/workflows/adams-jazz-left-above-rim-noncoplanar-center-v41.yml'
+
+jobs:
+  prove-v41:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve exact target event fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json'));lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7 and int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7 and int(lar['decoded_frame_index'])==259
+          PY
+      - name: Retrieve independent same-game Left Above Rim samples
+        run: |
+          python freeze_spin/export_same_camera_transfer_samples_v1.py --game-id 0022500301 --events 40,220,440,620 --label 'Left Above Rim' --out lar_samples
+      - name: Prove independent noncoplanar centre
+        run: |
+          python freeze_spin/prove_left_above_rim_rim_center_v41.py \
+            --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --samples lar_samples \
+            --floor-proof freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --rim-observations freeze_spin/adams_jazz_left_above_rim_independent_rim_centers_v41.json \
+            --out v41 --perturbation-trials 24
+          python - <<'PY'
+          import json
+          q=json.load(open('v41/left_above_rim_noncoplanar_center_v41.json'))
+          assert q['status']=='PASS_NONCOPLANAR_GAME_CAMERA_CENTER_V41'
+          assert q['permissions']['physical_camera_center_allowed'] is True
+          assert q['permissions']['metric_event_camera_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          print('V41_CENTER',q['camera_center_cm'])
+          print('V41_PP_DIAGNOSTIC',q['shared_principal_point_diagnostic_px'])
+          print('V41_LOO',q['leave_one_event_out'])
+          print('V41_PERTURB',q['perturbation'])
+          PY
+      - name: Package v41
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v41/left_above_rim_noncoplanar_center_v41.json delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp lar_samples/sample_manifest.json delivery/ 2>/dev/null || true
+          cp lar_samples/Left_Above_Rim__event*.png delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_left_above_rim_independent_rim_centers_v41.json delivery/ 2>/dev/null || true
+      - name: Upload v41
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-above-rim-noncoplanar-center-v41-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

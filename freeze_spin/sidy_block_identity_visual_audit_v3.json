@@ -1,0 +1,51 @@
+{
+  "game_id": "0022500527",
+  "event_id": 18,
+  "purpose": "Manual source-pixel audit of the corrected shoulder identity observations. Numerical triangulation is subordinate to this visual gate.",
+  "status": "v2_false_green_invalidated",
+  "minimum_valid_views_per_shoulder": 3,
+  "minimum_border_margin_px": 30,
+  "views": {
+    "In Arena": {
+      "image": "In_Arena_F26.png",
+      "points": {
+        "adams_block_shoulder": {
+          "visual_identity_valid": false,
+          "reason": "The corrected Adams point at approximately (485,270) lands on/inside Cissoko's red upper-body overlap. Adams' shoulder is not independently visible enough in this locked view to establish identity."
+        },
+        "cissoko_ball_shoulder": {
+          "visual_identity_valid": true,
+          "reason": "The point at approximately (457,279) lands on the red #12 dunker's upper shoulder/body and is independently attributable to Cissoko."
+        }
+      }
+    },
+    "Left Slash": {
+      "image": "Left_Slash_F27.png",
+      "points": {
+        "adams_block_shoulder": {
+          "visual_identity_valid": true,
+          "reason": "The white defender is separately visible behind/right of Cissoko at the selected point, although the overlap remains substantial."
+        },
+        "cissoko_ball_shoulder": {
+          "visual_identity_valid": true,
+          "reason": "The red #12 shoulder is visibly distinct and source-identifiable."
+        }
+      }
+    },
+    "Left HandHeld": {
+      "image": "Left_HandHeld_F25.png",
+      "points": {
+        "adams_block_shoulder": {
+          "visual_identity_valid": false,
+          "reason": "The observation is at the cropped bottom edge (y approximately 519 in a 540 px frame); the body/shoulder is not independently visible enough to establish player identity."
+        },
+        "cissoko_ball_shoulder": {
+          "visual_identity_valid": false,
+          "reason": "The observation is at the cropped bottom edge (y approximately 521 in a 540 px frame); torso continuity is absent, so the shoulder cannot serve as an independent identity lock."
+        }
+      }
+    }
+  },
+  "gate_interpretation": "Run 33530307947 remains a valid numerical triangulation diagnostic, but its block_arm_identity_locked status is a false green under the required visual identity criterion. Do not use it to declare the semantic skeleton complete.",
+  "next_route": "Adams currently has one visually valid calibrated shoulder view and therefore needs two additional independent metric identity-bearing views to reach the three-view minimum; Cissoko currently has two and needs one. Right Slash, Right HandHeld and Right Above Rim are the current candidate feeds. Calibrate new cameras without weakening basket/court gates or using the disputed shoulder observations as calibration inputs; audited static/fixed-geometry transfer is preferred where direct basket geometry is underconstrained."
+}

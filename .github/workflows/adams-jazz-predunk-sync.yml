@@ -1,0 +1,103 @@
+name: Adams Jazz pre-dunk exact-state sync
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/select_jazz_predunk_reference_v1.py'
+      - '.github/workflows/adams-jazz-predunk-sync.yml'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native vision runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 scipy==1.12.0 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+
+      - name: Retrieve 12 official native Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source --workers 8
+
+      - name: Select the pre-dunk reference state
+        run: |
+          python freeze_spin/select_jazz_predunk_reference_v1.py \
+            --clips jazz_dunk_source/clips \
+            --out jazz_predunk
+
+      - name: Audio-synchronize all cameras to the selected state
+        run: |
+          REF=$(python - <<'PY'
+          import json
+          print(json.load(open('jazz_predunk/predunk_selection_v1.json'))['reference_label'])
+          PY
+          )
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_predunk/jazz_predunk_sync_map.json \
+            --clips jazz_dunk_source/clips \
+            --reference "$REF" \
+            --max-lag-seconds 2.0 \
+            --out jazz_predunk/audio_sync_graph.json
+
+      - name: Export exact-state native frames from predicted sync times
+        run: |
+          mkdir -p jazz_predunk/locked_frames
+          python - <<'PY'
+          import cv2, json
+          from pathlib import Path
+          sync=json.load(open('jazz_predunk/audio_sync_graph.json'))
+          cfg=json.load(open('jazz_predunk/jazz_predunk_sync_map.json'))
+          files={r['label']:r['file'] for r in cfg['angles']}
+          report=[]
+          for row in sync['angles']:
+              label=row['label']; t=float(row['predicted_freeze_time'])
+              path=Path('jazz_dunk_source/clips')/files[label]
+              cap=cv2.VideoCapture(str(path)); cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0); ok,frame=cap.read(); cap.release()
+              if not ok: raise RuntimeError(f'Could not read {label} at {t}')
+              safe=label.replace(' ','_')
+              out=Path('jazz_predunk/locked_frames')/f'{safe}_predunk.png'
+              cv2.imwrite(str(out),frame)
+              report.append({'label':label,'time':t,'file':out.name,'shape':[frame.shape[1],frame.shape[0]],'sync_confidence':row['confidence'],'mean_incident_quality':row['mean_incident_quality']})
+          Path('jazz_predunk/locked_frames/locked_frames.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2))
+          PY
+
+      - name: Gate synchronization quality
+        run: |
+          python - <<'PY'
+          import json
+          s=json.load(open('jazz_predunk/audio_sync_graph.json'))
+          rows=s['angles']
+          moderate=sum(r['confidence'] in ('high','moderate') for r in rows)
+          if moderate < 8:
+              raise SystemExit(f'Only {moderate}/12 cameras have >=moderate audio sync')
+          print(f'SYNC_PASS={moderate}/{len(rows)} >= moderate')
+          PY
+
+      - name: Upload exact-state Jazz inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-predunk-sync-${{ github.run_id }}
+          path: |
+            jazz_predunk/predunk_reference_native.png
+            jazz_predunk/predunk_selection_v1.json
+            jazz_predunk/jazz_predunk_sync_map.json
+            jazz_predunk/audio_sync_graph.json
+            jazz_predunk/locked_frames/*.png
+            jazz_predunk/locked_frames/locked_frames.json
+            jazz_dunk_source/qa.json
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

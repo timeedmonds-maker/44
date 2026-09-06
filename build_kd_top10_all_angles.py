@@ -1,11 +1,39 @@
 from __future__ import annotations
-import argparse, html as htmlmod, json, re, shutil, sys, time
+import argparse, html as htmlmod, json, re, shutil, sys, time, urllib.error
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import nba_video_worker as w
 
 ORDER={'Broadcast':0,'Other Broadcast':1,'Mobile Broadcast':2,'Play by Play':3,'In Arena':4,'High Tight':5,'Left Slash':6,'Right Slash':7,'Left HandHeld':8,'Right HandHeld':9,'Left Above Rim':10,'Right Above Rim':11}
+
+# clips.nba.com / lrmedia occasionally returns short-lived 429/5xx responses from
+# GitHub-hosted runners.  Keep the canonical worker strict, but make this all-angle
+# acquisition path resilient to transient transport failures.  The backoff is
+# bounded and deterministic; permanent HTTP errors still fail immediately.
+_ORIGINAL_HTTP_BYTES = w.http_bytes
+_RETRY_DELAYS_SECONDS = (1.0, 2.0, 4.0, 8.0, 12.0)
+_TRANSIENT_HTTP_STATUS = {429, 500, 502, 503, 504}
+
+def retry_http_bytes(url, headers=None, timeout=45):
+    attempts = len(_RETRY_DELAYS_SECONDS) + 1
+    for attempt in range(attempts):
+        try:
+            return _ORIGINAL_HTTP_BYTES(url, headers, timeout)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in _TRANSIENT_HTTP_STATUS or attempt == attempts - 1:
+                raise
+            delay = _RETRY_DELAYS_SECONDS[attempt]
+            print(f'HTTP_RETRY status={exc.code} attempt={attempt + 1}/{attempts} sleep_s={delay} url={url}', flush=True)
+            time.sleep(delay)
+        except urllib.error.URLError as exc:
+            if attempt == attempts - 1:
+                raise
+            delay = _RETRY_DELAYS_SECONDS[attempt]
+            print(f'HTTP_RETRY urlerror={exc.reason!r} attempt={attempt + 1}/{attempts} sleep_s={delay} url={url}', flush=True)
+            time.sleep(delay)
+
+w.http_bytes = retry_http_bytes
 
 def inventory(gid,eid):
     url=f'https://clips.nba.com/?gameNo={gid}&eventNum={eid}&source=grs'

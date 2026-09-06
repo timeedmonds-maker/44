@@ -1,0 +1,100 @@
+{
+  "event": {
+    "game_id": "0022500301",
+    "event_id": 489
+  },
+  "chosen_timing": {
+    "source_camera": "Right Slash",
+    "option": "C",
+    "right_slash_local_time": 8.275733,
+    "decoded_frame_index_from_manual_chooser": 248
+  },
+  "common_reference_time_left_above_rim": 8.653093,
+  "policy": "Timing C is authoritative. Camera may change because Right Slash crops the ball. Every option below is the same synchronized basketball instant.",
+  "options": [
+    {
+      "option": "A",
+      "camera": "Broadcast",
+      "requested_local_time": 9.194613,
+      "decoded_frame_index": 276,
+      "file": "A_Broadcast_9.194613s_frame0276.png"
+    },
+    {
+      "option": "B",
+      "camera": "Other Broadcast",
+      "requested_local_time": 9.535013,
+      "decoded_frame_index": 286,
+      "file": "B_Other_Broadcast_9.535013s_frame0286.png"
+    },
+    {
+      "option": "C",
+      "camera": "Mobile Broadcast",
+      "requested_local_time": 8.937253,
+      "decoded_frame_index": 268,
+      "file": "C_Mobile_Broadcast_8.937253s_frame0268.png"
+    },
+    {
+      "option": "D",
+      "camera": "Play by Play",
+      "requested_local_time": 9.150953,
+      "decoded_frame_index": 275,
+      "file": "D_Play_by_Play_9.150953s_frame0275.png"
+    },
+    {
+      "option": "E",
+      "camera": "In Arena",
+      "requested_local_time": 9.062573,
+      "decoded_frame_index": 272,
+      "file": "E_In_Arena_9.062573s_frame0272.png"
+    },
+    {
+      "option": "F",
+      "camera": "High Tight",
+      "requested_local_time": 8.867173,
+      "decoded_frame_index": 266,
+      "file": "F_High_Tight_8.867173s_frame0266.png"
+    },
+    {
+      "option": "G",
+      "camera": "Left Slash",
+      "requested_local_time": 8.868843,
+      "decoded_frame_index": 266,
+      "file": "G_Left_Slash_8.868843s_frame0266.png"
+    },
+    {
+      "option": "H",
+      "camera": "Right Slash",
+      "requested_local_time": 8.275733,
+      "decoded_frame_index": 248,
+      "file": "H_Right_Slash_8.275733s_frame0248.png"
+    },
+    {
+      "option": "I",
+      "camera": "Left HandHeld",
+      "requested_local_time": 8.875603,
+      "decoded_frame_index": 266,
+      "file": "I_Left_HandHeld_8.875603s_frame0266.png"
+    },
+    {
+      "option": "J",
+      "camera": "Right HandHeld",
+      "requested_local_time": 8.683573,
+      "decoded_frame_index": 260,
+      "file": "J_Right_HandHeld_8.683573s_frame0260.png"
+    },
+    {
+      "option": "K",
+      "camera": "Left Above Rim",
+      "requested_local_time": 8.653093,
+      "decoded_frame_index": 259,
+      "file": "K_Left_Above_Rim_8.653093s_frame0259.png"
+    },
+    {
+      "option": "L",
+      "camera": "Right Above Rim",
+      "requested_local_time": 8.562013,
+      "decoded_frame_index": 257,
+      "file": "L_Right_Above_Rim_8.562013s_frame0257.png"
+    }
+  ]
+}

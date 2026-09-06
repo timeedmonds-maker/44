@@ -1,0 +1,75 @@
+# trigger existing v58a workflow; acquisition semantics unchanged
+name: Adams Jazz Left Slash same-game scan v58a
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-same-game-scan-v58a.yml'
+      - 'freeze_spin/scan_same_game_camera_priors.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-same-game-scan-v58a.yml'
+      - 'freeze_spin/scan_same_game_camera_priors.py'
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native-frame runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Acquire diverse same-game Left Slash states
+        run: |
+          python freeze_spin/scan_same_game_camera_priors.py \
+            --game-id 0022500301 \
+            --camera-label 'Left Slash' \
+            --count 8 \
+            --event-start 5 \
+            --event-stop 1205 \
+            --event-step 10 \
+            --out left_slash_scan_v58a
+
+      - name: Assert acquisition-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('left_slash_scan_v58a/same_game_camera_prior_scan.json').read_text())
+          ok=[e for e in p['events'] if e.get('status')=='ok']
+          assert p['game_id']=='0022500301'
+          assert p['camera_label']=='Left Slash'
+          assert p['promotion_allowed'] is False
+          assert len(ok)>=4
+          print('LEFT SLASH CLIPS',len(ok))
+          print([e['event_probe'] for e in ok])
+          PY
+
+      - name: Package native state evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp left_slash_scan_v58a/same_game_camera_prior_scan.json delivery/ || true
+          cp left_slash_scan_v58a/event_*_Left_Slash_sheet.png delivery/ || true
+          for d in left_slash_scan_v58a/event_*_frames; do
+            [ -d "$d" ] || continue
+            cp -a "$d" delivery/
+          done
+
+      - name: Upload v58a scan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-slash-same-game-scan-v58a-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

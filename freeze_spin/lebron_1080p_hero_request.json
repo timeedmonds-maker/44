@@ -1,0 +1,24 @@
+{
+  "player": "LeBron James",
+  "player_id": 2544,
+  "season": "2025-26",
+  "selection": "1080p hero-film and cross-resolution free-view validation event supplied by user",
+  "expected_count": 1,
+  "role": "HERO_1080P_VALIDATION_ONLY_NOT_GAME_INTRINSICS_PRIOR",
+  "source_audit_workflow": "lebron-1080p-hero-source-audit-v1",
+  "events": [
+    {
+      "rank": 1,
+      "game_id": "0022501185",
+      "event_id": 95,
+      "period": 1,
+      "clock": "04:53",
+      "player": "2544 LeBron James",
+      "assister": "Luke Kennard",
+      "description": "LeBron James running dunk, assisted by Luke Kennard",
+      "video_anchor": "made dunk event_id",
+      "sampling_policy": "Retrieve every official NBA angle at highest native HLS rendition and retain native resolution. Do not use this cross-game event to construct the Utah Left Above Rim v41 optical prior.",
+      "hero_policy": "If one or more official angles are native 1080p, preserve those native pixels for the eventual showcase render. The core reconstruction algorithm must still pass the existing lower-resolution 960x540 Adams/Jazz event without relying on 1080p inputs."
+    }
+  ]
+}

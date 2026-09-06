@@ -1,0 +1,73 @@
+# trigger existing v58b workflow; thresholds and semantics unchanged
+name: Adams Jazz Left Slash transfer v58b
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/audit_same_game_camera_transfer_v58b.py'
+      - '.github/workflows/adams-jazz-left-slash-transfer-v58b.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/audit_same_game_camera_transfer_v58b.py'
+      - '.github/workflows/adams-jazz-left-slash-transfer-v58b.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve target and immutable Frame C
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+          test -f frame_c_target/frames/G_Left_Slash_8.868843s_frame0266.png
+
+      - name: Acquire fresh same-game Left Slash states
+        run: |
+          python freeze_spin/scan_same_game_camera_priors.py \
+            --game-id 0022500301 \
+            --camera-label 'Left Slash' \
+            --count 8 \
+            --event-start 5 \
+            --event-stop 1205 \
+            --event-step 10 \
+            --out left_slash_scan_v58b
+
+      - name: Run unchanged pinhole transfer gate
+        run: |
+          python freeze_spin/audit_same_game_camera_transfer_v58b.py \
+            --target frame_c_target/frames/G_Left_Slash_8.868843s_frame0266.png \
+            --candidate-root left_slash_scan_v58b \
+            --camera-label 'Left Slash' \
+            --out v58b/left_slash_transfer_v58b.json
+          cat v58b/left_slash_transfer_v58b.json
+
+      - name: Package evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v58b/*.json delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/G_Left_Slash_8.868843s_frame0266.png delivery/ 2>/dev/null || true
+          cp left_slash_scan_v58b/*_Left_Slash_sheet.png delivery/ 2>/dev/null || true
+          cp left_slash_scan_v58b/same_game_camera_prior_scan.json delivery/ 2>/dev/null || true
+
+      - name: Upload v58b audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-slash-transfer-v58b-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

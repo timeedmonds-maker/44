@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "game_id": "0022500301",
+  "date": "2025-11-30",
+  "camera_label": "Left HandHeld",
+  "stage": "v57a",
+  "workflow_run_id": 33730425000,
+  "workflow_head_sha": "180a5c55750573f7b19c63c4a2dd8b6e33e3e80a",
+  "artifact_id": 9883645849,
+  "artifact_name": "adams-jazz-left-handheld-same-game-scan-v57a-33730425000",
+  "artifact_digest": "sha256:6a73d8154e786a999f1d333434961e39c88876689e97fd80fc0b7fd7cbe3a1e1",
+  "successful_native_samples": 8,
+  "event_probes": [15, 25, 55, 65, 75, 85, 95, 105],
+  "source_resolution_px": [960, 540],
+  "visual_qa": {
+    "result": "ROAMING_HANDHELD_NOT_FIXED_GAME_LEVEL_CAMERA",
+    "reason": "Across the eight native same-game contact sheets the physical viewpoint and framing move materially along the baseline/corner. The NBA feed label therefore cannot be used as a shared fixed camera-centre identity for this game.",
+    "confidence": "high"
+  },
+  "frame_c_direct_identifiability_preflight": {
+    "frame": "I_Left_HandHeld_8.875603s_frame0266.png",
+    "result": "UNDERCONSTRAINED_BOARD_RIM_ONLY",
+    "reason": "The exact Frame C has strong visible board/target/rim geometry but is nearly front-on and has weak usable court-plane support. Preliminary multistart direct basket solves admit materially different focal/distance/camera-centre solutions with similarly good image-space fits. A convenient focal or transferred game-centre prior would manufacture certainty rather than prove it.",
+    "action": "Do not promote this Frame C as the second physical metric camera from board+rim alone. Revisit only if independent metric support becomes available."
+  },
+  "permissions": {
+    "shared_game_camera_center_prior_allowed": false,
+    "frame_c_metric_camera_promoted": false,
+    "physical_camera_center_allowed": false,
+    "replay_render_allowed": false
+  },
+  "next_candidate": "Left Slash",
+  "policy": "Fail closed. Good nominal reprojection is insufficient when optical state is mobile or physical camera centre is not identifiable."
+}

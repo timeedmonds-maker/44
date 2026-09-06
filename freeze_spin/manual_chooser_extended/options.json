@@ -1,0 +1,202 @@
+{
+  "event": {
+    "game_id": "0022500301",
+    "event_id": 489
+  },
+  "camera": "Right Slash",
+  "range": {
+    "first_time": 8.209,
+    "last_time": 9.21,
+    "span_seconds": 1.001,
+    "fps": 29.97003
+  },
+  "instruction": "User selects one option A-AE. That exact real Right Slash frame becomes the authoritative frozen player/ball state. No automatic apex selector is used.",
+  "options": [
+    {
+      "option": "A",
+      "right_slash_local_time": 8.209,
+      "decoded_frame_index": 246,
+      "file": "A_8.209000s_frame0246.png"
+    },
+    {
+      "option": "B",
+      "right_slash_local_time": 8.242367,
+      "decoded_frame_index": 247,
+      "file": "B_8.242367s_frame0247.png"
+    },
+    {
+      "option": "C",
+      "right_slash_local_time": 8.275733,
+      "decoded_frame_index": 248,
+      "file": "C_8.275733s_frame0248.png"
+    },
+    {
+      "option": "D",
+      "right_slash_local_time": 8.3091,
+      "decoded_frame_index": 249,
+      "file": "D_8.309100s_frame0249.png"
+    },
+    {
+      "option": "E",
+      "right_slash_local_time": 8.342467,
+      "decoded_frame_index": 250,
+      "file": "E_8.342467s_frame0250.png"
+    },
+    {
+      "option": "F",
+      "right_slash_local_time": 8.375833,
+      "decoded_frame_index": 251,
+      "file": "F_8.375833s_frame0251.png"
+    },
+    {
+      "option": "G",
+      "right_slash_local_time": 8.4092,
+      "decoded_frame_index": 252,
+      "file": "G_8.409200s_frame0252.png"
+    },
+    {
+      "option": "H",
+      "right_slash_local_time": 8.442567,
+      "decoded_frame_index": 253,
+      "file": "H_8.442567s_frame0253.png"
+    },
+    {
+      "option": "I",
+      "right_slash_local_time": 8.475933,
+      "decoded_frame_index": 254,
+      "file": "I_8.475933s_frame0254.png"
+    },
+    {
+      "option": "J",
+      "right_slash_local_time": 8.5093,
+      "decoded_frame_index": 255,
+      "file": "J_8.509300s_frame0255.png"
+    },
+    {
+      "option": "K",
+      "right_slash_local_time": 8.542667,
+      "decoded_frame_index": 256,
+      "file": "K_8.542667s_frame0256.png"
+    },
+    {
+      "option": "L",
+      "right_slash_local_time": 8.576033,
+      "decoded_frame_index": 257,
+      "file": "L_8.576033s_frame0257.png"
+    },
+    {
+      "option": "M",
+      "right_slash_local_time": 8.6094,
+      "decoded_frame_index": 258,
+      "file": "M_8.609400s_frame0258.png"
+    },
+    {
+      "option": "N",
+      "right_slash_local_time": 8.642767,
+      "decoded_frame_index": 259,
+      "file": "N_8.642767s_frame0259.png"
+    },
+    {
+      "option": "O",
+      "right_slash_local_time": 8.676133,
+      "decoded_frame_index": 260,
+      "file": "O_8.676133s_frame0260.png"
+    },
+    {
+      "option": "P",
+      "right_slash_local_time": 8.7095,
+      "decoded_frame_index": 261,
+      "file": "P_8.709500s_frame0261.png"
+    },
+    {
+      "option": "Q",
+      "right_slash_local_time": 8.742867,
+      "decoded_frame_index": 262,
+      "file": "Q_8.742867s_frame0262.png"
+    },
+    {
+      "option": "R",
+      "right_slash_local_time": 8.776233,
+      "decoded_frame_index": 263,
+      "file": "R_8.776233s_frame0263.png"
+    },
+    {
+      "option": "S",
+      "right_slash_local_time": 8.8096,
+      "decoded_frame_index": 264,
+      "file": "S_8.809600s_frame0264.png"
+    },
+    {
+      "option": "T",
+      "right_slash_local_time": 8.842967,
+      "decoded_frame_index": 265,
+      "file": "T_8.842967s_frame0265.png"
+    },
+    {
+      "option": "U",
+      "right_slash_local_time": 8.876333,
+      "decoded_frame_index": 266,
+      "file": "U_8.876333s_frame0266.png"
+    },
+    {
+      "option": "V",
+      "right_slash_local_time": 8.9097,
+      "decoded_frame_index": 267,
+      "file": "V_8.909700s_frame0267.png"
+    },
+    {
+      "option": "W",
+      "right_slash_local_time": 8.943067,
+      "decoded_frame_index": 268,
+      "file": "W_8.943067s_frame0268.png"
+    },
+    {
+      "option": "X",
+      "right_slash_local_time": 8.976433,
+      "decoded_frame_index": 269,
+      "file": "X_8.976433s_frame0269.png"
+    },
+    {
+      "option": "Y",
+      "right_slash_local_time": 9.0098,
+      "decoded_frame_index": 270,
+      "file": "Y_9.009800s_frame0270.png"
+    },
+    {
+      "option": "Z",
+      "right_slash_local_time": 9.043167,
+      "decoded_frame_index": 271,
+      "file": "Z_9.043167s_frame0271.png"
+    },
+    {
+      "option": "AA",
+      "right_slash_local_time": 9.076533,
+      "decoded_frame_index": 272,
+      "file": "AA_9.076533s_frame0272.png"
+    },
+    {
+      "option": "AB",
+      "right_slash_local_time": 9.1099,
+      "decoded_frame_index": 273,
+      "file": "AB_9.109900s_frame0273.png"
+    },
+    {
+      "option": "AC",
+      "right_slash_local_time": 9.143267,
+      "decoded_frame_index": 274,
+      "file": "AC_9.143267s_frame0274.png"
+    },
+    {
+      "option": "AD",
+      "right_slash_local_time": 9.176633,
+      "decoded_frame_index": 275,
+      "file": "AD_9.176633s_frame0275.png"
+    },
+    {
+      "option": "AE",
+      "right_slash_local_time": 9.21,
+      "decoded_frame_index": 276,
+      "file": "AE_9.210000s_frame0276.png"
+    }
+  ]
+}

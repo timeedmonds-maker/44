@@ -1,0 +1,33 @@
+{
+  "game_id": "0022500527",
+  "event_id": 18,
+  "camera": "Left Above Rim",
+  "exact_state_frame": 24,
+  "purpose": "Audit the already-metric Left Above Rim camera as the cheapest possible additional source-pixel identity witness before attempting a fifth camera calibration.",
+  "status": "insufficient_for_adams_shoulder_identity",
+  "temporal_context_frames": [23,24,25,26,27,28,29,30,31,32],
+  "observations": {
+    "cissoko_identity": {
+      "valid": true,
+      "reason": "Red #12 dunker is independently identifiable at F24 and remains temporally continuous across the adjacent frame sheet."
+    },
+    "adams_player_identity": {
+      "valid": true,
+      "reason": "The white blocking defender can be tracked as the defender contesting Cissoko in the exact-state sequence, but this does not by itself expose an auditable shoulder/torso landmark."
+    },
+    "adams_block_shoulder": {
+      "valid": false,
+      "reason": "At exact F24 the blocking defender's proximal shoulder/torso junction is substantially occluded by Cissoko. The extended arm is visible, but accepting a shoulder point would require inferring through the red player's body. Hidden anatomy is not an admissible identity landmark."
+    },
+    "adams_sternum_or_pelvis": {
+      "valid": false,
+      "reason": "No sufficiently unoccluded exact-state torso center is visible to provide an independent source-pixel Adams torso lock."
+    },
+    "cissoko_shoulder_or_torso": {
+      "valid": true,
+      "reason": "Cissoko's red upper body is visible enough to support identity-bearing torso/shoulder annotation if needed, subject to the normal reprojection and uncertainty gates."
+    }
+  },
+  "decision": "Do not use Left Above Rim as one of the two additional Adams shoulder identity views. It can strengthen Cissoko identity but does not solve the Adams bottleneck.",
+  "next_route": "Prioritize Right Above Rim as the next metric-camera candidate because its exact-state sequence visibly separates the white blocking defender from red #12 and exposes proximal upper-body geometry. Calibrate it independently from player landmarks. Right Slash remains a secondary candidate. Do not weaken calibration or identity gates."
+}

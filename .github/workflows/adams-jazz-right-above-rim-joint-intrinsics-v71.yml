@@ -1,0 +1,91 @@
+name: Adams Jazz Right Above Rim joint intrinsics v71
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_joint_intrinsics_v71.py'
+      - '.github/workflows/adams-jazz-right-above-rim-joint-intrinsics-v71.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/prove_right_above_rim_joint_intrinsics_v71.py'
+      - '.github/workflows/adams-jazz-right-above-rim-joint-intrinsics-v71.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-joint-intrinsics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic v71 runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+
+      - name: Recover exact v70 one-gate-fail evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-physical-event-v70-33837157984
+          path: source
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33837157984
+
+      - name: Verify immutable v70 evidence payload
+        run: |
+          test -f source/right_above_rim_physical_event_v70.json
+          test -f source/event_0225_Right_Above_Rim_f06.png
+          test -f source/L_Right_Above_Rim_8.562013s_frame0257.png
+          echo '7092757ccbc61ebe97f38620afa9535564c7636f70647fd3f8cbfb58aa91178b  source/event_0225_Right_Above_Rim_f06.png' | sha256sum -c -
+          echo '0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a  source/L_Right_Above_Rim_8.562013s_frame0257.png' | sha256sum -c -
+
+      - name: Prove shared-principal-point joint PTZ state
+        run: |
+          python -m freeze_spin.prove_right_above_rim_joint_intrinsics_v71 \
+            --v70-report source/right_above_rim_physical_event_v70.json \
+            --event225-frame source/event_0225_Right_Above_Rim_f06.png \
+            --target-frame source/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --out v71
+
+      - name: Enforce camera-2 promotion only on complete proof
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v71/right_above_rim_joint_intrinsics_v71.json'))
+          assert q['status']=='PASS_RIGHT_ABOVE_RIM_JOINT_INTRINSICS_V71', q['status']
+          assert all(q['gates'].values()), q['gates']
+          assert q['game_id']=='0022500301'
+          assert q['target_event']==486
+          assert q['permissions']['physical_camera_center_allowed'] is True
+          assert q['permissions']['metric_event_camera_allowed'] is True
+          assert q['permissions']['static_novel_view_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          print('CENTER_CM', q['physical_center_cm'])
+          print('SHARED_PP', q['shared_principal_point_px'])
+          print('FRAME_C_PERT', q['target_frame_c']['perturbation_64'])
+          PY
+
+      - name: Package v71 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v71/*.json delivery/ 2>/dev/null || true
+          cp v71/*.png delivery/ 2>/dev/null || true
+          cp source/event_0225_Right_Above_Rim_f06.png delivery/ 2>/dev/null || true
+          cp source/L_Right_Above_Rim_8.562013s_frame0257.png delivery/ 2>/dev/null || true
+
+      - name: Upload v71 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-joint-intrinsics-v71-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

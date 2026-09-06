@@ -1,0 +1,102 @@
+# reproducibility trigger only; geometry and thresholds unchanged
+name: Adams Jazz In Arena floor proof v52
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-in-arena-floor-v52.yml'
+      - 'freeze_spin/prove_in_arena_floor_v52.py'
+      - 'freeze_spin/adams_jazz_in_arena_floor_v52.json'
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native-frame runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve official event angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source \
+            --workers 8
+
+      - name: Decode immutable In Arena Frame C
+        run: |
+          mkdir -p in_arena_v52
+          python - <<'PY'
+          import cv2, re
+          from pathlib import Path
+          clips = list(Path('jazz_dunk_source/clips').glob('*_489_In_Arena_SOURCE.mp4'))
+          if len(clips) != 1:
+              raise RuntimeError(f'Expected one In Arena source clip, found {len(clips)}: {clips}')
+          p = clips[0]
+          t = 9.062573
+          cap = cv2.VideoCapture(str(p))
+          cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
+          ok, im = cap.read()
+          fi = int(round(cap.get(cv2.CAP_PROP_POS_FRAMES) - 1))
+          cap.release()
+          if not ok:
+              raise RuntimeError('Could not decode In Arena Frame C')
+          if im.shape[:2] != (540, 960):
+              raise RuntimeError(f'Unexpected shape {im.shape}')
+          if fi != 272:
+              raise RuntimeError(f'Expected decoded frame 272, got {fi}')
+          out = Path('in_arena_v52/E_In_Arena_9.062573s_frame0272.png')
+          cv2.imwrite(str(out), im)
+          print('SOURCE', p)
+          print('FRAME', fi, 'TIME', t, 'OUTPUT', out)
+          PY
+
+      - name: Prove floor homography from regulation line families
+        run: |
+          python freeze_spin/prove_in_arena_floor_v52.py \
+            --frame in_arena_v52/E_In_Arena_9.062573s_frame0272.png \
+            --observations freeze_spin/adams_jazz_in_arena_floor_v52.json \
+            --out in_arena_v52/proof
+
+      - name: Assert fail-closed semantics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('in_arena_v52/proof/in_arena_floor_v52.json').read_text())
+          assert p['status'] == 'PASS_IN_ARENA_FLOOR_V52'
+          assert p['floor_homography_allowed'] is True
+          assert p['metric_event_camera_allowed'] is False
+          assert p['replay_render_allowed'] is False
+          assert all(p['gates'].values())
+          print('V52 FLOOR PASS')
+          print('restricted p95', p['heldout_curve_error']['restricted_area_arc']['p95_px'])
+          print('free throw p95', p['heldout_curve_error']['free_throw_circle_dashed_half']['p95_px'])
+          print('worst perturbed restricted p95', p['half_pixel_endpoint_perturbation']['worst']['restricted_heldout_p95_px'])
+          PY
+
+      - name: Package proof evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp in_arena_v52/E_In_Arena_9.062573s_frame0272.png delivery/ || true
+          cp in_arena_v52/proof/in_arena_floor_v52.json delivery/ || true
+          cp in_arena_v52/proof/in_arena_floor_overlay_v52.png delivery/ || true
+          cp freeze_spin/adams_jazz_in_arena_floor_v52.json delivery/ || true
+
+      - name: Upload v52 proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-in-arena-floor-v52-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

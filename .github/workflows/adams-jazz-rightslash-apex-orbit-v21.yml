@@ -1,0 +1,164 @@
+name: Adams Jazz Right Slash apex true orbit v21
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/select_jazz_rightslash_apex_v8.py'
+      - 'freeze_spin/build_rightslash_static_true_orbit_v21.py'
+      - '.github/workflows/adams-jazz-rightslash-apex-orbit-v21.yml'
+  workflow_dispatch:
+
+jobs:
+  rightslash-apex-orbit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native vision audio and MoGe runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve and QA all 12 official native Jazz dunk angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out jazz_dunk_source --workers 8
+
+      - name: Establish fresh audio timeline and impact
+        run: |
+          mkdir -p jazz_rightslash_v21/locked_frames
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('jazz_dunk_source/clips').glob('*_489_*_SOURCE.mp4')):
+              m=re.search(r'_489_(.+)_SOURCE\.mp4$',p.name)
+              if m: rows.append({'label':m.group(1).replace('_',' '),'file':p.name,'freeze_time':9.57658})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 angles, found {len(rows)}')
+          cfg={'event':{'game_id':'0022500301','event_id':489},'source_fps':29.97003,'reference_angle':'Left Above Rim','angles':rows}
+          Path('jazz_rightslash_v21/provisional_sync_map.json').write_text(json.dumps(cfg,indent=2))
+          PY
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config jazz_rightslash_v21/provisional_sync_map.json --clips jazz_dunk_source/clips \
+            --reference 'Left Above Rim' --max-lag-seconds 2.0 --out jazz_rightslash_v21/audio_sync_graph.json
+          python freeze_spin/refine_jazz_predunk_audio_impact_v2.py \
+            --clips jazz_dunk_source/clips --sync jazz_rightslash_v21/audio_sync_graph.json \
+            --config jazz_rightslash_v21/provisional_sync_map.json --pre-impact-seconds 0.12 \
+            --out jazz_rightslash_v21/fresh_audio_impact.json
+          python - <<'PY'
+          import json
+          d=json.load(open('jazz_rightslash_v21/fresh_audio_impact.json'))
+          if d['confidence']=='low': raise SystemExit(f"Fresh impact confidence low: {d}")
+          print('FRESH_IMPACT_REF',d['estimated_dunk_impact_reference_time'],'CONF',d['confidence'],'SUPPORT',d['supporting_peak_views_within_55ms'])
+          PY
+
+      - name: Prove narrow Right Slash basketball apex
+        run: |
+          python freeze_spin/select_jazz_rightslash_apex_v8.py \
+            --clips jazz_dunk_source/clips --sync jazz_rightslash_v21/audio_sync_graph.json \
+            --impact-json jazz_rightslash_v21/fresh_audio_impact.json --out jazz_rightslash_v21
+          python - <<'PY'
+          import json
+          d=json.load(open('jazz_rightslash_v21/rightslash_apex_v8.json'))
+          if not d.get('passed'): raise SystemExit('Right Slash apex gate failed')
+          print('RIGHT_SLASH_APEX_LOCAL',d['apex_right_slash_local_time'])
+          print('APEX_REFERENCE_TIME',d['apex_reference_time'])
+          print('RIM_CROSSING_REF',d['rim_crossing_reference_time'])
+          print('APEX_TO_IMPACT_S',d['apex_to_impact_s'])
+          print('APEX_TO_CROSSING_S',d['apex_to_crossing_s'])
+          PY
+
+      - name: Lock Right Slash exactly and other cameras approximately for static calibration
+        run: |
+          python - <<'PY'
+          import cv2,json
+          from pathlib import Path
+          apex=json.load(open('jazz_rightslash_v21/rightslash_apex_v8.json'))
+          tref=float(apex['apex_reference_time']); rlocal=float(apex['apex_right_slash_local_time'])
+          sync=json.load(open('jazz_rightslash_v21/audio_sync_graph.json')); cfg=json.load(open('jazz_rightslash_v21/provisional_sync_map.json'))
+          offsets={r['label']:float(r['offset_seconds_vs_reference']) for r in sync['angles']}; files={r['label']:r['file'] for r in cfg['angles']}
+          rows=[]
+          for label,file in files.items():
+              t=rlocal if label=='Right Slash' else tref+offsets[label]
+              p=Path('jazz_dunk_source/clips')/file
+              cap=cv2.VideoCapture(str(p)); fps=float(cap.get(cv2.CAP_PROP_FPS) or 29.97003); cap.set(cv2.CAP_PROP_POS_MSEC,t*1000.0)
+              ok,im=cap.read(); fi=int(round(cap.get(cv2.CAP_PROP_POS_FRAMES)-1)); cap.release()
+              if not ok: raise RuntimeError(f'Cannot export {label} at {t}')
+              if im.shape[:2]!=(540,960): raise RuntimeError(f'{label} not native 960x540')
+              out=Path('jazz_rightslash_v21/locked_frames')/f"{label.replace(' ','_')}_apex.png"; cv2.imwrite(str(out),im)
+              rows.append({'label':label,'requested_local_time':t,'reference_time':tref,'decoded_frame_index':fi,'fps':fps,'file':out.name,
+                           'role':'VISUAL_FREEZE_REFERENCE' if label=='Right Slash' else 'STATIC_CALIBRATION_ONLY'})
+          if len(rows)!=12: raise RuntimeError(f'Expected 12 locked frames, got {len(rows)}')
+          Path('jazz_rightslash_v21/locked_frames/locked_frames.json').write_text(json.dumps(rows,indent=2))
+          print('LOCKED',len(rows),'RIGHT_SLASH_EXACT',rlocal,'REFERENCE_TIME',tref)
+          PY
+
+      - name: Render constant-radius orbit from visually verified Right Slash frame
+        run: |
+          python freeze_spin/build_rightslash_static_true_orbit_v21.py \
+            --locked-dir jazz_rightslash_v21/locked_frames \
+            --apex-json jazz_rightslash_v21/rightslash_apex_v8.json \
+            --out jazz_rightslash_orbit_v21 --reference 'Right Slash' \
+            --tokens 1600 --max-degree 5.0 --frames 31
+
+      - name: Enforce hard no-zoom no-cross-pose QA
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('jazz_rightslash_orbit_v21/rightslash_true_orbit_qa_v21.json'))
+          assert q['reference']=='Right Slash'
+          assert q['source_resolution']==[960,540] and q['render_resolution']==[960,540]
+          assert q['max_radius_drift']<=1e-6 and q['max_pivot_drift_px']<=0.05 and q['render_max_degree']>=3.0
+          assert q['secondary_fill_policy'].startswith('STATIC ONLY')
+          for s in q['stills']:
+              for f in s['fills']: assert f['dynamic_fill']==0
+          print('TRUE_ORBIT_MAX_DEG',q['render_max_degree'])
+          print('TARGET_DIRECTION_CAMERA',q['target_direction_camera'])
+          print('REAL_BASELINE_DEG',q['real_baseline_angle_deg'])
+          print('MAX_RADIUS_DRIFT',q['max_radius_drift'])
+          print('MAX_PIVOT_DRIFT_PX',q['max_pivot_drift_px'])
+          for r in q['stills']: print('STILL_QA',r['degree'],'actual',r['actual_degree'],'resolved',round(r['resolved_fraction'],6),'holes',r['unresolved_pixels'])
+          PY
+
+      - name: Encode native Right Slash orbit preview
+        run: |
+          ffmpeg -y -framerate 30 -i jazz_rightslash_orbit_v21/motion_%03d.png -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart jazz_rightslash_orbit_v21/adams_jazz_rightslash_apex_true_orbit_native.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 jazz_rightslash_orbit_v21/adams_jazz_rightslash_apex_true_orbit_native.mp4)" = "960" || exit 1
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 jazz_rightslash_orbit_v21/adams_jazz_rightslash_apex_true_orbit_native.mp4)" = "540" || exit 1
+
+      - name: Package visual proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp jazz_rightslash_orbit_v21/rightslash_true_orbit_00deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_rightslash_orbit_v21/rightslash_true_orbit_03deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_rightslash_orbit_v21/rightslash_true_orbit_05deg_native.png delivery/ 2>/dev/null || true
+          cp jazz_rightslash_orbit_v21/rightslash_unresolved_03deg.png delivery/ 2>/dev/null || true
+          cp jazz_rightslash_orbit_v21/rightslash_unresolved_05deg.png delivery/ 2>/dev/null || true
+          cp jazz_rightslash_orbit_v21/rightslash_true_orbit_qa_v21.json delivery/ 2>/dev/null || true
+          cp jazz_rightslash_orbit_v21/adams_jazz_rightslash_apex_true_orbit_native.mp4 delivery/ 2>/dev/null || true
+          cp jazz_rightslash_v21/rightslash_apex_v8.json delivery/ 2>/dev/null || true
+          cp jazz_rightslash_v21/Right_Slash_verified_apex_11frame_strip.png delivery/ 2>/dev/null || true
+          cp jazz_rightslash_v21/fresh_audio_impact.json delivery/ 2>/dev/null || true
+          cp jazz_rightslash_v21/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp jazz_rightslash_v21/locked_frames/locked_frames.json delivery/ 2>/dev/null || true
+          cp jazz_rightslash_v21/locked_frames/Right_Slash_apex.png delivery/ 2>/dev/null || true
+          cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
+
+      - name: Upload visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-rightslash-apex-orbit-v21-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

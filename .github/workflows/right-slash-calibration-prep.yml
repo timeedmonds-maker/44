@@ -1,0 +1,135 @@
+name: Right-side identity calibration prep
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/right-slash-calibration-prep.yml"
+      - "freeze_spin/export_visual_state_candidates.py"
+      - "freeze_spin/pose_assist_right_slash.py"
+      - "freeze_spin/sidy_right_above_rim_fixed_geometry_v1.json"
+      - "freeze_spin/solve_right_above_rim_fixed_geometry_v1.py"
+      - "freeze_spin/sidy_cissoko_request.json"
+      - "freeze_spin/sidy_cissoko_sync_map.json"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install video, geometry and pose-assist runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 ultralytics==8.3.0
+
+      - name: Retrieve validated official NBA angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 2 \
+          || {
+            echo "Concurrent retrieval did not validate all feeds; retrying serially with fresh signed URLs."
+            sleep 3
+            python build_kd_top10_all_angles.py \
+              --request freeze_spin/sidy_cissoko_request.json \
+              --out source_output \
+              --workers 1
+          }
+
+      # Right Slash is a roaming camera designation in this game.  Preserve a
+      # local F5-F32 window so later metric work can solve a same-event camera
+      # trajectory rather than assuming one fixed arena camera centre.
+      - name: Synchronize and export F5-F32 right-side trajectory window
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/export_visual_state_candidates.py \
+            --windows contact_windows \
+            --out visual_state_candidates \
+            --start 5 --end 32 \
+            --reference-frame 28
+
+      - name: Solve independent Right Above Rim fixed geometry
+        run: |
+          python freeze_spin/solve_right_above_rim_fixed_geometry_v1.py \
+            --observations freeze_spin/sidy_right_above_rim_fixed_geometry_v1.json \
+            --image visual_state_candidates/11_Right_Above_Rim/f028.png \
+            --out right_above_rim_geometry
+          test -s right_above_rim_geometry/right_above_rim_fixed_geometry_v1.json
+          test -s right_above_rim_geometry/right_above_rim_fixed_geometry_overlay_v1.png
+
+      - name: Run annotation-only pose assistant on Right Slash
+        run: |
+          python freeze_spin/pose_assist_right_slash.py \
+            --images visual_state_candidates/07_Right_Slash \
+            --out pose_assist/right_slash \
+            --model yolo11n-pose.pt \
+            --conf 0.20
+          test -s pose_assist/right_slash/right_slash_pose_assist.json
+
+      - name: Package native right-side identity candidates
+        run: |
+          mkdir -p \
+            delivery/right_slash_native \
+            delivery/right_handheld_native \
+            delivery/right_above_rim_native \
+            delivery/right_slash_pose_assist \
+            delivery/right_above_rim_geometry
+
+          cp visual_state_candidates/07_Right_Slash/f*.png delivery/right_slash_native/
+          cp visual_state_candidates/09_Right_HandHeld/f*.png delivery/right_handheld_native/
+          cp visual_state_candidates/11_Right_Above_Rim/f*.png delivery/right_above_rim_native/
+          cp pose_assist/right_slash/* delivery/right_slash_pose_assist/
+          cp right_above_rim_geometry/* delivery/right_above_rim_geometry/
+
+          cp visual_state_candidates/07_Right_Slash_F5_F32_sheet.png delivery/
+          cp visual_state_candidates/09_Right_HandHeld_F5_F32_sheet.png delivery/
+          cp visual_state_candidates/11_Right_Above_Rim_F5_F32_sheet.png delivery/
+          cp visual_state_candidates/07_Right_Slash_F28_reference_sheet.png delivery/
+          cp visual_state_candidates/09_Right_HandHeld_F28_reference_sheet.png delivery/
+          cp visual_state_candidates/11_Right_Above_Rim_F28_reference_sheet.png delivery/
+          cp visual_state_candidates/visual_state_candidates.json delivery/
+          cp diagnostics/audio_sync_graph.json delivery/
+          cp source_output/qa.json delivery/source_video_qa.json
+          cp freeze_spin/sidy_right_above_rim_fixed_geometry_v1.json delivery/
+          cp freeze_spin/solve_right_above_rim_fixed_geometry_v1.py delivery/
+
+          for d in right_slash_native right_handheld_native right_above_rim_native; do
+            test "$(find "delivery/${d}" -name 'f*.png' | wc -l)" -eq 28 || {
+              echo "Expected 28 native candidate frames in ${d}" >&2
+              exit 2
+            }
+          done
+
+      - name: Upload right-side identity calibration prep
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-right-side-identity-calibration-prep-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Enforce strict Right Above Rim metric promotion gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('right_above_rim_geometry/right_above_rim_fixed_geometry_v1.json').read_text())
+          print(json.dumps(p['qa'], indent=2))
+          print(json.dumps(p['gate'], indent=2))
+          if not p['gate']['pass']:
+              raise SystemExit('Right Above Rim remains diagnostic_unscaled; strict metric promotion gate did not pass.')
+          PY

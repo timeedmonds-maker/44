@@ -1,0 +1,109 @@
+# trigger strict v90 CI; proof semantics unchanged
+name: Adams Jazz Broadcast shared optical centre v90
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_broadcast_event155_state_v90.json'
+      - 'freeze_spin/prove_broadcast_shared_center_v90.py'
+      - '.github/workflows/adams-jazz-broadcast-shared-center-v90.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/adams_jazz_broadcast_event155_state_v90.json'
+      - 'freeze_spin/prove_broadcast_shared_center_v90.py'
+      - '.github/workflows/adams-jazz-broadcast-shared-center-v90.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install strict geometry runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.13.1 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable synchronized Frame C
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Recover immutable v89 event155 burst
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-broadcast-event155-burst-v89-33950985599
+          path: event155
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33950985599
+
+      - name: Verify immutable source frames
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          test -f event155/frames/b21_7.952s.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+          echo 'ade326fa664002a54a92b506b33d15e1297ca14109449b8edca63cf011150436  event155/frames/b21_7.952s.png' | sha256sum -c -
+
+      - name: Run strict two-state shared-centre proof
+        id: proof
+        continue-on-error: true
+        run: |
+          python -m freeze_spin.prove_broadcast_shared_center_v90 \
+            --frame-c frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --event-frame event155/frames/b21_7.952s.png \
+            --floor freeze_spin/adams_jazz_frame_c_broadcast_floor_v86.json \
+            --target-c freeze_spin/adams_jazz_broadcast_target_lines_v87.json \
+            --rim-c freeze_spin/adams_jazz_broadcast_rim_v88.json \
+            --event-spec freeze_spin/adams_jazz_broadcast_event155_state_v90.json \
+            --out broadcast_shared_center_v90 \
+            --perturbation-trials 64
+
+      - name: Package v90 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp broadcast_shared_center_v90/*.json delivery/ 2>/dev/null || true
+          cp frame_c/A_Broadcast_9.194613s_frame0276.png delivery/
+          cp event155/frames/b21_7.952s.png delivery/
+          cp freeze_spin/adams_jazz_broadcast_event155_state_v90.json delivery/
+
+      - name: Upload v90 proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-shared-center-v90-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Enforce fail-closed v90 verdict
+        if: always()
+        run: |
+          test -f broadcast_shared_center_v90/broadcast_shared_optical_center_v90.json
+          python - <<'PY'
+          import json
+          p=json.load(open('broadcast_shared_center_v90/broadcast_shared_optical_center_v90.json'))
+          assert p['status']=='PASS_BROADCAST_SHARED_OPTICAL_CENTER_V90', p['status']
+          assert all(p['gates'].values()), p['gates']
+          assert p['permissions']['broadcast_frame_c_metric_event_camera_allowed'] is True
+          assert p['permissions']['broadcast_physical_camera_center_allowed'] is True
+          assert p['permissions']['broadcast_counts_as_distinct_metric_camera'] is True
+          assert p['permissions']['static_four_camera_free_view_allowed'] is False
+          assert p['permissions']['replay_render_allowed'] is False
+          print('V90_PASS',p['shared_camera_center_ft'])
+          print('PERTURB_MAX_CENTER_CM',p['half_pixel_perturbation']['max_center_shift_cm'])
+          print('SUPPORT_MAX_CENTER_CM',p['support_reduction']['max_center_shift_cm'])
+          PY

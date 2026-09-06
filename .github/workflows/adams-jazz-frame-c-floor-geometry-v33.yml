@@ -1,0 +1,94 @@
+name: Adams Jazz Frame C floor geometry audit v33
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/audit_frame_c_floor_geometry_v33.py'
+      - 'freeze_spin/adams_jazz_frame_c_floor_curves_v33.json'
+      - 'freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json'
+      - 'freeze_spin/prepare_locked_frame_c_sources.py'
+      - 'freeze_spin/adams_jazz_dunk_request.json'
+      - '.github/workflows/adams-jazz-frame-c-floor-geometry-v33.yml'
+
+jobs:
+  audit-wide-floor-geometry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native-video runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve exact target event official angles fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+
+      - name: Recreate immutable Frame C synchronized views
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7
+          assert int(lar['decoded_frame_index'])==259
+          print('FRAME_C_LOCK',lock)
+          print('LEFT_ABOVE_RIM_FRAME',lar)
+          PY
+
+      - name: Audit four-anchor floor homography against held-out regulation curves
+        run: |
+          python -m freeze_spin.audit_frame_c_floor_geometry_v33 \
+            --frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --curves freeze_spin/adams_jazz_frame_c_floor_curves_v33.json \
+            --out floor_geometry_v33 \
+            --max-heldout-p95-px 3.0 \
+            --perturbation-trials 64
+          python - <<'PY'
+          import json
+          q=json.load(open('floor_geometry_v33/frame_c_floor_geometry_audit_v33.json'))
+          assert q['status'] in ('PASS_WIDE_FLOOR_GEOMETRY','FAIL_LOCAL_EIGHT_POINT_FLOOR_MODEL')
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          print('FLOOR_AUDIT_STATUS',q['status'])
+          print('THREE_POINT',q['heldout_curve_pixel_error']['three_point_arc'])
+          print('FREE_THROW',q['heldout_curve_pixel_error']['free_throw_front_semicircle'])
+          print('CENTRELINE',q['centreline_diagnostic'])
+          print('HALF_PIXEL_CONDITIONING',q['half_pixel_floor_anchor_perturbation'])
+          PY
+
+      - name: Package v33 audit
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp floor_geometry_v33/frame_c_floor_geometry_audit_v33.json delivery/ 2>/dev/null || true
+          cp floor_geometry_v33/frame_c_floor_geometry_overlay_v33.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_floor_curves_v33.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json delivery/ 2>/dev/null || true
+
+      - name: Upload v33 audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-floor-geometry-v33-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

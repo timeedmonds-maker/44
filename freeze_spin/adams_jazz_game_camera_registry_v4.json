@@ -1,0 +1,98 @@
+{
+  "schema_version": 4,
+  "game_id": "0022500301",
+  "date": "2025-11-30",
+  "coordinate_system": "basket-local regulation NBA centimetres: +X from board toward court, +Y across board, +Z upward",
+  "supersedes": "freeze_spin/adams_jazz_game_camera_registry_v3.json",
+  "updated_through": "v57a_frontier",
+  "policy": {
+    "visual_qa_authoritative": true,
+    "player_or_ball_points_for_camera_promotion_forbidden": true,
+    "retired_v26_baseline_floor_anchors_forbidden": true,
+    "legacy_v26_backboard_target_for_camera_fit_forbidden": true,
+    "principal_point_diagnostic_is_not_reusable_prior": true,
+    "one_metric_event_camera_does_not_authorize_replay": true,
+    "floor_homography_or_distortion_floor_fit_does_not_authorize_physical_camera_promotion": true,
+    "diagnostic_camera_model_does_not_authorize_physical_camera_promotion": true,
+    "unstable_camera_center_under_support_or_half_pixel_perturbation_must_be_rejected": true
+  },
+  "accepted_cameras": {
+    "Left Above Rim": {
+      "status": "NONCOPLANAR_PHYSICAL_CENTRE_AND_EVENT489_CAMERA_ACCEPTED_V41_V42",
+      "physical_camera_center_prior_cm": [1954.0944213029006, -20.657870280048282, 370.3129555117168],
+      "source_resolution_px": [960, 540],
+      "event_489": {
+        "freeze_frame": "K_Left_Above_Rim_8.653093s_frame0259.png",
+        "local_time_seconds": 8.653093,
+        "decoded_frame_index": 259,
+        "focal_px": 761.1736548500572,
+        "principal_point_px": [458.5682796328589, 467.3403567937311],
+        "metric_floor_anchor": "freeze_spin/adams_jazz_frame_c_floor_homography_v35.json",
+        "noncoplanar_anchor": "regulation rim centre [38.1,0,304.8] cm",
+        "permissions": {
+          "metric_event_camera_allowed": true,
+          "replay_render_allowed": false
+        }
+      },
+      "permissions": {
+        "physical_camera_center_allowed": true,
+        "metric_event_camera_489_allowed": true,
+        "replay_render_allowed": false
+      }
+    }
+  },
+  "tested_but_not_promoted": {
+    "Broadcast": {
+      "status": "FLOOR_MODEL_ONLY_NOT_A_PHYSICAL_METRIC_CAMERA",
+      "latest_model_stage": "v45",
+      "model": "distortion-aware Brown-Conrady floor model",
+      "authoritative_limit": "Even a v45 pass authorizes only the distortion-aware Broadcast floor model; it does not authorize a physical 3D camera centre or replay rendering.",
+      "permissions": {
+        "physical_camera_center_allowed": false,
+        "metric_event_camera_allowed": false,
+        "replay_render_allowed": false
+      }
+    },
+    "Right Above Rim": {
+      "status": "DIAGNOSTIC_ONLY_NOT_PROMOTED",
+      "latest_stage": "v51a",
+      "authoritative_limit": "Latest floor-homography work is diagnostic only and must not be treated as an accepted metric camera.",
+      "permissions": {
+        "physical_camera_center_allowed": false,
+        "metric_event_camera_allowed": false,
+        "replay_render_allowed": false
+      }
+    },
+    "In Arena": {
+      "status": "REJECTED_UNSTABLE_PHYSICAL_CAMERA_CALIBRATION_V55A",
+      "latest_stage": "v55a",
+      "reason": "Nominal image-space fit is insufficient: leave-one-support and +/-0.5 px annotation perturbation tests move the recovered physical camera centre beyond the stability gate.",
+      "permissions": {
+        "physical_camera_center_allowed": false,
+        "metric_event_camera_allowed": false,
+        "replay_render_allowed": false
+      }
+    }
+  },
+  "active_candidate": {
+    "camera": "Left HandHeld",
+    "frame_c": {
+      "requested_local_time_seconds": 8.875603,
+      "decoded_frame_index": 266
+    },
+    "stage": "v57a",
+    "workflow": ".github/workflows/adams-jazz-left-handheld-same-game-scan-v57a.yml",
+    "status": "PENDING_FIRST_OFFICIAL_MEDIA_EXECUTION",
+    "purpose": "Acquire diverse same-game native states and determine optical-family reuse/stability before any metric fit.",
+    "promotion_allowed_from_v57a": false,
+    "next_if_scan_passes": "Build a non-coplanar metric camera-centre proof using regulation/static geometry and stability perturbation gates before event-camera promotion.",
+    "next_if_scan_fails": "Reject Left HandHeld as a reusable second-camera family and advance to another genuinely distinct physical feed."
+  },
+  "global_permissions": {
+    "one_physical_camera_family_validated": true,
+    "two_distinct_physical_cameras_validated": false,
+    "static_novel_view_allowed": false,
+    "replay_render_allowed": false
+  },
+  "current_frontier": "Execute v57a Left HandHeld same-game optical scan. Do not return to Broadcast, Right Above Rim, or In Arena as if they were untested second-camera candidates. Do not render novel views until a second genuinely distinct physical metric camera is independently promoted."
+}

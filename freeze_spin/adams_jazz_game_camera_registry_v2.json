@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "game_id": "0022500301",
+  "date": "2025-11-30",
+  "coordinate_system": "basket-local regulation NBA centimetres: +X from board toward court, +Y across board, +Z upward",
+  "supersedes": "freeze_spin/adams_jazz_game_camera_registry_v1.json",
+  "policy": {
+    "visual_qa_authoritative": true,
+    "player_or_ball_points_for_camera_promotion_forbidden": true,
+    "centre_prior_does_not_imply_metric_event_camera": true,
+    "centre_prior_does_not_authorize_replay_render": true,
+    "retired_v26_baseline_floor_anchors_forbidden": true
+  },
+  "retired_priors": {
+    "Left Above Rim v1": {
+      "physical_camera_center_prior_cm": [1283.71488906808, -2.342538028552996, 298.388659094841],
+      "status": "RETIRED_METHODOLOGICAL_CONTAMINATION",
+      "reason": "The v1 same-game centre proof transferred the v26 metric landmark set through static-scene homographies. That set included two baseline/paint floor anchors later falsified by the accepted v35 wide-court proof by approximately 15-20 source pixels. Agreement among those repeated solves was therefore not independent confirmation of physical centre."
+    }
+  },
+  "cameras": {
+    "Left Above Rim": {
+      "status": "FIXED_PHYSICAL_CENTRE_PRIOR_ACCEPTED_V36",
+      "physical_camera_center_prior_cm": [2059.0348757844413, -19.823100096709034, 399.0967372899972],
+      "shared_principal_point_solution_px_for_v36_model": [456.77593504575015, 249.43348020090144],
+      "source_resolution_px": [960, 540],
+      "metric_anchor": "freeze_spin/adams_jazz_frame_c_floor_homography_v35.json",
+      "evidence": {
+        "workflow_run_id": 33668402903,
+        "workflow_commit": "e6df877f96a284a64ab9f6763bed576f23896ded",
+        "proof_artifact_id": 9861552157,
+        "proof_artifact_sha256": "2f1fac5e123730ed40236bfb8ae55f235d930aaefd896562397e5e7849f79106",
+        "independent_same_game_events": [40, 220, 440, 620],
+        "selected_samples": {
+          "40": "Left_Above_Rim__event0040__s0.png",
+          "220": "Left_Above_Rim__event0220__s0.png",
+          "440": "Left_Above_Rim__event0440__s1.png",
+          "620": "Left_Above_Rim__event0620__s2.png"
+        },
+        "shared_regulation_grid_rms_px": 0.07587484495865657,
+        "max_heldout_static_p95_px": 1.9193730831146216,
+        "max_leave_one_event_center_shift_cm": 2.6623058417891587,
+        "max_unseen_event_static_p95_px": 1.9100898504257178,
+        "half_pixel_source_correspondence_perturbation_trials": 24,
+        "max_half_pixel_center_shift_cm": 6.673434554530705,
+        "p95_half_pixel_center_shift_cm": 5.606536907190369,
+        "elevated_target_heldout_p95_px": 5.500834391257734,
+        "elevated_target_heldout_rmse_px": 5.119811447370803,
+        "visual_overlay_qa": "PASS",
+        "visual_overlay_qa_note": "Held-out static source predictions remain visually coincident with real source features across all four events. The elevated backboard target, excluded from the floor and centre fit, is predicted within 5.50 px p95."
+      },
+      "permissions": {
+        "physical_camera_center_allowed": true,
+        "metric_event_camera_allowed": false,
+        "replay_render_allowed": false
+      },
+      "next_gate": "Solve the immutable Frame C Left Above Rim event camera with the v36 physical centre fixed, the accepted v35 wide-court floor geometry active, and elevated rim/backboard geometry used for independent 3D conditioning. Do not use the retired v26 baseline anchors."
+    }
+  }
+}

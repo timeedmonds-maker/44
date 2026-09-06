@@ -1,0 +1,29 @@
+{
+  "freeze_lock": {
+    "authority_camera": "Right Slash",
+    "authority_option": "C",
+    "authority_right_slash_local_time": 8.275733,
+    "camera": "In Arena",
+    "synchronized_local_time": 9.062573,
+    "decoded_frame_index": 272,
+    "sha256_png": "a3ae19c3b7439e21ca33a49f2140a9da605e2f62fa1b6759fb5233341d8e38f4"
+  },
+  "training_line_segments_px": {
+    "far_lane_sideline": [[80.0, 392.0], [484.0, 335.0]],
+    "near_lane_sideline": [[390.0, 498.0], [793.0, 436.0]],
+    "free_throw_line": [[59.0, 374.0], [228.0, 495.0]],
+    "baseline": [[517.0, 301.0], [888.0, 498.0]]
+  },
+  "heldout_curves_px": {
+    "restricted_area_arc": [[530.0, 430.0], [545.0, 430.0], [560.0, 429.0], [575.0, 428.0], [590.0, 425.0], [605.0, 422.0], [615.0, 420.0]],
+    "free_throw_circle_dashed_half": [[150.0, 398.0], [220.0, 402.0], [270.0, 406.0], [310.0, 417.0], [335.0, 438.0], [335.0, 460.0], [285.0, 484.0]]
+  },
+  "perturbation_trials": 64,
+  "thresholds": {
+    "max_restricted_p95_px": 3.0,
+    "max_free_throw_p95_px": 6.5,
+    "max_perturbed_restricted_p95_px": 3.0,
+    "max_restricted_curve_shift_p95_px": 2.5,
+    "max_free_throw_curve_shift_p95_px": 3.5
+  }
+}

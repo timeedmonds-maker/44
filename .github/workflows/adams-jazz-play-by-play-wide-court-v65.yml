@@ -1,0 +1,100 @@
+name: Adams Jazz Play by Play wide court proof v65
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_play_by_play_frame_c_wide_court_v65.json'
+      - 'freeze_spin/prove_play_by_play_frame_c_wide_court_v65.py'
+      - '.github/workflows/adams-jazz-play-by-play-wide-court-v65.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'freeze_spin/adams_jazz_play_by_play_frame_c_wide_court_v65.json'
+      - 'freeze_spin/prove_play_by_play_frame_c_wide_court_v65.py'
+      - '.github/workflows/adams-jazz-play-by-play-wide-court-v65.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic native metric runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Verify immutable Play by Play Frame C
+        run: |
+          test -f frame_c/D_Play_by_Play_9.150953s_frame0275.png
+          echo 'a774c9ee4cad8e5978dc0ee0299d0c5ab913d166225f43517278d910ce9c4c2d  frame_c/D_Play_by_Play_9.150953s_frame0275.png' | sha256sum -c -
+      - name: Prove Play by Play regulation floor v65
+        run: |
+          python -m freeze_spin.prove_play_by_play_frame_c_wide_court_v65 \
+            --frame frame_c/D_Play_by_Play_9.150953s_frame0275.png \
+            --observations freeze_spin/adams_jazz_play_by_play_frame_c_wide_court_v65.json \
+            --out v65
+      - name: Print decisive diagnostics
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('v65/play_by_play_frame_c_wide_court_v65.json')
+          if not p.exists():
+              print('no v65 report produced')
+              raise SystemExit(0)
+          q=json.load(open(p))
+          print('status',q['status'])
+          for k,v in q['heldout_pixel_curve_error'].items():
+              print('heldout',k,'median',round(v['median_px'],4),'p95',round(v['p95_px'],4))
+          print('maxcluster',q['nominal_multistart']['max_low_cost_projection_p95_px'])
+          print('maxpert',q['half_pixel_training_annotation_perturbation']['max_p95_shift_px'])
+          print('sentinels',q['warm_vs_full_multistart_sentinels']['max_p95_disagreement_px'])
+          print('permissions',q['permissions'])
+          PY
+      - name: Package v65 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v65/play_by_play_frame_c_wide_court_v65.json delivery/ 2>/dev/null || true
+          cp v65/play_by_play_frame_c_wide_court_overlay_v65.png delivery/ 2>/dev/null || true
+          cp frame_c/D_Play_by_Play_9.150953s_frame0275.png delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_play_by_play_frame_c_wide_court_v65.json delivery/ 2>/dev/null || true
+      - name: Upload v65 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-play-by-play-wide-court-v65-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce fail-closed v65 verdict
+        if: always()
+        run: |
+          test -f v65/play_by_play_frame_c_wide_court_v65.json
+          python - <<'PY'
+          import json
+          q=json.load(open('v65/play_by_play_frame_c_wide_court_v65.json'))
+          assert q['status']=='PASS_PLAY_BY_PLAY_WIDE_COURT_FLOOR_V65', q['status']
+          assert all(q['gates'].values()), q['gates']
+          p=q['permissions']
+          assert p['floor_homography_allowed'] is True
+          assert p['shared_optical_center_prior_allowed'] is True
+          assert p['metric_camera_promotion_allowed'] is False
+          assert p['static_novel_view_allowed'] is False
+          assert p['replay_render_allowed'] is False
+          PY

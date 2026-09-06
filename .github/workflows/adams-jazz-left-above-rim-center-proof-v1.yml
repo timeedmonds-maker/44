@@ -1,0 +1,101 @@
+name: Adams Jazz Left Above Rim game camera centre proof v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/export_same_camera_transfer_samples_v1.py'
+      - 'freeze_spin/prove_game_camera_center_from_transfer_v1.py'
+      - '.github/workflows/adams-jazz-left-above-rim-center-proof-v1.yml'
+
+jobs:
+  prove-centre:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic native-video and metric runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+
+      - name: Retrieve target event official angles fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+
+      - name: Recreate immutable Frame C target
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json'))
+          lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash'
+          assert lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          print('FRAME_C_LOCK', lock)
+          PY
+
+      - name: Acquire independent same-game Left Above Rim samples
+        run: |
+          python freeze_spin/export_same_camera_transfer_samples_v1.py \
+            --game-id 0022500301 \
+            --events 40,220,440,620 \
+            --label 'Left Above Rim' \
+            --out left_above_rim_samples
+          test "$(find left_above_rim_samples -name 'Left_Above_Rim__event*__s*.png' | wc -l)" -eq 12
+
+      - name: Prove reusable regulation-metric camera centre
+        run: |
+          python -m freeze_spin.prove_game_camera_center_from_transfer_v1 \
+            --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --target-landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --camera-label 'Left Above Rim' \
+            --samples left_above_rim_samples \
+            --out center_proof \
+            --max-landmark-rmse-px 3.0 \
+            --max-center-pairwise-cm 10.0 \
+            --max-half-pixel-center-shift-cm 75.0 \
+            --min-independent-events 3 \
+            --perturbation-trials 12
+          python - <<'PY'
+          import json
+          q=json.load(open('center_proof/game_camera_center_proof_v1.json'))
+          assert q['status']=='PASS_CENTER_PRIOR'
+          assert q['center_prior_allowed'] is True
+          assert q['metric_camera_promotion_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          assert q['accepted_independent_event_count'] >= 3
+          assert q['max_pairwise_camera_center_distance_cm'] <= 10.0
+          print('CENTER_PROOF', q['median_camera_center_cm'], 'max_pairwise_cm', q['max_pairwise_camera_center_distance_cm'])
+          PY
+
+      - name: Package proof and source-pixel overlays
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp center_proof/game_camera_center_proof_v1.json delivery/ 2>/dev/null || true
+          cp center_proof/*_overlay.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp frame_c_target/audio_sync_graph.json delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp left_above_rim_samples/sample_manifest.json delivery/ 2>/dev/null || true
+          cp left_above_rim_samples/Left_Above_Rim__event*__s*.png delivery/ 2>/dev/null || true
+
+      - name: Upload game camera centre proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-above-rim-center-proof-v1-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

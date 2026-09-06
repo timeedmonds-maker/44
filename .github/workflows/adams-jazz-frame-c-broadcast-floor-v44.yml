@@ -1,0 +1,105 @@
+name: Adams Jazz Frame C Broadcast floor v44
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json'
+      - 'freeze_spin/solve_frame_c_broadcast_floor_v44.py'
+      - '.github/workflows/adams-jazz-frame-c-broadcast-floor-v44.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-broadcast-floor-v44:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable Frame C from successful chooser artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c_archive
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Verify immutable Broadcast source pixels and provenance
+        run: |
+          test -f frame_c_archive/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c_archive/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('frame_c_archive/options.json').read_text())
+          rows = p if isinstance(p, list) else p.get('options', p.get('cameras', []))
+          matches = [r for r in rows if str(r.get('camera', r.get('label', r.get('camera_label', '')))) == 'Broadcast']
+          assert len(matches) == 1, matches
+          r = matches[0]
+          expected = 'A_Broadcast_9.194613s_frame0276.png'
+          actual = str(r.get('file', r.get('frame_file', r.get('output_file', expected)))).split('/')[-1]
+          assert actual == expected, (actual, r)
+          assert int(r.get('decoded_frame_index', 276)) == 276, r
+          assert abs(float(r.get('requested_local_time', 9.194613)) - 9.194613) < 1e-6, r
+          Path('frame_c_provenance.json').write_text(json.dumps({
+              'source_workflow_run_id': 33602700692,
+              'source_head_sha': '0f82269eed63c0b3ef10150b6d37c86c48f36958',
+              'source_artifact_id': 9835847111,
+              'source_artifact_name': 'adams-jazz-frame-c-synchronized-camera-chooser-33602700692',
+              'source_artifact_digest': 'sha256:b4390e10a55124790f7d6109911ad0285b9dd154566fc08404ec6115544bd030',
+              'frame_file': expected,
+              'frame_sha256': '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c',
+              'frame_size': [960, 540],
+              'requested_local_time_seconds': 9.194613,
+              'decoded_frame_index': 276,
+              'policy': 'Calibration-only reuse of previously validated immutable official NBA Frame C; no re-download or pixel transformation.'
+          }, indent=2))
+          PY
+          mkdir -p frame_c_target/frames
+          cp frame_c_archive/A_Broadcast_9.194613s_frame0276.png frame_c_target/frames/
+          cp frame_c_archive/options.json frame_c_target/options.json
+      - name: Run strict Broadcast pinhole-floor proof
+        id: proof
+        continue-on-error: true
+        run: |
+          python -m freeze_spin.solve_frame_c_broadcast_floor_v44 \
+            --frame frame_c_target/frames/A_Broadcast_9.194613s_frame0276.png \
+            --observations freeze_spin/adams_jazz_frame_c_broadcast_floor_v44.json \
+            --out v44
+      - name: Package v44 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v44/*.json delivery/ 2>/dev/null || true
+          cp v44/*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/A_Broadcast_9.194613s_frame0276.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp frame_c_provenance.json delivery/ 2>/dev/null || true
+      - name: Upload v44 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-broadcast-floor-v44-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce v44 verdict
+        if: always()
+        run: |
+          test -f v44/broadcast_frame_c_floor_v44.json
+          python - <<'PY'
+          import json
+          q = json.load(open('v44/broadcast_frame_c_floor_v44.json'))
+          assert q['status'] == 'PASS_BROADCAST_PINHOLE_FLOOR_V44'
+          assert q['permissions']['broadcast_floor_homography_allowed'] is True
+          assert q['permissions']['broadcast_metric_event_camera_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          PY

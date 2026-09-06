@@ -1,0 +1,56 @@
+{
+  "game_id": "0022500301",
+  "event_id": 489,
+  "view": "Right Above Rim",
+  "reference_file": "L_Right_Above_Rim_8.562013s_frame0257.png",
+  "reference_sha256": "0740ccde03fd7839ae92a0dd617312472559ceedafe94b5825fe8ad512d96a4a",
+  "requested_local_time_seconds": 8.562013,
+  "decoded_frame_index": 257,
+  "image_geometry": "960x540 native NBA frame",
+  "purpose": "Resolve v47 rotational ambiguity using a second non-concentric regulation floor circle while retaining rim and restricted-area anchors",
+  "geometry": {
+    "rim_inner_radius_in": 9.0,
+    "rim_center_from_backboard_in": 15.0,
+    "rim_height_ft": 10.0,
+    "restricted_area_radius_ft": 4.0,
+    "restricted_area_center_from_backboard_in": 15.0,
+    "free_throw_circle_radius_ft": 6.0,
+    "free_throw_circle_center_from_backboard_ft": 15.0,
+    "official_source": "https://cdn.nba.com/manage/2026/01/Official-2025-26-NBA-Playing-Rules.pdf",
+    "official_rule_note": "Free throw line is 15 ft from the face of the backboard; court diagram specifies 6 ft radius free-throw circle."
+  },
+  "rim_inner_edge_samples_px": [
+    [461.0,253.0],[478.0,249.0],[496.0,250.0],[514.0,257.0],[527.0,272.0],
+    [533.0,291.0],[532.0,311.0],[525.0,328.0],[511.0,339.0],[490.0,341.0],
+    [469.0,337.0],[452.0,325.0],[444.0,309.0],[441.0,291.0],[445.0,272.0]
+  ],
+  "restricted_area_centerline_samples_px": [
+    [392.0,274.0],[385.0,282.0],[378.0,292.0],[372.0,303.0],[368.0,312.0],
+    [364.0,323.0],[361.0,332.0],[359.0,342.0],[359.0,351.0],
+    [594.0,290.0],[599.0,299.0],[603.0,308.0],[607.0,319.0],[610.0,328.0],
+    [612.0,339.0],[614.0,348.0],[615.0,358.0],[615.0,365.0]
+  ],
+  "free_throw_circle_dash_centroids_px": [
+    [360.3220,46.4068],
+    [399.6585,94.7805],
+    [462.3873,124.4859],
+    [533.9571,127.8143],
+    [600.7762,103.5105],
+    [645.2991,58.5299]
+  ],
+  "free_throw_observation_derivation": {
+    "method": "deterministic color-restricted connected-component centroids of the six fully visible interior cyan dash segments on the free-throw circle; clipped top-edge dashes excluded",
+    "player_ball_pixels_used": false,
+    "clipped_components_excluded": true
+  },
+  "gates": {
+    "max_combined_anchor_rms_px": 3.0,
+    "max_combined_anchor_p95_px": 6.0,
+    "max_competitive_root_action_volume_p95_shift_px": 0.5,
+    "max_support_reduction_action_volume_p95_shift_px": 2.0,
+    "max_half_pixel_camera_center_shift_cm": 75.0,
+    "max_half_pixel_action_volume_p95_shift_px": 2.0,
+    "min_distinct_camera_baseline_cm": 50.0
+  },
+  "guardrail": "No player, ball, pose, silhouette, prior replay output, Broadcast calibration, lane-line solve, or Left Above Rim camera parameters may contribute to the Right Above Rim solve. The accepted Left Above Rim center is used only after solving to verify physical-baseline distinctness."
+}

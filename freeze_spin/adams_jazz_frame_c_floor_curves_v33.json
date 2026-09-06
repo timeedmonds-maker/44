@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "frame_geometry": "native 960x540 exact synchronized Frame C",
+  "game_id": "0022500301",
+  "event_id": 489,
+  "date": "2025-11-30",
+  "camera_label": "Left Above Rim",
+  "image": "K_Left_Above_Rim_8.653093s_frame0259.png",
+  "freeze_lock": {
+    "authority_camera": "Right Slash",
+    "chooser_option": "C",
+    "right_slash_local_time": 8.275733,
+    "right_slash_decoded_frame_index": 248,
+    "left_above_rim_synchronized_time": 8.653093,
+    "left_above_rim_decoded_frame_index": 259
+  },
+  "annotation_policy": "Manual deterministic source-pixel samples on visible regulation painted court curves. Points were chosen only on clearly visible static court paint; player/ball/body pixels are forbidden. These curves were not used in the v26 eight-landmark metric fit and are held-out validation geometry.",
+  "regulation_geometry": {
+    "free_throw_line_from_backboard_face_ft": 15.0,
+    "free_throw_circle_radius_ft": 6.0,
+    "three_point_arc_radius_ft": 23.75,
+    "three_point_parallel_line_distance_from_sideline_ft": 3.0,
+    "three_point_corner_distance_from_basket_center_ft": 22.0,
+    "court_width_ft": 50.0,
+    "backboard_face_from_baseline_ft": 4.0,
+    "basket_center_from_backboard_face_ft": 1.25,
+    "source": "NBA Rule No. 1 court dimensions"
+  },
+  "observed_curves_px": {
+    "three_point_arc": [
+      [190.0, 345.0], [210.0, 354.0], [235.0, 362.0], [260.0, 369.0],
+      [290.0, 374.0], [320.0, 379.0], [350.0, 382.0], [380.0, 385.0],
+      [410.0, 387.0], [440.0, 388.0], [520.0, 388.0], [550.0, 387.0],
+      [580.0, 385.0], [640.0, 379.0], [670.0, 375.0], [700.0, 369.0],
+      [730.0, 361.0], [760.0, 351.0]
+    ],
+    "free_throw_front_semicircle": [
+      [430.0, 368.0], [450.0, 369.0], [470.0, 369.0], [490.0, 369.0],
+      [510.0, 367.0], [530.0, 364.0], [550.0, 360.0], [565.0, 355.0],
+      [575.0, 349.0]
+    ]
+  },
+  "notes": {
+    "three_point_arc": "Black NBA three-point curve. Samples avoid the occluded central player and the straight corner-three segments.",
+    "free_throw_front_semicircle": "Blue front half of the 6-foot free-throw circle. Only the clean centre/right segment is sampled because the left segment is partly occluded.",
+    "purpose": "Determine whether the four v26 floor anchors genuinely predict wider regulation court geometry before any metric camera is promoted."
+  }
+}

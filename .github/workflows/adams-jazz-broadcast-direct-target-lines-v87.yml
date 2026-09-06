@@ -1,0 +1,73 @@
+name: Adams Jazz Broadcast direct target lines v87
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-broadcast-direct-target-lines-v87.yml'
+      - 'freeze_spin/adams_jazz_frame_c_broadcast_floor_v86.json'
+      - 'freeze_spin/adams_jazz_broadcast_target_lines_v87.json'
+      - 'freeze_spin/solve_broadcast_direct_target_lines_v87.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  solve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install solver runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 scipy==1.13.1 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Verify immutable Broadcast target
+        run: |
+          test -f frame_c/A_Broadcast_9.194613s_frame0276.png
+          echo '7cd80d1c24c9eefa025e50a55a7cf6cdc3d64ea1ac168ff66bb7aadb307d5b3c  frame_c/A_Broadcast_9.194613s_frame0276.png' | sha256sum -c -
+
+      - name: Solve direct physical Broadcast candidate
+        run: |
+          python -m freeze_spin.solve_broadcast_direct_target_lines_v87 \
+            --frame frame_c/A_Broadcast_9.194613s_frame0276.png \
+            --floor freeze_spin/adams_jazz_frame_c_broadcast_floor_v86.json \
+            --target-lines freeze_spin/adams_jazz_broadcast_target_lines_v87.json \
+            --out broadcast_direct_v87 \
+            --perturbation-trials 64
+
+      - name: Enforce discovery-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          p=json.load(open('broadcast_direct_v87/broadcast_direct_target_lines_v87.json'))
+          assert p['status']=='DISCOVERY_ONLY_BROADCAST_DIRECT_TARGET_LINES_V87'
+          assert all(v is False for v in p['permissions'].values())
+          assert p['rim_policy'].startswith('orange rim excluded')
+          print('V87_DISCOVERY_ONLY_OK')
+          print('internal_pass',p['candidate_passes_internal_gates'])
+          print('gates',p['gates'])
+          print('camera',p['camera_candidate'])
+          PY
+
+      - name: Upload v87 diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-broadcast-direct-target-lines-v87-${{ github.run_id }}
+          path: broadcast_direct_v87/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

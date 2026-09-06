@@ -1,0 +1,95 @@
+name: Right Slash camera-transfer diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/right-slash-transfer-diagnostic.yml"
+      - "freeze_spin/diagnose_right_slash_projective_transfer_v1.py"
+      - "freeze_spin/export_visual_state_candidates.py"
+      - "freeze_spin/sidy_cissoko_request.json"
+      - "freeze_spin/sidy_cissoko_sync_map.json"
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lean video and geometry runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+
+      - name: Retrieve validated official NBA angles
+        run: |
+          python build_kd_top10_all_angles.py \
+            --request freeze_spin/sidy_cissoko_request.json \
+            --out source_output \
+            --workers 2 \
+          || {
+            echo "Concurrent retrieval did not validate all feeds; retrying serially with fresh signed URLs."
+            sleep 3
+            python build_kd_top10_all_angles.py \
+              --request freeze_spin/sidy_cissoko_request.json \
+              --out source_output \
+              --workers 1
+          }
+
+      - name: Synchronize and export Right Slash candidates
+        run: |
+          python freeze_spin/estimate_audio_sync_graph.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --clips source_output/clips \
+            --out diagnostics/audio_sync_graph.json
+          python freeze_spin/export_contact_windows.py \
+            --config freeze_spin/sidy_cissoko_sync_map.json \
+            --sync diagnostics/audio_sync_graph.json \
+            --clips source_output/clips \
+            --before 0.50 --after 1.10 \
+            --out contact_windows
+          python freeze_spin/export_visual_state_candidates.py \
+            --windows contact_windows \
+            --out visual_state_candidates \
+            --start 5 --end 32 \
+            --reference-frame 28
+
+      - name: Test clean-frame to impact-frame projective transfer
+        run: |
+          python freeze_spin/diagnose_right_slash_projective_transfer_v1.py \
+            --reference visual_state_candidates/07_Right_Slash/f028.png \
+            --target visual_state_candidates/07_Right_Slash/f018.png \
+            --out diagnostics/right_slash_transfer
+
+      - name: Package diagnostic
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp -r diagnostics/right_slash_transfer delivery/ || true
+          cp visual_state_candidates/07_Right_Slash/f018.png delivery/Right_Slash_F18.png || true
+          cp visual_state_candidates/07_Right_Slash/f028.png delivery/Right_Slash_F28.png || true
+          cp visual_state_candidates/07_Right_Slash_F5_F32_sheet.png delivery/ || true
+          cp diagnostics/audio_sync_graph.json delivery/ || true
+          cp source_output/qa.json delivery/source_video_qa.json || true
+
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidy-right-slash-transfer-diagnostic-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Report transfer gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('diagnostics/right_slash_transfer/right_slash_projective_transfer_v1.json').read_text())
+          print(json.dumps(p, indent=2))
+          if not p['gate']['pass']:
+              raise SystemExit('Clean-frame projective camera transfer is rejected; direct impact-frame metric calibration is required.')
+          PY

@@ -1,0 +1,100 @@
+name: Adams Jazz Frame C Left Above Rim zoom-state v39
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prove_frame_c_left_above_rim_zoom_state_event_camera_v39.py'
+      - 'freeze_spin/prove_frame_c_left_above_rim_metric_camera_v37.py'
+      - 'freeze_spin/adams_jazz_game_camera_registry_v2.json'
+      - 'freeze_spin/adams_jazz_frame_c_floor_homography_v35.json'
+      - 'freeze_spin/adams_jazz_frame_c_wide_court_v34.json'
+      - 'freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json'
+      - 'freeze_spin/export_target_clip_intrinsics_samples_v31.py'
+      - '.github/workflows/adams-jazz-frame-c-left-above-rim-zoom-state-v39.yml'
+
+jobs:
+  prove-zoom-state-event-camera:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+      - name: Retrieve exact target event official angles fresh
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          test "$(find target_source/clips -name '*_SOURCE.mp4' | wc -l)" -eq 12
+          LAR_CLIP="$(find target_source/clips -name '*_0022500301_489_Left_Above_Rim_SOURCE.mp4' | head -n1)"
+          test -n "$LAR_CLIP"
+          echo "$LAR_CLIP" > lar_clip_path.txt
+      - name: Recreate immutable Frame C target
+        run: |
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+          python - <<'PY'
+          import json
+          q=json.load(open('frame_c_target/options.json')); lock=q['chosen_timing']
+          assert lock['source_camera']=='Right Slash' and lock['option']=='C'
+          assert abs(float(lock['right_slash_local_time'])-8.275733)<5e-7
+          assert int(lock['decoded_frame_index_from_manual_chooser'])==248
+          lar=next(x for x in q['options'] if x['camera']=='Left Above Rim')
+          assert abs(float(lar['requested_local_time'])-8.653093)<5e-7 and int(lar['decoded_frame_index'])==259
+          print('FRAME_C_LOCK',lock); print('LEFT_ABOVE_RIM_FRAME',lar)
+          PY
+      - name: Export independent exact-clip static frames
+        run: |
+          python freeze_spin/export_target_clip_intrinsics_samples_v31.py \
+            --clip "$(cat lar_clip_path.txt)" --freeze-time 8.653093 \
+            --sample-count 19 --exclude-radius-seconds 0.75 --out target_clip_samples
+          test "$(find target_clip_samples -name 'Left_Above_Rim_target_event__*.png' | wc -l)" -ge 10
+      - name: Prove zoom-state-aware exact event camera v39
+        run: |
+          python -m freeze_spin.prove_frame_c_left_above_rim_zoom_state_event_camera_v39 \
+            --target-frame frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png \
+            --samples target_clip_samples \
+            --sample-manifest target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json \
+            --wide-court freeze_spin/adams_jazz_frame_c_wide_court_v34.json \
+            --floor-proof freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v2.json \
+            --legacy-landmarks freeze_spin/adams_jazz_frame_c_metric_landmarks_v26.json \
+            --out metric_event_v39 --perturbation-trials 24
+          python - <<'PY'
+          import json
+          q=json.load(open('metric_event_v39/frame_c_left_above_rim_zoom_state_event_camera_v39.json'))
+          assert q['status']=='PASS_ZOOM_STATE_EVENT_CAMERA_V39'
+          assert q['permissions']['metric_event_camera_allowed'] is True
+          assert q['permissions']['replay_render_allowed'] is False
+          assert all(q['gates'].values())
+          print('V39_CAMERA',q['camera'])
+          print('V39_BETA',q['zoom_pp_beta_px_per_focal_fraction'])
+          print('V39_METRIC',q['metric'])
+          print('V39_STATIC_LOO',q['leave_one_static_frame_out'])
+          print('V39_BLOCKS',q['temporal_blocks'])
+          print('V39_PERTURB', {k:v for k,v in q['combined_perturbation'].items() if k!='trials_detail'})
+          PY
+      - name: Package v39 proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp metric_event_v39/frame_c_left_above_rim_zoom_state_event_camera_v39.json delivery/ 2>/dev/null || true
+          cp metric_event_v39/frame_c_left_above_rim_zoom_state_overlay_v39.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim_8.653093s_frame0259.png delivery/ 2>/dev/null || true
+          cp frame_c_target/options.json delivery/frame_c_options.json 2>/dev/null || true
+          cp target_clip_samples/target_clip_intrinsics_sample_manifest_v31.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_game_camera_registry_v2.json delivery/ 2>/dev/null || true
+          cp freeze_spin/adams_jazz_frame_c_floor_homography_v35.json delivery/ 2>/dev/null || true
+          cp target_clip_samples/Left_Above_Rim_target_event__*.png delivery/ 2>/dev/null || true
+      - name: Upload v39 proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-frame-c-left-above-rim-zoom-state-v39-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

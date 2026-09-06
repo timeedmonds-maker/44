@@ -1,0 +1,94 @@
+name: Adams Jazz dunk free-view native input
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/adams_jazz_dunk_request.json'
+      - '.github/workflows/adams-jazz-dunk-freeview-input.yml'
+      - 'build_kd_top10_all_angles.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare native video runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir requests
+
+      - name: Retrieve every official camera angle at highest native rendition
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$(command -v ffmpeg)" python3 build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source \
+            --workers 8
+
+      - name: Strict event and media QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          req=json.loads(Path('freeze_spin/adams_jazz_dunk_request.json').read_text())
+          qa=json.loads(Path('jazz_dunk_source/qa.json').read_text())
+          e=req['events'][0]
+          assert e['game_id']=='0022500301' and int(e['event_id'])==489
+          if qa.get('valid_clip_count') != qa.get('expanded_clip_count'):
+              raise SystemExit('All-angle QA count mismatch')
+          if qa.get('exact_cross_event_duplicate_groups'):
+              raise SystemExit('Unexpected duplicate media groups')
+          if qa.get('valid_clip_count',0) < 4:
+              raise SystemExit('Fewer than four valid official angles')
+          print(json.dumps({'valid_angles':qa['valid_clip_count'],'expanded':qa['expanded_clip_count']},indent=2))
+          PY
+
+      - name: Build native temporal contact sheets for freeze-state selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p freeze_candidates
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          clips=sorted(Path('jazz_dunk_source/clips').glob('*_SOURCE.mp4'))
+          manifest=[]
+          for p in clips:
+              probe=subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=nk=1:nw=1',str(p)],text=True).strip()
+              dur=float(probe)
+              center=dur/2.0
+              start=max(0.0,center-2.0)
+              out=Path('freeze_candidates')/(p.stem+'_contact.jpg')
+              vf='fps=3,scale=320:-2,tile=4x3:padding=2:margin=2'
+              subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-ss',f'{start:.3f}','-t','4.0','-i',str(p),'-vf',vf,'-frames:v','1','-q:v','2',str(out)],check=True)
+              manifest.append({'clip':p.name,'duration':dur,'sample_start':start,'contact_sheet':out.name})
+          Path('freeze_candidates/contact_sheet_manifest.json').write_text(json.dumps(manifest,indent=2))
+          PY
+
+      - name: Upload native Jazz dunk free-view input
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-dunk-freeview-input-${{ github.run_id }}
+          path: |
+            freeze_spin/adams_jazz_dunk_request.json
+            jazz_dunk_source/qa.json
+            jazz_dunk_source/clips/*.mp4
+            freeze_candidates/*.jpg
+            freeze_candidates/contact_sheet_manifest.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
