@@ -1,0 +1,66 @@
+name: Adams Jazz Right HandHeld fourth-camera bank v112
+
+on:
+  push:
+    paths:
+      - '.github/workflows/adams-jazz-right-handheld-fourth-camera-bank-v112.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  acquire-right-handheld-bank:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+      - name: Acquire distributed Right HandHeld geometry bank
+        run: |
+          python -m freeze_spin.scan_distributed_same_game_camera_geometry_v100 \
+            --game-id 0022500301 \
+            --camera-label 'Right HandHeld' \
+            --event-start 5 --event-stop 805 --event-step 5 \
+            --segments 6 --per-segment 3 --frames-per-clip 7 --min-clips 12 \
+            --out right_handheld_bank
+      - name: Acquire exact event-489 Right HandHeld burst
+        run: |
+          python -m freeze_spin.scan_distributed_same_game_camera_geometry_v100 \
+            --game-id 0022500301 \
+            --camera-label 'Right HandHeld' \
+            --event-start 489 --event-stop 489 --event-step 1 \
+            --segments 1 --per-segment 1 --frames-per-clip 13 --min-clips 1 \
+            --out right_handheld_event489
+      - name: Report discovery-only gate
+        run: |
+          python - <<'PY'
+          import json
+          a=json.load(open('right_handheld_bank/distributed_same_game_geometry_bank_v100.json'))
+          b=json.load(open('right_handheld_event489/distributed_same_game_geometry_bank_v100.json'))
+          print('BANK_STATUS',a['status'])
+          print('BANK_CLIPS',a['successful_clip_count'])
+          print('BANK_EVENTS',[r['event_probe'] for r in a['events'] if r.get('status')=='ok'])
+          print('EVENT489_STATUS',b['status'])
+          print('EVENT489_CLIPS',b['successful_clip_count'])
+          assert a['camera_label']=='Right HandHeld' and b['camera_label']=='Right HandHeld'
+          assert all(v is False for v in a['permissions'].values())
+          assert all(v is False for v in b['permissions'].values())
+          PY
+      - name: Package evidence
+        run: |
+          mkdir -p delivery
+          cp right_handheld_bank/distributed_same_game_geometry_bank_v100.json delivery/right_handheld_bank_manifest.json
+          cp right_handheld_bank/distributed_geometry_candidates_montage.png delivery/right_handheld_bank_montage.png 2>/dev/null || true
+          cp right_handheld_event489/distributed_same_game_geometry_bank_v100.json delivery/right_handheld_event489_manifest.json
+          cp right_handheld_event489/distributed_geometry_candidates_montage.png delivery/right_handheld_event489_montage.png 2>/dev/null || true
+          cp -a right_handheld_event489/event_489_frames delivery/event_489_frames 2>/dev/null || true
+          for d in right_handheld_bank/event_*_frames; do [ -d "$d" ] && cp -a "$d" delivery/; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-handheld-fourth-camera-bank-v112-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          compression-level: 0
