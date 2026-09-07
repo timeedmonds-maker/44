@@ -69,7 +69,7 @@ jobs:
 
       - name: Render honest three-camera 0-to-25 degree diagnostic
         run: |
-          python -m freeze_spin.build_three_camera_diagnostic_v1 \
+          PYTHONPATH="$PWD/freeze_spin:$PWD" python -m freeze_spin.build_three_camera_diagnostic_v1 \
             --frames-dir three_frames \
             --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
             --rar-report rar_source/right_above_rim_metric_camera_v73.json \
@@ -110,4 +110,4 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
 
-# render trigger 2026-09-08
+# render trigger 2026-09-08 v2
