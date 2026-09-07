@@ -182,6 +182,8 @@ jobs:
           cp freeze_spin/validate_dynamic_player_cloud_multiview.py delivery/ || true
           cp visual_state_candidates/*_sheet.png delivery/ 2>/dev/null || true
           cp visual_state_candidates/visual_state_candidates.json delivery/ 2>/dev/null || true
+          mkdir -p delivery/Right_Slash_native_candidates
+          cp visual_state_candidates/07_Right_Slash/*.png delivery/Right_Slash_native_candidates/ 2>/dev/null || true
           cp locked_exact_state/* delivery/ 2>/dev/null || true
           cp foreground_v1/* delivery/ 2>/dev/null || true
           cp foreground_v1/semantic_points/* delivery/ 2>/dev/null || true
