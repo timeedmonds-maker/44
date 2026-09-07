@@ -11,6 +11,7 @@ on:
       - 'freeze_spin/build_three_camera_diagnostic_v4.py'
       - 'freeze_spin/build_three_camera_diagnostic_v5.py'
       - 'freeze_spin/build_three_camera_diagnostic_v6.py'
+      - 'freeze_spin/build_three_camera_diagnostic_v7.py'
       - '.github/workflows/three-camera-diagnostic-v1.yml'
 
 permissions:
@@ -66,9 +67,9 @@ jobs:
           test -f rar_source/right_above_rim_metric_camera_v73.json
           test -f broadcast_source/b21_7.952s.png
           sha256sum three_frames/*.png
-      - name: Render primary-subject-ownership 0-to-25 degree diagnostic
+      - name: Render rigid-subject-surface 0-to-25 degree diagnostic
         run: |
-          PYTHONPATH="$PWD/freeze_spin:$PWD" python -m freeze_spin.build_three_camera_diagnostic_v6 \
+          PYTHONPATH="$PWD/freeze_spin:$PWD" python -m freeze_spin.build_three_camera_diagnostic_v7 \
             --frames-dir three_frames \
             --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
             --rar-report rar_source/right_above_rim_metric_camera_v73.json \
@@ -88,16 +89,16 @@ jobs:
           ffprobe -v error -show_entries stream=width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json \
             three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4 > three_camera_v1/uhd_probe.json
           cd three_camera_v1
-          zip -9 adams_jazz_three_camera_diagnostic_v6.zip adams_jazz_three_camera_diagnostic_native.mp4 adams_jazz_three_camera_diagnostic_UHD.mp4 three_camera_diagnostic_qa.json native_probe.json uhd_probe.json
+          zip -9 adams_jazz_three_camera_diagnostic_v7.zip adams_jazz_three_camera_diagnostic_native.mp4 adams_jazz_three_camera_diagnostic_UHD.mp4 three_camera_diagnostic_qa.json native_probe.json uhd_probe.json
       - name: Upload diagnostic video
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-three-camera-diagnostic-v6-${{ github.run_id }}
+          name: adams-jazz-three-camera-diagnostic-v7-${{ github.run_id }}
           path: |
             three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4
             three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4
-            three_camera_v1/adams_jazz_three_camera_diagnostic_v6.zip
+            three_camera_v1/adams_jazz_three_camera_diagnostic_v7.zip
             three_camera_v1/three_camera_diagnostic_qa.json
             three_camera_v1/native_probe.json
             three_camera_v1/uhd_probe.json
@@ -110,4 +111,4 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
 
-# v6: exact planes from three solved cameras; near-play LAR-only dynamic ownership for this orbit; deterministic UHD presentation upscale
+# v7: exact three-camera planes + source-textured rigid vertical subject surfaces; deterministic UHD presentation upscale
