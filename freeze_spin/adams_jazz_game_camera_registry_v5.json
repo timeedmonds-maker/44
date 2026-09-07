@@ -1,0 +1,143 @@
+{
+  "schema_version": 5,
+  "game_id": "0022500301",
+  "date": "2025-11-30",
+  "coordinate_system": "basket-local regulation NBA centimetres: +X from board toward court, +Y across board, +Z upward",
+  "supersedes": "freeze_spin/adams_jazz_game_camera_registry_v4.json",
+  "authoritative_as_of": "2026-09-07",
+  "authoritative_frontier": "THREE_DISTINCT_METRIC_CAMERAS_SOLVED_RIGHT_SLASH_IS_CAMERA_4",
+  "accepted_camera_count": 3,
+  "accepted_camera_names": [
+    "Left Above Rim",
+    "Right Above Rim",
+    "Broadcast"
+  ],
+  "state_invariants": {
+    "accepted_camera_state_is_monotonic": true,
+    "rule": "A camera listed in accepted_cameras remains accepted unless a later explicit revocation record names the camera, cites a concrete falsification test/artifact, and changes its status. Later work on another camera does not revoke an accepted camera.",
+    "historical_registry_rule": "Never infer current camera count from an older registry's updated_through field. v4 is a historical v57a snapshot and predates the successful v73/v74 and v90 certifications.",
+    "workflow_precedence_rule": "Later successful hard-gated certification workflows supersede stale historical registry labels. Do not regress the frontier because an old registry still says a later camera was diagnostic or unpromoted.",
+    "no_silent_regression": "Future agents must not report fewer than three solved cameras unless they first identify and cite an explicit later falsification/revocation of Left Above Rim, Right Above Rim, or Broadcast.",
+    "visual_qa_authoritative": true,
+    "unstable_camera_center_under_support_or_half_pixel_perturbation_must_be_rejected": true,
+    "player_or_ball_points_for_camera_promotion_forbidden": true
+  },
+  "accepted_cameras": {
+    "Left Above Rim": {
+      "status": "ACCEPTED_METRIC_CAMERA_V41_V42",
+      "source_resolution_px": [960, 540],
+      "physical_camera_center_prior_cm": [1954.0944213029006, -20.657870280048282, 370.3129555117168],
+      "event_489": {
+        "freeze_frame": "K_Left_Above_Rim_8.653093s_frame0259.png",
+        "local_time_seconds": 8.653093,
+        "decoded_frame_index": 259,
+        "focal_px": 761.1736548500572,
+        "principal_point_px": [458.5682796328589, 467.3403567937311],
+        "metric_floor_anchor": "freeze_spin/adams_jazz_frame_c_floor_homography_v35.json",
+        "noncoplanar_anchor": "regulation rim centre [38.1,0,304.8] cm"
+      },
+      "certification_evidence": {
+        "source_registry": "freeze_spin/adams_jazz_game_camera_registry_v4.json",
+        "stages": ["v41", "v42"]
+      },
+      "permissions": {
+        "physical_camera_center_allowed": true,
+        "metric_event_camera_489_allowed": true,
+        "counts_as_distinct_metric_camera": true,
+        "replay_render_allowed": false
+      },
+      "revoked": false
+    },
+    "Right Above Rim": {
+      "status": "PASS_RIGHT_ABOVE_RIM_FIXED_MOUNT_ANCHOR_V74",
+      "camera_role": "direct-over-rim fixed-centre PTZ anchor",
+      "source_resolution_px": [960, 540],
+      "physical_camera_center_cm": [-10.706171965705735, -0.2250433572710421, 566.0472369503494],
+      "certification_evidence": {
+        "metric_camera_stage": "v73",
+        "metric_camera_status": "PASS_RIGHT_ABOVE_RIM_METRIC_CAMERA_V73",
+        "metric_camera_workflow_run_id": 33911842169,
+        "fixed_mount_stage": "v74",
+        "fixed_mount_workflow_run_id": 33954197690,
+        "fixed_mount_artifact_id": 9965816993,
+        "fixed_mount_workflow": ".github/workflows/adams-jazz-right-above-rim-fixed-mount-v74.yml"
+      },
+      "model": {
+        "hard_locked_across_same_rig_states": ["physical_camera_center_basket_local_cm"],
+        "solve_per_clip_state": ["orientation_rvec", "focal_px", "principal_point_or_digital_crop_px"],
+        "cross_arena_exact_numeric_transfer_allowed": false
+      },
+      "permissions": {
+        "physical_camera_center_allowed": true,
+        "metric_event_camera_allowed": true,
+        "counts_as_distinct_metric_camera": true,
+        "replay_render_allowed": false
+      },
+      "revoked": false
+    },
+    "Broadcast": {
+      "status": "PASS_BROADCAST_SHARED_OPTICAL_CENTER_V90",
+      "source_resolution_px": [960, 540],
+      "shared_camera_center_ft": [39.513155402289954, 96.76737963404346, 33.09376291010151],
+      "certification_evidence": {
+        "stage": "v90",
+        "workflow": ".github/workflows/adams-jazz-broadcast-shared-center-v90.yml",
+        "workflow_run_id": 33954197537,
+        "artifact_id": 9965814622,
+        "two_source_states": ["Frame C event-489 lineage", "event 155"],
+        "independent_validation": "held-out rim plus floor/target support, multistart, support reduction and 64 half-pixel perturbation trials"
+      },
+      "hard_gate_results": {
+        "multistart_center_spread_cm": 0.0018624685563068558,
+        "support_reduction_max_center_shift_cm": 70.8772524762282,
+        "half_pixel_perturbation_max_center_shift_cm": 67.71762964662764,
+        "support_and_perturbation_center_gate_cm": 75.0,
+        "all_v90_gates_passed": true
+      },
+      "permissions": {
+        "physical_camera_center_allowed": true,
+        "metric_event_camera_allowed": true,
+        "counts_as_distinct_metric_camera": true,
+        "replay_render_allowed": false
+      },
+      "revoked": false
+    }
+  },
+  "rejected_or_not_currently_promoted": {
+    "In Arena": {
+      "status": "REJECTED_UNSTABLE_PHYSICAL_CAMERA_CALIBRATION_V55A",
+      "reason": "Leave-one-support and +/-0.5 px perturbation tests moved the recovered physical camera centre beyond the stability gate."
+    },
+    "Left Slash": {
+      "status": "NOT_ACCEPTED_AS_FOURTH_CAMERA",
+      "note": "Useful discovery/transfer work exists but no later hard-gated promotion supersedes its failed shared-centre result."
+    },
+    "Left HandHeld": {
+      "status": "NOT_ACCEPTED_AS_FOURTH_CAMERA"
+    }
+  },
+  "active_candidate": {
+    "camera": "Right Slash",
+    "ordinal": 4,
+    "status": "UNSOLVED_FOURTH_CAMERA_ACTIVE_FRONTIER",
+    "latest_lineage": "v92-v111",
+    "next_stage": "v112",
+    "strategy": "Exploit the three solved cameras and the already-established metric world. Solve one shared Right Slash physical centre across multiple same-game source states while allowing per-state orientation, focal length and crop/principal point to vary. Use only source-visible geometry families per state; reserve independent holdout geometry; enforce unchanged multistart, support-removal, half-pixel perturbation, physical-plausibility and visual-overlay gates.",
+    "critical_instruction": "Do not reopen or re-solve Left Above Rim, Right Above Rim or Broadcast merely because Right Slash remains difficult. Those three are locked unless explicitly falsified."
+  },
+  "global_permissions": {
+    "three_distinct_metric_cameras_validated": true,
+    "four_distinct_metric_cameras_validated": false,
+    "static_four_camera_free_view_allowed": false,
+    "replay_render_allowed": false
+  },
+  "next_milestone_after_right_slash_pass": "Run four-camera cross-camera metric consistency QA, then construct the source-grounded static 0/5/10/15/20/25 degree free-view arc before any animated replay.",
+  "future_agent_startup_check": [
+    "Read this v5 registry before any older Adams/Jazz registry.",
+    "State the accepted camera count explicitly: 3.",
+    "Name the accepted cameras explicitly: Left Above Rim, Right Above Rim, Broadcast.",
+    "State the active frontier explicitly: Right Slash is camera #4.",
+    "Search for an explicit revocation record before claiming any accepted camera has become unsolved.",
+    "Use the solved-camera architecture and established metric world as priors for the fourth-camera solve."
+  ]
+}
