@@ -74,7 +74,7 @@ jobs:
 
       - name: Render strict three-camera diagnostic orbit
         run: |
-          python -m freeze_spin.build_three_camera_freeview_preview_v1 \
+          PYTHONPATH="$PWD:$PWD/freeze_spin" python -m freeze_spin.build_three_camera_freeview_preview_v1 \
             --frames-dir frames \
             --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
             --lar-floor freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
