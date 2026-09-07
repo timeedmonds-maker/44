@@ -1,0 +1,28 @@
+name: Freeview frontier v5 invariants
+
+on:
+  push:
+    branches:
+      - codex/multi-angle-freeze-spin-poc
+    paths:
+      - 'freeze_spin/adams_jazz_game_camera_registry_v4.json'
+      - 'freeze_spin/adams_jazz_game_camera_registry_v5.json'
+      - 'freeze_spin/CURRENT_FREEVIEW_FRONTIER.md'
+      - 'freeze_spin/validate_freeview_frontier_v5.py'
+      - '.github/workflows/freeview-frontier-v5-invariants.yml'
+  pull_request:
+    paths:
+      - 'freeze_spin/adams_jazz_game_camera_registry_v4.json'
+      - 'freeze_spin/adams_jazz_game_camera_registry_v5.json'
+      - 'freeze_spin/CURRENT_FREEVIEW_FRONTIER.md'
+      - 'freeze_spin/validate_freeview_frontier_v5.py'
+      - '.github/workflows/freeview-frontier-v5-invariants.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-frontier:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate authoritative freeview frontier
+        run: python freeze_spin/validate_freeview_frontier_v5.py
