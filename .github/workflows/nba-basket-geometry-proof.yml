@@ -160,7 +160,7 @@ jobs:
         run: |
           mkdir -p delivery
           cp geometry_proof_v3/* delivery/ 2>/dev/null || true
-          cp impact_images/4.png impact_images/6.png impact_images/8.png impact_images/10.png delivery/ 2>/dev/null || true
+          cp impact_images/4.png impact_images/6.png impact_images/7.png impact_images/8.png impact_images/9.png impact_images/10.png impact_images/11.png delivery/ 2>/dev/null || true
           cp impact_images/mapping.json delivery/impact_mapping.json 2>/dev/null || true
           cp diagnostics/audio_sync_graph.json delivery/ 2>/dev/null || true
           cp source_output/qa.json delivery/source_video_qa.json 2>/dev/null || true
