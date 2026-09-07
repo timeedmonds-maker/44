@@ -1,0 +1,132 @@
+name: Adams Jazz three-camera freeview preview v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_three_camera_freeview_preview_v1.py'
+      - '.github/workflows/adams-jazz-three-camera-freeview-preview-v1.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  render-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic preview runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg zip
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print('TORCH', torch.__version__, 'TORCHVISION', torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Recover immutable accepted-camera evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-wide-court-v35-33654394334
+          path: lar_v35
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33654394334
+
+      - name: Recover accepted Right Above Rim v73 evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-metric-camera-v73-33911842169
+          path: rar_v73
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33911842169
+
+      - name: Recover accepted Broadcast v90 evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-broadcast-shared-center-v90-33954197537
+          path: broadcast_v90
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33954197537
+
+      - name: Assemble immutable three-camera Frame-C source set
+        run: |
+          mkdir -p frames
+          cp lar_v35/K_Left_Above_Rim_8.653093s_frame0259.png frames/
+          cp rar_v73/L_Right_Above_Rim_8.562013s_frame0257.png frames/
+          cp broadcast_v90/A_Broadcast_9.194613s_frame0276.png frames/
+          sha256sum frames/*.png | tee frames/source_sha256.txt
+          python - <<'PY'
+          import cv2, glob
+          for p in glob.glob('frames/*.png'):
+              im=cv2.imread(p)
+              assert im is not None and im.shape[:2]==(540,960), (p, None if im is None else im.shape)
+              print(p, im.shape)
+          PY
+
+      - name: Render strict three-camera diagnostic orbit
+        run: |
+          python -m freeze_spin.build_three_camera_freeview_preview_v1 \
+            --frames-dir frames \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --lar-floor freeze_spin/adams_jazz_frame_c_floor_homography_v35.json \
+            --rar-report rar_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-report broadcast_v90/broadcast_shared_optical_center_v90.json \
+            --broadcast-floor freeze_spin/adams_jazz_frame_c_broadcast_floor_v86.json \
+            --broadcast-target freeze_spin/adams_jazz_broadcast_target_lines_v87.json \
+            --out preview \
+            --frames 91 \
+            --max-degree 25 \
+            --tokens 1200
+
+      - name: Encode native preview
+        run: |
+          ffmpeg -y -framerate 30 -i preview/motion_%03d.png \
+            -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -movflags +faststart \
+            preview/adams_jazz_three_camera_freeview_preview_native.mp4
+
+      - name: Build deterministic Ultra HD delivery master
+        run: |
+          ffmpeg -y -i preview/adams_jazz_three_camera_freeview_preview_native.mp4 \
+            -vf "hqdn3d=0.6:0.6:2.0:2.0,scale=3840:2160:flags=lanczos,cas=0.22,fps=30" \
+            -c:v libx264 -profile:v high -level 5.1 -preset medium -crf 16 \
+            -maxrate 36M -bufsize 72M -pix_fmt yuv420p -movflags +faststart \
+            preview/adams_jazz_three_camera_freeview_preview_UHD.mp4
+          ffprobe -v error -show_entries stream=width,height,r_frame_rate,nb_frames,codec_name \
+            -show_entries format=duration,size -of json \
+            preview/adams_jazz_three_camera_freeview_preview_UHD.mp4 \
+            > preview/uhd_video_probe.json
+          cat preview/uhd_video_probe.json
+
+      - name: Package watch and download outputs
+        run: |
+          mkdir -p delivery
+          cp preview/adams_jazz_three_camera_freeview_preview_UHD.mp4 delivery/
+          cp preview/adams_jazz_three_camera_freeview_preview_native.mp4 delivery/
+          cp preview/three_camera_freeview_preview_v1.json delivery/
+          cp preview/camera_states_three_accepted.json delivery/
+          cp preview/uhd_video_probe.json delivery/
+          cp preview/three_camera_*deg_native.png delivery/ 2>/dev/null || true
+          cp preview/three_camera_*deg_unresolved.png delivery/ 2>/dev/null || true
+          cp preview/three_camera_*deg_provenance.png delivery/ 2>/dev/null || true
+          cp frames/source_sha256.txt delivery/
+          cp frames/*.png delivery/
+          (cd delivery && zip -9 adams_jazz_three_camera_freeview_preview_UHD.zip adams_jazz_three_camera_freeview_preview_UHD.mp4 three_camera_freeview_preview_v1.json uhd_video_probe.json)
+
+      - name: Upload three-camera preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-freeview-preview-v1-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
