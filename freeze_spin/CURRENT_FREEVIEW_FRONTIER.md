@@ -2,10 +2,13 @@
 
 Updated: 2026-09-07
 Game: `0022500301` (HOU @ UTA, 2025-11-30)
+Active calibration lineage: event-489 / Frame-C Adams-Jazz lineage
 Branch: `codex/multi-angle-freeze-spin-poc`
 Machine-readable authority: `freeze_spin/adams_jazz_game_camera_registry_v5.json`
 
-## READ THIS BEFORE ANY OLDER CAMERA REGISTRY
+## READ THIS BEFORE ANY OLDER CAMERA REGISTRY OR PORTLAND PROTOTYPE NOTES
+
+The **current active solve is the Adams-Jazz HOU @ UTA game `0022500301`**. The Portland Sidy Cissoko / Steven Adams block work is earlier prototype/architecture reference. It must not replace the Adams-Jazz frontier unless the user explicitly asks to switch targets.
 
 The project has **THREE distinct metric cameras solved and locked for the current game**:
 
@@ -83,6 +86,7 @@ This should be implemented as the decisive v112-style fourth-camera attempt.
 
 ## DO NOT DO
 
+- Do not switch the active solve back to the Portland prototype unless explicitly requested.
 - Do not reopen Left Above Rim, Right Above Rim or Broadcast merely because Right Slash is difficult.
 - Do not use `adams_jazz_game_camera_registry_v4.json` as current state.
 - Do not reduce the accepted camera count without an explicit later revocation artifact.
