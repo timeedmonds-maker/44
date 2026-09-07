@@ -99,3 +99,5 @@ jobs:
           retention-days: 14
           if-no-files-found: error
           compression-level: 0
+
+# trigger: workflow already present before this commit, so this push deterministically exercises the push path
