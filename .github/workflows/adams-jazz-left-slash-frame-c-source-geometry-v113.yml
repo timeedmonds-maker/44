@@ -1,0 +1,93 @@
+name: Adams Jazz Left Slash Frame C source geometry v113
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-frame-c-source-geometry-v113.yml'
+      - 'freeze_spin/extract_left_slash_frame_c_geometry_v113.py'
+      - 'freeze_spin/extract_left_slash_event75_geometry_v112.py'
+      - 'freeze_spin/extract_left_slash_event75_geometry_v112b.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-frame-c-source-geometry-v113.yml'
+      - 'freeze_spin/extract_left_slash_frame_c_geometry_v113.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic vision runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable Left Slash Frame C
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Recover passing event75 v112b source geometry
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 10034627213
+          path: v112b
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34167413638
+
+      - name: Re-observe Frame C directly from source pixels
+        run: |
+          test -f frame_c/G_Left_Slash_8.868843s_frame0266.png
+          echo '2ced6fbf7108459e4c8acda1d62ab8a4a77a455971287c1fcfcdc6ea7b6a272f  frame_c/G_Left_Slash_8.868843s_frame0266.png' | sha256sum -c -
+          EVENT75_JSON="$(find v112b -name left_slash_event75_source_geometry_v112.json -print -quit)"
+          test -n "$EVENT75_JSON"
+          mkdir -p v113
+          python -m freeze_spin.extract_left_slash_frame_c_geometry_v113 \
+            --frame-c frame_c/G_Left_Slash_8.868843s_frame0266.png \
+            --event75-json "$EVENT75_JSON" \
+            --out v113 || true
+
+      - name: Upload v113 source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-slash-frame-c-source-geometry-v113-${{ github.run_id }}
+          path: v113/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Enforce fail-closed source-geometry gates
+        run: |
+          test -f v113/left_slash_frame_c_source_geometry_v113.json
+          python - <<'PY'
+          import json
+          q=json.load(open('v113/left_slash_frame_c_source_geometry_v113.json'))
+          print(json.dumps({
+              'status':q['status'],
+              'target_corner_shift_max_px':q['target']['corner_shift_max_px'],
+              'rim_source_ellipse':q['rim']['source_ellipse'],
+              'rim_support':q['rim']['source_support_count'],
+              'rim_source_fit_p95_px':q['rim']['source_fit_p95_px'],
+              'rim_heldout_p95_px':q['rim']['heldout_p95_px'],
+              'gates':q['gates'],
+              'permissions':q['permissions'],
+          }, indent=2))
+          assert q['status']=='PASS_LEFT_SLASH_FRAME_C_SOURCE_GEOMETRY_V113'
+          assert q['permissions']['left_slash_frame_c_source_geometry_allowed'] is True
+          assert q['permissions']['left_slash_metric_camera_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          PY
