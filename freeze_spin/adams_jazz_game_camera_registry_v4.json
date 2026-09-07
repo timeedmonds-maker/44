@@ -4,6 +4,9 @@
   "date": "2025-11-30",
   "coordinate_system": "basket-local regulation NBA centimetres: +X from board toward court, +Y across board, +Z upward",
   "supersedes": "freeze_spin/adams_jazz_game_camera_registry_v3.json",
+  "superseded_by": "freeze_spin/adams_jazz_game_camera_registry_v5.json",
+  "historical_snapshot_only": true,
+  "DO_NOT_USE_FOR_CURRENT_CAMERA_COUNT": "This file stops at the v57a frontier. It predates successful Right Above Rim v73/v74 and Broadcast v90 certification. The authoritative current state is v5: THREE solved distinct metric cameras (Left Above Rim, Right Above Rim, Broadcast); Right Slash is camera #4.",
   "updated_through": "v57a_frontier",
   "policy": {
     "visual_qa_authoritative": true,
@@ -46,7 +49,7 @@
       "status": "FLOOR_MODEL_ONLY_NOT_A_PHYSICAL_METRIC_CAMERA",
       "latest_model_stage": "v45",
       "model": "distortion-aware Brown-Conrady floor model",
-      "authoritative_limit": "Even a v45 pass authorizes only the distortion-aware Broadcast floor model; it does not authorize a physical 3D camera centre or replay rendering.",
+      "authoritative_limit": "HISTORICAL ONLY: this v45 status was superseded by PASS_BROADCAST_SHARED_OPTICAL_CENTER_V90. See registry v5.",
       "permissions": {
         "physical_camera_center_allowed": false,
         "metric_event_camera_allowed": false,
@@ -56,7 +59,7 @@
     "Right Above Rim": {
       "status": "DIAGNOSTIC_ONLY_NOT_PROMOTED",
       "latest_stage": "v51a",
-      "authoritative_limit": "Latest floor-homography work is diagnostic only and must not be treated as an accepted metric camera.",
+      "authoritative_limit": "HISTORICAL ONLY: this v51a status was superseded by PASS_RIGHT_ABOVE_RIM_METRIC_CAMERA_V73 and PASS_RIGHT_ABOVE_RIM_FIXED_MOUNT_ANCHOR_V74. See registry v5.",
       "permissions": {
         "physical_camera_center_allowed": false,
         "metric_event_camera_allowed": false,
@@ -82,17 +85,18 @@
     },
     "stage": "v57a",
     "workflow": ".github/workflows/adams-jazz-left-handheld-same-game-scan-v57a.yml",
-    "status": "PENDING_FIRST_OFFICIAL_MEDIA_EXECUTION",
-    "purpose": "Acquire diverse same-game native states and determine optical-family reuse/stability before any metric fit.",
+    "status": "HISTORICAL_FRONTIER_SUPERSEDED_BY_V5",
+    "purpose": "Historical v57a snapshot only. Do not use this as the current frontier.",
     "promotion_allowed_from_v57a": false,
-    "next_if_scan_passes": "Build a non-coplanar metric camera-centre proof using regulation/static geometry and stability perturbation gates before event-camera promotion.",
-    "next_if_scan_fails": "Reject Left HandHeld as a reusable second-camera family and advance to another genuinely distinct physical feed."
+    "next_if_scan_passes": "Historical note; current frontier is Right Slash as camera #4 in registry v5.",
+    "next_if_scan_fails": "Historical note; current frontier is Right Slash as camera #4 in registry v5."
   },
   "global_permissions": {
     "one_physical_camera_family_validated": true,
     "two_distinct_physical_cameras_validated": false,
     "static_novel_view_allowed": false,
-    "replay_render_allowed": false
+    "replay_render_allowed": false,
+    "HISTORICAL_ONLY_DO_NOT_INFER_CURRENT_STATE": true
   },
-  "current_frontier": "Execute v57a Left HandHeld same-game optical scan. Do not return to Broadcast, Right Above Rim, or In Arena as if they were untested second-camera candidates. Do not render novel views until a second genuinely distinct physical metric camera is independently promoted."
+  "current_frontier": "HISTORICAL v57a FRONTIER ONLY. SUPERSEDED. Read freeze_spin/adams_jazz_game_camera_registry_v5.json. Current authoritative state: THREE solved distinct metric cameras; Right Slash is camera #4."
 }
