@@ -1,0 +1,101 @@
+name: Adams Jazz accepted three-camera diagnostic v1
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_three_camera_diagnostic_v1.py'
+      - '.github/workflows/adams-jazz-three-camera-diagnostic-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  three-camera-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install renderer runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve exact event-489 native source angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips \
+            --out frame_c_target
+          find frame_c_target -maxdepth 1 -type f -name '*.png' -printf '%f\n' | sort
+
+      - name: Retrieve accepted Right Above Rim v73 metric report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p inputs_v73
+          gh run download 33911842169 \
+            --repo timeedmonds-maker/44 \
+            --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 \
+            --dir inputs_v73
+          test -f inputs_v73/right_above_rim_metric_camera_v73.json
+
+      - name: Build true 3D three-camera diagnostic arc
+        run: |
+          mkdir -p three_camera_v1
+          BCAST="$(find frame_c_target -maxdepth 1 -type f -name '*A_Broadcast*.png' | head -n 1)"
+          test -n "$BCAST"
+          python freeze_spin/build_three_camera_diagnostic_v1.py \
+            --frames-dir frame_c_target \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-event-frame "$BCAST" \
+            --out three_camera_v1 \
+            --tokens 1400
+
+      - name: Encode native and Ultra HD MP4s
+        run: |
+          ffmpeg -y -framerate 30 -i three_camera_v1/frame_%03d.png \
+            -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart \
+            three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4
+          ffmpeg -y -i three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4 \
+            -vf scale=3840:2160:flags=lanczos \
+            -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -movflags +faststart \
+            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,nb_frames -of json \
+            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4
+
+      - name: Package diagnostic proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4 delivery/ 2>/dev/null || true
+          cp three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4 delivery/ 2>/dev/null || true
+          cp three_camera_v1/three_camera_diagnostic_qa.json delivery/ 2>/dev/null || true
+          cp three_camera_v1/frame_011.png delivery/three_camera_00deg.png 2>/dev/null || true
+          cp three_camera_v1/frame_049.png delivery/three_camera_midarc.png 2>/dev/null || true
+          cp three_camera_v1/frame_087.png delivery/three_camera_25deg.png 2>/dev/null || true
+          cp frame_c_target/*Left_Above_Rim*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/*Right_Above_Rim*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/*A_Broadcast*.png delivery/ 2>/dev/null || true
+
+      - name: Upload three-camera diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-diagnostic-v1-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
