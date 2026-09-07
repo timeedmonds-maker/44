@@ -76,32 +76,25 @@ jobs:
             --broadcast-event-frame broadcast_source/b21_7.952s.png \
             --out three_camera_v1 \
             --tokens 1400
-      - name: Encode native and UHD deliverables
+      - name: Encode native deliverable
         run: |
           ffmpeg -y -framerate 30 -i three_camera_v1/frame_%03d.png \
             -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -movflags +faststart \
             three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4
-          ffmpeg -y -i three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4 \
-            -vf scale=3840:2160:flags=lanczos -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -movflags +faststart \
-            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4
           ffprobe -v error -show_entries stream=width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json \
             three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4 > three_camera_v1/native_probe.json
-          ffprobe -v error -show_entries stream=width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json \
-            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4 > three_camera_v1/uhd_probe.json
           cd three_camera_v1
-          zip -9 adams_jazz_three_camera_diagnostic_v7.zip adams_jazz_three_camera_diagnostic_native.mp4 adams_jazz_three_camera_diagnostic_UHD.mp4 three_camera_diagnostic_qa.json native_probe.json uhd_probe.json
-      - name: Upload diagnostic video
+          zip -9 adams_jazz_three_camera_diagnostic_v7_native.zip adams_jazz_three_camera_diagnostic_native.mp4 three_camera_diagnostic_qa.json native_probe.json
+      - name: Upload native diagnostic video
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-three-camera-diagnostic-v7-${{ github.run_id }}
+          name: adams-jazz-three-camera-diagnostic-v7-native-${{ github.run_id }}
           path: |
             three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4
-            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4
-            three_camera_v1/adams_jazz_three_camera_diagnostic_v7.zip
+            three_camera_v1/adams_jazz_three_camera_diagnostic_v7_native.zip
             three_camera_v1/three_camera_diagnostic_qa.json
             three_camera_v1/native_probe.json
-            three_camera_v1/uhd_probe.json
             three_camera_v1/frame_000.png
             three_camera_v1/frame_050.png
             three_camera_v1/frame_105.png
@@ -111,4 +104,4 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
 
-# v7: exact three-camera planes + source-textured rigid vertical subject surfaces; deterministic UHD presentation upscale
+# Native source-space only. No 1080p/4K/UHD upscale in reconstruction or delivery; user handles any later upscale in VN.
