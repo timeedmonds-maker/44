@@ -22,7 +22,7 @@ jobs:
       - name: Install deterministic render runtime
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          sudo apt-get install -y -qq ffmpeg zip
           python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
           python - <<'PY' || python -m pip install --quiet torch torchvision --index-url https://download.pytorch.org/whl/cpu
           import torch, torchvision
@@ -77,32 +77,26 @@ jobs:
             --out three_camera_v1 \
             --tokens 1400
 
-      - name: Encode native and deterministic UHD deliverables
+      - name: Encode native-resolution deliverable
         run: |
           ffmpeg -y -framerate 30 -i three_camera_v1/frame_%03d.png \
             -c:v libx264 -preset medium -crf 16 -pix_fmt yuv420p -movflags +faststart \
             three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4
-          ffmpeg -y -i three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4 \
-            -vf "hqdn3d=0.6:0.6:2.0:2.0,scale=3840:2160:flags=lanczos,cas=0.22,fps=30" \
-            -c:v libx264 -preset medium -crf 16 -profile:v high -maxrate 36M -bufsize 72M \
-            -pix_fmt yuv420p -movflags +faststart \
-            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4
           ffprobe -v error -show_entries stream=width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json \
-            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4 > three_camera_v1/uhd_probe.json
+            three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4 > three_camera_v1/native_probe.json
           cd three_camera_v1
-          zip -9 adams_jazz_three_camera_diagnostic_UHD.zip adams_jazz_three_camera_diagnostic_UHD.mp4 three_camera_diagnostic_qa.json uhd_probe.json
+          zip -9 adams_jazz_three_camera_diagnostic_native.zip adams_jazz_three_camera_diagnostic_native.mp4 three_camera_diagnostic_qa.json native_probe.json
 
-      - name: Upload diagnostic video
+      - name: Upload native diagnostic video
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-three-camera-diagnostic-v1-${{ github.run_id }}
+          name: adams-jazz-three-camera-diagnostic-native-v1-${{ github.run_id }}
           path: |
-            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.mp4
-            three_camera_v1/adams_jazz_three_camera_diagnostic_UHD.zip
             three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4
+            three_camera_v1/adams_jazz_three_camera_diagnostic_native.zip
             three_camera_v1/three_camera_diagnostic_qa.json
-            three_camera_v1/uhd_probe.json
+            three_camera_v1/native_probe.json
             three_camera_v1/frame_000.png
             three_camera_v1/frame_050.png
             three_camera_v1/frame_105.png
@@ -110,4 +104,4 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
 
-# render trigger 2026-09-08 v2
+# native-resolution presentation only; no upscale
