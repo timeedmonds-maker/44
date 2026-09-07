@@ -1,0 +1,106 @@
+name: Adams Jazz Left Slash source geometry v112b
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-source-geometry-v112b.yml'
+      - 'freeze_spin/extract_left_slash_event75_geometry_v112b.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-source-geometry-v112b.yml'
+      - 'freeze_spin/extract_left_slash_event75_geometry_v112b.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic vision runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable Left Slash Frame C
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Recover refreshed event75 dense burst v91
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 10034404987
+          path: v91
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33953684476
+
+      - name: Run corrected source geometry model
+        run: |
+          test -f frame_c/G_Left_Slash_8.868843s_frame0266.png
+          echo '2ced6fbf7108459e4c8acda1d62ab8a4a77a455971287c1fcfcdc6ea7b6a272f  frame_c/G_Left_Slash_8.868843s_frame0266.png' | sha256sum -c -
+          BURST_JSON="$(find v91 -name event75_burst_v91.json -print -quit)"
+          BURST_ROOT="$(dirname "$BURST_JSON")"
+          test -n "$BURST_JSON"
+          mkdir -p v112b
+          python -m freeze_spin.extract_left_slash_event75_geometry_v112b \
+            --frame-c frame_c/G_Left_Slash_8.868843s_frame0266.png \
+            --observations freeze_spin/adams_jazz_left_slash_frame_c_metric_v59.json \
+            --burst-root "$BURST_ROOT" \
+            --burst-json "$BURST_JSON" \
+            --out v112b \
+            --candidate-count 20 || true
+
+      - name: Upload v112b source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-slash-source-geometry-v112b-${{ github.run_id }}
+          path: v112b/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Enforce unchanged fail-closed geometry gates
+        run: |
+          test -f v112b/left_slash_event75_source_geometry_v112.json
+          python - <<'PY'
+          import json
+          q=json.load(open('v112b/left_slash_event75_source_geometry_v112.json'))
+          selected=q['selected']
+          print(json.dumps({
+              'status':q['status'],
+              'passed_frame_count':q['passed_frame_count'],
+              'stable_pair_count':q['stable_pair_count'],
+              'selected':None if selected is None else {
+                  'index':selected['index'],
+                  'time_s':selected['time_s'],
+                  'target_corner_shift_max_px':selected['target_corner_shift_max_px'],
+                  'rim_mode':selected['rim'].get('source_support_mode'),
+                  'rim_support':selected['rim']['source_support_count'],
+                  'rim_source_fit_p95_px':selected['rim']['source_fit_p95_px'],
+                  'rim_heldout_p95_px':selected['rim']['heldout_p95_px'],
+                  'rim_center_shift_px':selected['rim']['center_shift_from_transfer_prior_px'],
+                  'rim_major_shift_px':selected['rim']['major_axis_shift_from_transfer_prior_px'],
+                  'rim_minor_shift_px':selected['rim']['minor_axis_shift_from_transfer_prior_px'],
+                  'rim_angle_shift_deg':selected['rim']['angle_shift_from_transfer_prior_deg'],
+              },
+              'best_stable_pairs':q['stable_pairs'][:5],
+              'gates':q['gates'],
+          }, indent=2))
+          assert q['status']=='PASS_LEFT_SLASH_EVENT75_SOURCE_GEOMETRY_V112'
+          assert q['permissions']['left_slash_event75_source_geometry_allowed'] is True
+          assert q['permissions']['left_slash_metric_camera_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          PY
