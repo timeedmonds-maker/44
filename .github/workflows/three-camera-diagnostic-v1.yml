@@ -7,6 +7,7 @@ on:
     paths:
       - 'freeze_spin/build_three_camera_diagnostic_v1.py'
       - 'freeze_spin/build_three_camera_diagnostic_v2.py'
+      - 'freeze_spin/build_three_camera_diagnostic_v3.py'
       - '.github/workflows/three-camera-diagnostic-v1.yml'
 
 permissions:
@@ -70,7 +71,7 @@ jobs:
 
       - name: Render honest three-camera 0-to-25 degree diagnostic
         run: |
-          PYTHONPATH="$PWD/freeze_spin:$PWD" python -m freeze_spin.build_three_camera_diagnostic_v2 \
+          PYTHONPATH="$PWD/freeze_spin:$PWD" python -m freeze_spin.build_three_camera_diagnostic_v3 \
             --frames-dir three_frames \
             --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
             --rar-report rar_source/right_above_rim_metric_camera_v73.json \
@@ -92,7 +93,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-three-camera-diagnostic-native-v2-${{ github.run_id }}
+          name: adams-jazz-three-camera-diagnostic-native-v3-${{ github.run_id }}
           path: |
             three_camera_v1/adams_jazz_three_camera_diagnostic_native.mp4
             three_camera_v1/adams_jazz_three_camera_diagnostic_native.zip
@@ -105,4 +106,4 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
 
-# native-resolution presentation only; no upscale; v2 camera-ray floor calibration bridge
+# native-resolution presentation only; no upscale; v3 per-camera forward-axis sign normalization
