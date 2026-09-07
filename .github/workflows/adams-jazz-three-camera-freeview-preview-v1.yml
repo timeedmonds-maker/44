@@ -3,7 +3,7 @@ name: Adams Jazz three-camera freeview preview v1
 on:
   workflow_dispatch:
   push:
-    branches: [codex/multi-angle-freeze-spin-poc]
+    branches: [preview/three-camera-output]
     paths:
       - 'freeze_spin/build_three_camera_freeview_preview_v1.py'
       - 'freeze_spin/run_three_camera_freeview_preview_v2.py'
