@@ -1,0 +1,102 @@
+name: Adams Jazz Left Slash source geometry v112
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-source-geometry-v112.yml'
+      - 'freeze_spin/extract_left_slash_event75_geometry_v112.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-jazz-left-slash-source-geometry-v112.yml'
+      - 'freeze_spin/extract_left_slash_event75_geometry_v112.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic vision runtime
+        run: |
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84
+
+      - name: Recover immutable Left Slash Frame C
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+
+      - name: Recover refreshed event75 dense burst v91
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 10034404987
+          path: v91
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33953684476
+
+      - name: Verify immutable inputs
+        run: |
+          test -f frame_c/G_Left_Slash_8.868843s_frame0266.png
+          echo '2ced6fbf7108459e4c8acda1d62ab8a4a77a455971287c1fcfcdc6ea7b6a272f  frame_c/G_Left_Slash_8.868843s_frame0266.png' | sha256sum -c -
+          find v91 -maxdepth 3 -type f | sort | head -20
+          test -n "$(find v91 -name event75_burst_v91.json -print -quit)"
+
+      - name: Extract source-observed event75 target and rim
+        run: |
+          mkdir -p v112
+          BURST_JSON="$(find v91 -name event75_burst_v91.json -print -quit)"
+          BURST_ROOT="$(dirname "$BURST_JSON")"
+          python -m freeze_spin.extract_left_slash_event75_geometry_v112 \
+            --frame-c frame_c/G_Left_Slash_8.868843s_frame0266.png \
+            --observations freeze_spin/adams_jazz_left_slash_frame_c_metric_v59.json \
+            --burst-root "$BURST_ROOT" \
+            --burst-json "$BURST_JSON" \
+            --out v112 \
+            --candidate-count 20 || true
+
+      - name: Upload v112 source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-left-slash-source-geometry-v112-${{ github.run_id }}
+          path: v112/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Enforce fail-closed v112 verdict
+        run: |
+          test -f v112/left_slash_event75_source_geometry_v112.json
+          python - <<'PY'
+          import json
+          q=json.load(open('v112/left_slash_event75_source_geometry_v112.json'))
+          print(json.dumps({
+              'status':q['status'],
+              'passed_frame_count':q['passed_frame_count'],
+              'stable_pair_count':q['stable_pair_count'],
+              'selected':None if q['selected'] is None else {
+                  'index':q['selected']['index'],
+                  'time_s':q['selected']['time_s'],
+                  'target_corner_shift_max_px':q['selected']['target_corner_shift_max_px'],
+                  'rim_source_support_count':q['selected']['rim']['source_support_count'],
+                  'rim_heldout_p95_px':q['selected']['rim']['heldout_p95_px'],
+              },
+              'gates':q['gates'],
+          }, indent=2))
+          assert q['status']=='PASS_LEFT_SLASH_EVENT75_SOURCE_GEOMETRY_V112', q['status']
+          assert q['permissions']['left_slash_event75_source_geometry_allowed'] is True
+          assert q['permissions']['left_slash_metric_camera_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          PY
