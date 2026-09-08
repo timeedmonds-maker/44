@@ -1,0 +1,25 @@
+name: Probe Common Crawl NBA 2013 Video
+on:
+  push:
+    branches: [agent/adams-westbrook-old-video-probe]
+    paths:
+      - 'probe_commoncrawl_2013_nba_video.py'
+      - '.github/workflows/probe-commoncrawl-2013-nba-video.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: python3 probe_commoncrawl_2013_nba_video.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: commoncrawl-2013-nba-video-${{ github.run_id }}
+          path: commoncrawl_2013_nba_video_probe.json
+          retention-days: 2
