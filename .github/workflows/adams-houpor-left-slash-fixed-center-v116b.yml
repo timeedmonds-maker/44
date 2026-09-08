@@ -1,0 +1,85 @@
+name: Adams HOU-POR Left Slash fixed-centre mining v116b
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/mine_left_slash_fixed_center_states_v116.py'
+      - 'freeze_spin/mine_left_slash_fixed_center_states_v116b.py'
+      - '.github/workflows/adams-houpor-left-slash-fixed-center-v116b.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests==2.32.3
+      - name: Recover immutable synchronized Frame C chooser
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-frame-c-synchronized-camera-chooser-33602700692
+          path: frame_c
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33602700692
+      - name: Verify immutable Left Slash Frame C
+        run: |
+          test -f frame_c/G_Left_Slash_8.868843s_frame0266.png
+          echo '2ced6fbf7108459e4c8acda1d62ab8a4a77a455971287c1fcfcdc6ea7b6a272f  frame_c/G_Left_Slash_8.868843s_frame0266.png' | sha256sum -c -
+      - name: Mine fixed-centre PTZ states across target game
+        run: |
+          python -m freeze_spin.mine_left_slash_fixed_center_states_v116b \
+            --game-id 0022500527 \
+            --camera-label 'Left Slash' \
+            --target-frame frame_c/G_Left_Slash_8.868843s_frame0266.png \
+            --target-sha256 2ced6fbf7108459e4c8acda1d62ab8a4a77a455971287c1fcfcdc6ea7b6a272f \
+            --count 40 \
+            --event-start 5 \
+            --event-stop 1205 \
+            --event-step 10 \
+            --samples-per-clip 15 \
+            --keep-top 24 \
+            --out v116b
+      - name: Assert fail-closed semantics
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v116b/left_slash_fixed_center_state_mining_v116.json'))
+          assert q['game_id']=='0022500527'
+          assert q['camera_label']=='Left Slash'
+          assert q['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+          assert q['permissions']['metric_camera_promotion_allowed'] is False
+          assert q['permissions']['replay_render_allowed'] is False
+          print('credible',q['credible_candidate_count'])
+          print('credible materially different',q['credible_materially_different_count'])
+          for r in q['top_candidates'][:12]:
+            a=r['analysis']; t=a['transform']
+            print(r['event_probe'],r['sample_name'],a['ransac_inliers'],a['inlier_residual']['p95_px'],t['projected_center_shift_px'],t['approx_linear_zoom_ratio'],a['credible_fixed_center_state_candidate'],a['materially_different_optical_state'])
+          PY
+      - name: Package evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v116b/left_slash_fixed_center_state_mining_v116.json delivery/ 2>/dev/null || true
+          cp v116b/top_fixed_center_state_candidates_v116.png delivery/ 2>/dev/null || true
+          cp -r v116b/selected_frames delivery/ 2>/dev/null || true
+          cp frame_c/G_Left_Slash_8.868843s_frame0266.png delivery/ 2>/dev/null || true
+      - name: Upload v116b evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-houpor-left-slash-fixed-center-v116b-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
