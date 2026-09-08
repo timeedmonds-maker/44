@@ -1,0 +1,24 @@
+name: Probe Legacy NBA Watch Catalogue
+on:
+  push:
+    branches: [agent/adams-westbrook-old-video-probe]
+    paths:
+      - 'probe_legacy_nba_watch.py'
+      - '.github/workflows/probe-legacy-nba-watch.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - run: python3 probe_legacy_nba_watch.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-nba-watch-${{ github.run_id }}
+          path: |
+            legacy_nba_watch_probe.json
+            legacy_watch_media/
+          retention-days: 1
