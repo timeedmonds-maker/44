@@ -9,12 +9,20 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests playwright
+      - run: python -m playwright install --with-deps chromium
       - run: python3 probe_old_nba_video_assets.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: old-nba-video-asset-probe-${{ github.run_id }}
-          path: old_nba_video_asset_probe.json
+          path: |
+            old_nba_video_asset_probe.json
+            probe_media/
           retention-days: 1
