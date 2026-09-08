@@ -1,4 +1,5 @@
 from __future__ import annotations
+# PR trigger: inspect Steven Adams 2025-26 block rows and shot-location fields.
 import csv, json, urllib.request
 
 URL='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
