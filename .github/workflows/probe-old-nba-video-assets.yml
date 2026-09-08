@@ -1,0 +1,20 @@
+name: Probe Old NBA Video Assets
+on:
+  push:
+    branches: [agent/adams-westbrook-old-video-probe]
+    paths:
+      - 'probe_old_nba_video_assets.py'
+      - '.github/workflows/probe-old-nba-video-assets.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 probe_old_nba_video_assets.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: old-nba-video-asset-probe-${{ github.run_id }}
+          path: old_nba_video_asset_probe.json
+          retention-days: 1
