@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'discover_steven_adams_dunks_2025_26.py'
+      - 'discover_adams_westbrook_dunk_events.py'
       - '.github/workflows/discover-steven-adams-dunks-2025-26.yml'
   workflow_dispatch:
 
@@ -13,11 +14,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve exact Adams dunk events
-        run: python3 discover_steven_adams_dunks_2025_26.py
-      - name: Upload manifest
+      - name: Install exact PBP parser
+        run: pip install pandas pyreadr requests
+      - name: Resolve exact Adams-Westbrook dunk events
+        run: python3 discover_adams_westbrook_dunk_events.py
+      - name: Upload exact event links
         uses: actions/upload-artifact@v4
         with:
-          name: steven-adams-dunks-manifest-${{ github.run_id }}
-          path: steven_adams_dunks_manifest.json
+          name: adams-westbrook-dunk-event-links-${{ github.run_id }}
+          path: |
+            adams_westbrook_dunk_event_links.csv
+            adams_westbrook_dunk_event_links.json
           retention-days: 1
