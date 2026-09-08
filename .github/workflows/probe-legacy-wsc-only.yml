@@ -1,0 +1,29 @@
+name: Probe Legacy WSC Only
+
+on:
+  push:
+    branches:
+      - agent/adams-westbrook-old-video-probe
+    paths:
+      - probe_legacy_wsc_one.py
+      - .github/workflows/probe-legacy-wsc-only.yml
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Probe exact historical WSC chain
+        run: python3 probe_legacy_wsc_one.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-wsc-only-${{ github.run_id }}
+          path: legacy_wsc_one.json
+          retention-days: 2
