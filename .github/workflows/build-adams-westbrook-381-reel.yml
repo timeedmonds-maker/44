@@ -1,0 +1,39 @@
+name: Build Adams-Westbrook 381 Dunk Reel
+
+on:
+  push:
+    branches: [agent/adams-westbrook-381-reel]
+    paths:
+      - 'discover_adams_westbrook_dunk_events.py'
+      - 'build_adams_westbrook_381_reel.py'
+      - '.github/workflows/build-adams-westbrook-381-reel.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify ffmpeg
+        run: ffmpeg -version | head -n 2
+      - name: Install exact PBP parser
+        run: pip install pandas pyreadr requests
+      - name: Rebuild exact 381-event manifest
+        run: python3 discover_adams_westbrook_dunk_events.py
+      - name: Build combined protected-source reel
+        run: python3 build_adams_westbrook_381_reel.py --manifest adams_westbrook_dunk_event_links.json --out adams_westbrook_381_reel_output --workers 4
+      - name: List delivery
+        run: |
+          find adams_westbrook_381_reel_output -maxdepth 1 -type f -printf '%f %s bytes\n'
+      - name: Upload combined reel and QA
+        uses: actions/upload-artifact@v4
+        with:
+          name: steven-adams-westbrook-381-dunks-${{ github.run_id }}
+          path: |
+            adams_westbrook_381_reel_output/*.mp4
+            adams_westbrook_381_reel_output/qa.json
+            adams_westbrook_381_reel_output/adams_westbrook_dunk_event_links.csv
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
