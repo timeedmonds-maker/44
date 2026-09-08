@@ -1,0 +1,25 @@
+name: Probe 2013 Video Details Asset
+on:
+  push:
+    branches: [agent/adams-westbrook-old-video-probe]
+    paths:
+      - 'probe_2013_videodetailsasset.py'
+      - '.github/workflows/probe-2013-videodetailsasset.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: python3 probe_2013_videodetailsasset.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: videodetailsasset-2013-${{ github.run_id }}
+          path: videodetailsasset_2013_probe.json
+          retention-days: 2
