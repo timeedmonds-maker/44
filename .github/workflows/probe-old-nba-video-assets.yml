@@ -4,6 +4,7 @@ on:
     branches: [agent/adams-westbrook-old-video-probe]
     paths:
       - 'probe_old_nba_video_assets.py'
+      - 'probe_legacy_wsc_one.py'
       - '.github/workflows/probe-old-nba-video-assets.yml'
   workflow_dispatch:
 jobs:
@@ -16,6 +17,8 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests playwright
+      - name: Probe exact 2013 legacy WSC chain
+        run: python3 probe_legacy_wsc_one.py
       - run: python -m playwright install --with-deps chromium
       - run: python3 probe_old_nba_video_assets.py
       - uses: actions/upload-artifact@v4
@@ -23,6 +26,7 @@ jobs:
         with:
           name: old-nba-video-asset-probe-${{ github.run_id }}
           path: |
+            legacy_wsc_one.json
             old_nba_video_asset_probe.json
             probe_media/
           retention-days: 1
