@@ -1,0 +1,25 @@
+name: Probe 2013 CVP Event Player
+on:
+  push:
+    branches: [agent/adams-westbrook-old-video-probe]
+    paths:
+      - 'probe_2013_cvp_event_player.py'
+      - '.github/workflows/probe-2013-cvp-event-player.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: python3 probe_2013_cvp_event_player.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cvp-2013-event-player-${{ github.run_id }}
+          path: cvp_2013_event_player_probe.json
+          retention-days: 2
