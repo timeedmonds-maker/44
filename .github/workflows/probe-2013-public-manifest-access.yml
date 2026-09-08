@@ -1,0 +1,25 @@
+name: Probe 2013 Public Manifest Access
+on:
+  push:
+    branches: [agent/adams-westbrook-old-video-probe]
+    paths:
+      - 'probe_2013_public_manifest_access.py'
+      - '.github/workflows/probe-2013-public-manifest-access.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: python3 probe_2013_public_manifest_access.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-manifest-access-2013-${{ github.run_id }}
+          path: public_manifest_access_2013.json
+          retention-days: 2
