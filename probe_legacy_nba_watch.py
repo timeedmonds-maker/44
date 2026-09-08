@@ -62,19 +62,14 @@ for e in EVENTS:
    d={'doc':doc,'publishpoints':[]}
    pid=doc.get('pid')
    if pid is not None:
-    for pp in [
-      'https://watch.nba.com/service/publishpoint',
-      'http://watch.nba.com/service/publishpoint',
-    ]:
+    for pp in ['https://watch.nba.com/service/publishpoint','http://watch.nba.com/service/publishpoint']:
      pr=get(pp,params={'type':'video','format':'json','id':pid},headers={'User-Agent':UA},timeout=30)
      d['publishpoints'].append(pr)
    vr['docs'].append(d)
   rec['variants'].append(vr)
- # broader searches by game id and play token
  rec['broad']=[]
  for term in [gid,f'{gid}-{away}-{home}-play{eid}',f'{gid}{away}{home}play{eid}',f'play{eid}']:
   rec['broad'].append({'term':term,'result':get('https://neulionscnbav2-a.akamaihd.net/solr/nbad_program/usersearch',params={'fl':'description,image,name,pid,releaseDate,runtime,tags,seoName','q':term,'rows':50,'wt':'json'})})
- # old NBA page / watch / embed direct probes
  rec['pages']=[]
  urls=[
   f'https://www.nba.com/video/games/{e["home_slug"]}/{date}/{stem}/',
@@ -83,14 +78,12 @@ for e in EVENTS:
   f'https://secure.nba.com/assets/amp/include/video/iframe.html?contentId={quote(date+"/"+gid+away+home+"play"+str(eid),safe="/")}&team=',
  ]
  for u in urls: rec['pages'].append(get(u,timeout=30))
- # team API content-id variants
  rec['team_api']=[]
  token='internal|bb88df6b4c2244e78822812cecf1ee1b'
  for team in [e['home_slug']]:
   for cid in [date+'/'+gid+away+home+'play'+str(eid), 'games/'+e['home_slug']+'/'+date+'/'+stem]:
    ar=get(f'https://api.nba.net/2/{team}/video,imported_video,wsc/',params={'videoid':cid},headers={'accessToken':token,'User-Agent':UA},timeout=30)
    rec['team_api'].append({'team':team,'content_id':cid,'result':ar})
- # validate any media URL found in all structures
  candidates=[]
  for x in media_urls(rec):
   u=x['value']
@@ -108,3 +101,4 @@ for e in EVENTS:
   print(' SEO',vr['seo'],'found',n)
  print('GOOD',[x for x in rec['validated'] if x.get('ok')][:1])
 Path('legacy_nba_watch_probe.json').write_text(json.dumps(allout,indent=2))
+# workflow trigger marker 1
