@@ -1,0 +1,26 @@
+name: Probe PlayDB API
+on:
+  push:
+    branches: [agent/adams-westbrook-old-video-probe]
+    paths:
+      - 'probe_nbaplaydb_api.py'
+      - '.github/workflows/probe-nbaplaydb-api.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python3 probe_nbaplaydb_api.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nbaplaydb-api-${{ github.run_id }}
+          path: nbaplaydb_api_probe.json
+          retention-days: 1
