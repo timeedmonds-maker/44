@@ -1,0 +1,104 @@
+name: Build Adams-Westbrook 381 Dunks Parallel
+
+on:
+  push:
+    branches: [agent/adams-westbrook-381-reel-parallel]
+    paths:
+      - 'discover_adams_westbrook_dunk_events.py'
+      - 'build_adams_westbrook_381_reel.py'
+      - 'build_adams_westbrook_season_reel.py'
+      - 'combine_adams_westbrook_season_reels.py'
+      - '.github/workflows/build-adams-westbrook-381-parallel.yml'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install pandas pyreadr requests
+      - name: Rebuild exact 381-event manifest
+        run: python3 discover_adams_westbrook_dunk_events.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aw-exact-manifest-${{ github.run_id }}
+          path: |
+            adams_westbrook_dunk_event_links.csv
+            adams_westbrook_dunk_event_links.json
+          compression-level: 0
+          retention-days: 1
+
+  season:
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - season: '2013-14'
+            slug: '2013_14'
+          - season: '2014-15'
+            slug: '2014_15'
+          - season: '2015-16'
+            slug: '2015_16'
+          - season: '2016-17'
+            slug: '2016_17'
+          - season: '2017-18'
+            slug: '2017_18'
+          - season: '2018-19'
+            slug: '2018_19'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: aw-exact-manifest-${{ github.run_id }}
+          path: manifest
+      - name: Build validated season reel
+        run: python3 build_adams_westbrook_season_reel.py --manifest manifest/adams_westbrook_dunk_event_links.json --season '${{ matrix.season }}' --out season_out --workers 4
+      - name: Upload season reel
+        uses: actions/upload-artifact@v4
+        with:
+          name: aw-season-${{ matrix.slug }}-${{ github.run_id }}
+          path: |
+            season_out/*.mp4
+            season_out/*_qa.json
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+  combine:
+    needs: season
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: aw-exact-manifest-${{ github.run_id }}
+          path: manifest
+      - name: Download all six season reels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aw-season-*-${{ github.run_id }}
+          path: season_parts
+          merge-multiple: true
+      - name: Combine six validated season reels
+        run: python3 combine_adams_westbrook_season_reels.py --parts season_parts --manifest-dir manifest --out final_delivery
+      - name: List final delivery
+        run: find final_delivery -maxdepth 1 -type f -printf '%f %s bytes\n'
+      - name: Upload one combined reel
+        uses: actions/upload-artifact@v4
+        with:
+          name: steven-adams-westbrook-all-381-dunks-${{ github.run_id }}
+          path: |
+            final_delivery/*.mp4
+            final_delivery/qa.json
+            final_delivery/adams_westbrook_dunk_event_links.csv
+            final_delivery/adams_westbrook_dunk_event_links.json
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
