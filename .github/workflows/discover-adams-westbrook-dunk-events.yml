@@ -1,0 +1,28 @@
+name: Discover Adams-Westbrook Dunk Events
+
+on:
+  push:
+    branches: [agent/adams-westbrook-event-links]
+    paths:
+      - 'discover_adams_westbrook_dunk_events.py'
+      - '.github/workflows/discover-adams-westbrook-dunk-events.yml'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install parser
+        run: pip install pandas pyreadr requests
+      - name: Resolve exact Adams-Westbrook dunk events
+        run: python3 discover_adams_westbrook_dunk_events.py
+      - name: Upload exact event links
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-westbrook-dunk-event-links-${{ github.run_id }}
+          path: |
+            adams_westbrook_dunk_event_links.csv
+            adams_westbrook_dunk_event_links.json
+          retention-days: 1
