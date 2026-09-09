@@ -1,0 +1,83 @@
+name: Extract current NBA Watch media server
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/extract-current-watch-media-server.yml
+  workflow_dispatch:
+jobs:
+  extract:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Extract player media-server constants and request construction
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import re,urllib.parse,html,json
+
+          PAGE='https://www.nba.com/watch/video/adams-for-the-slam-in-the-second-quarter'
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          s=requests.Session(impersonate='chrome120')
+          H={'User-Agent':UA,'Referer':'https://www.nba.com/','Accept':'*/*'}
+          r=s.get(PAGE,headers=H,timeout=25)
+          print('PAGE',r.status_code,len(r.text),flush=True)
+          scripts=[]
+          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',r.text,re.I):
+              src=urllib.parse.urljoin(PAGE,html.unescape(src))
+              if '/_next/static/' in src and src not in scripts: scripts.append(src)
+          print('SCRIPT_COUNT',len(scripts),flush=True)
+
+          needles=['serverUrl','newServerEnabled','cdnToken','mediaId','playbackMode','ZH','play-options','VideoProfile','IsEncrypted','mediakind','manifest','m3u8','mpd','widevine','license','roll','amp','stream']
+          matched=[]
+          url_literals=set()
+          for i,su in enumerate(scripts):
+              try:
+                  x=s.get(su,headers=H,timeout=20)
+              except Exception as e:
+                  print('SCRIPT_ERR',i,type(e).__name__,str(e)[:120],flush=True); continue
+              text=x.text
+              hits=[n for n in needles if n.lower() in text.lower()]
+              if not hits: continue
+              matched.append((su,text,hits))
+              print('\n=== SCRIPT ===',su,'bytes',len(text),'HITS',hits,flush=True)
+              # Print tightly bounded contexts around high-value tokens.
+              for n in ['serverUrl','newServerEnabled','cdnToken','mediaId','playbackMode','ZH:','ZH=', 'manifest','m3u8','mpd','mediaServer','roll','play-options']:
+                  pos=[m.start() for m in re.finditer(re.escape(n),text,re.I)]
+                  for p in pos[:16]:
+                      ctx=text[max(0,p-1800):p+4200]
+                      print('CTX',n,re.sub(r'\s+',' ',ctx)[:6000],flush=True)
+              for u in re.findall(r'https?://[^"\'`\\\s)]+',text):
+                  if any(k in u.lower() for k in ['nba','media','video','play','manifest','stream','akamai','azure','cloudfront','m3u8','mpd','roll']):
+                      url_literals.add(u.rstrip(';,}'))
+
+          print('\n=== URL_LITERALS ===',flush=True)
+          for u in sorted(url_literals): print(u[:2000],flush=True)
+
+          # Webpack export tracing: locate modules exporting ZH and show local assignments.
+          print('\n=== ZH EXPORT TRACE ===',flush=True)
+          for su,text,hits in matched:
+              for pat in [r'ZH\s*:\s*\(\)\s*=>\s*([A-Za-z_$][\w$]*)',
+                          r'ZH\s*:\s*\(\)\s*=>\s*[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)',
+                          r'ZH\s*:\s*([A-Za-z_$][\w$]*)']:
+                  for m in re.finditer(pat,text):
+                      sym=m.group(1)
+                      print('ZH_EXPORT',su,'sym',sym,flush=True)
+                      p=m.start(); print(re.sub(r'\s+',' ',text[max(0,p-3500):p+7000])[:10500],flush=True)
+                      # Find assignments to the symbol in same chunk.
+                      for ap in [rf'(?:var|let|const)?\s*{re.escape(sym)}\s*=\s*[^,;]{{1,2000}}',
+                                 rf'{re.escape(sym)}\s*=\s*["\'][^"\']+["\']']:
+                          for a in list(re.finditer(ap,text))[:20]:
+                              print('SYM_ASSIGN',re.sub(r'\s+',' ',a.group(0))[:2500],flush=True)
+
+          # Search for likely media URL constructors even if constants are minified aliases.
+          print('\n=== URL CONSTRUCTORS ===',flush=True)
+          for su,text,hits in matched:
+              for term in ['serverUrl:', 'mediaId:', 'newServerEnabled:', '/manifest', '.m3u8', '.mpd', 'cdnToken']:
+                  for m in list(re.finditer(re.escape(term),text,re.I))[:30]:
+                      p=m.start()
+                      print('BUILD',term,re.sub(r'\s+',' ',text[max(0,p-2400):p+5200])[:7600],flush=True)
