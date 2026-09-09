@@ -1,0 +1,29 @@
+name: Recover Adams 2019-04-19 player actions
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/recover-adams-20190419-youtube.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - name: Install yt-dlp and ffmpeg
+        run: |
+          brew install yt-dlp ffmpeg
+      - name: Download exact Steven Adams game-actions archive
+        run: |
+          mkdir -p out
+          yt-dlp --no-playlist --format 'bv*[height<=720]+ba/b[height<=720]/b' --merge-output-format mp4 -o 'out/Steven_Adams_2019-04-19_All_Game_Actions.%(ext)s' 'https://www.youtube.com/watch?v=Vacd3OpfGcg'
+          ffprobe -v error -show_entries format=duration,size:stream=codec_name,width,height,r_frame_rate -of json out/*.mp4 > out/ffprobe.json
+          shasum -a 256 out/*.mp4 > out/sha256.txt
+          ls -lh out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-2019-04-19-player-actions
+          path: out/
+          retention-days: 7
