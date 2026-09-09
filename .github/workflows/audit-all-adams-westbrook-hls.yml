@@ -1,0 +1,34 @@
+name: Audit all 381 Adams Westbrook HLS events
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/audit_all_adams_westbrook_hls.py'
+      - '.github/workflows/audit-all-adams-westbrook-hls.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install manifest dependencies
+        run: pip install pandas pyreadr requests
+      - name: Regenerate authoritative 381-event manifest
+        run: python -u analysis/regenerate_adams_westbrook_manifest.py
+      - name: Probe exact clips page through real HLS media segment
+        run: python -u analysis/audit_all_adams_westbrook_hls.py
+      - name: Upload HLS coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-westbrook-381-hls-coverage
+          retention-days: 30
+          path: |
+            adams_westbrook_hls_coverage/summary.json
+            adams_westbrook_hls_coverage/coverage.json
