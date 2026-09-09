@@ -1,0 +1,95 @@
+name: Validate archived Adams Watch HLS bytes
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/probe-adams-watch-hls-bytes.yml
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: brew install ffmpeg || true
+      - run: python -m pip install curl_cffi
+      - name: Fetch and validate HLS
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import urllib.parse,re,hashlib,subprocess,os,tempfile,json
+          BASE='http://vsppvmproda1.cloudapp.net:5555/shls/NBA_E03503130405E830BD3AFC12D0853E7DFEFA7372.nba_2573663_1920x1080_5904/index.m3u8?device=v2_mdrm_sa_reach_hd_enc'
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          s=requests.Session(impersonate='chrome120')
+          H={'User-Agent':UA,'Accept':'*/*','Origin':'https://www.nba.com','Referer':'https://www.nba.com/watch/video/adams-for-the-slam-in-the-second-quarter'}
+          candidates=[BASE,BASE.replace('http://','https://')]
+          good=None
+          for u in candidates:
+              try:
+                  r=s.get(u,headers=H,timeout=25,allow_redirects=True)
+                  print('MASTER',u.split('?')[0],r.status_code,r.headers.get('content-type'),len(r.content),r.url,flush=True)
+                  print(r.text[:5000] if len(r.content)<200000 else '<large>',flush=True)
+                  if r.status_code==200 and '#EXTM3U' in r.text:
+                      good=(r.url,r.text); break
+              except Exception as e: print('MASTER_ERR',u,type(e).__name__,str(e)[:400],flush=True)
+          if not good: raise SystemExit('NO_HLS_MASTER')
+          master_url,text=good
+          # Resolve highest-bandwidth variant if master playlist; otherwise use media playlist.
+          lines=[x.strip() for x in text.splitlines() if x.strip()]
+          variants=[]
+          for i,line in enumerate(lines):
+              if line.startswith('#EXT-X-STREAM-INF') and i+1<len(lines) and not lines[i+1].startswith('#'):
+                  m=re.search(r'BANDWIDTH=(\d+)',line); variants.append((int(m.group(1)) if m else 0,lines[i+1]))
+          media_url=master_url
+          if variants:
+              variants.sort(reverse=True)
+              media_url=urllib.parse.urljoin(master_url,variants[0][1])
+              rr=s.get(media_url,headers=H,timeout=25,allow_redirects=True)
+              print('MEDIA',rr.status_code,rr.headers.get('content-type'),len(rr.content),rr.url,flush=True)
+              print(rr.text[:8000],flush=True)
+              if rr.status_code!=200 or '#EXTM3U' not in rr.text: raise SystemExit('NO_MEDIA_PLAYLIST')
+              media_url,text=rr.url,rr.text
+          segs=[]
+          for line in text.splitlines():
+              line=line.strip()
+              if line and not line.startswith('#'):
+                  segs.append(urllib.parse.urljoin(media_url,line))
+          print('SEGMENTS',len(segs),flush=True)
+          if not segs: raise SystemExit('NO_SEGMENTS')
+          # Fetch first few segments and prove actual media bytes.
+          outdir=tempfile.mkdtemp(prefix='adams_hls_')
+          for idx,u in enumerate(segs[:4]):
+              q=s.get(u,headers=H,timeout=30,allow_redirects=True)
+              sha=hashlib.sha256(q.content).hexdigest()
+              p=urllib.parse.urlsplit(q.url)
+              print('SEG',idx,q.status_code,q.headers.get('content-type'),len(q.content),sha,p.netloc,p.path,flush=True)
+              if q.status_code==200 and len(q.content)>10000:
+                  open(os.path.join(outdir,f'seg{idx}.bin'),'wb').write(q.content)
+          # Let ffmpeg consume official HLS directly into a short MP4; no transcoding.
+          mp4=os.path.join(outdir,'adams_game3_watch_sample.mp4')
+          cmd=['ffmpeg','-y','-headers','Referer: https://www.nba.com/watch/video/adams-for-the-slam-in-the-second-quarter\r\nUser-Agent: '+UA+'\r\n','-i',media_url,'-t','23','-c','copy',mp4]
+          p=subprocess.run(cmd,capture_output=True,text=True,timeout=90)
+          print('FFMPEG_RC',p.returncode,flush=True); print(p.stderr[-6000:],flush=True)
+          if p.returncode!=0 or not os.path.exists(mp4): raise SystemExit('FFMPEG_FAIL')
+          data=open(mp4,'rb').read(); print('MP4_BYTES',len(data),'SHA256',hashlib.sha256(data).hexdigest(),flush=True)
+          fp=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration,size:stream=index,codec_name,codec_type,width,height,avg_frame_rate','-of','json',mp4],capture_output=True,text=True,timeout=30)
+          print('FFPROBE',fp.stdout,flush=True)
+          # Extract 3 deterministic QA frames.
+          for t in ['2','10','18']:
+              jpg=os.path.join(outdir,f'frame_{t}.jpg')
+              z=subprocess.run(['ffmpeg','-y','-ss',t,'-i',mp4,'-frames:v','1','-q:v','2',jpg],capture_output=True,text=True,timeout=30)
+              if os.path.exists(jpg): print('FRAME',t,os.path.getsize(jpg),hashlib.sha256(open(jpg,'rb').read()).hexdigest(),flush=True)
+          # Artifact package.
+          os.makedirs('out',exist_ok=True)
+          import shutil
+          shutil.copy2(mp4,'out/adams_game3_watch_sample.mp4')
+          for t in ['2','10','18']:
+              src=os.path.join(outdir,f'frame_{t}.jpg')
+              if os.path.exists(src): shutil.copy2(src,f'out/frame_{t}.jpg')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-watch-real-hls-sample
+          path: out/
+          if-no-files-found: error
