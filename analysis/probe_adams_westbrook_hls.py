@@ -1,4 +1,4 @@
-import html, json, re, urllib.parse, urllib.request, urllib.error
+import datetime, html, json, re, time, urllib.parse, urllib.request, urllib.error
 from pathlib import Path
 
 EVENTS=[
@@ -24,6 +24,20 @@ def highest_variant(url, text):
             if nxt: candidates.append((bw,urllib.parse.urljoin(url,nxt)))
     return max(candidates)[1] if candidates else None
 
+def token_meta(u):
+    p=urllib.parse.urlsplit(u)
+    q=dict(urllib.parse.parse_qsl(p.query,keep_blank_values=True))
+    v=q.get('wowzatokenendtime')
+    out={'playlist_host':p.hostname,'playlist_path':p.path,'token_endtime':v}
+    if v:
+        try:
+            iv=int(v)
+            out['token_endtime_utc']=datetime.datetime.fromtimestamp(iv,datetime.timezone.utc).isoformat()
+            out['token_expired']=iv < int(time.time())
+        except Exception:
+            out['token_endtime_parse']='non_epoch'
+    return out
+
 def probe(gid,eid,date):
     out={'game_id':gid,'event_num':eid,'date':date,'status':'unresolved','angles':[]}
     page=f'https://clips.nba.com/?gameNo={gid}&eventNum={eid}&source=grs'
@@ -40,7 +54,7 @@ def probe(gid,eid,date):
             out['status']='no_hls_advertised'; return out
         ordered=[o for o in opts if o['selected']]+[o for o in opts if not o['selected']]
         for o in ordered:
-            a={'label':o['label']}
+            a={'label':o['label'],**token_meta(o['url'])}
             try:
                 u=o['url']; b,final,code=read(u); m=b.decode('utf-8','replace')
                 a['playlist_http']=code
