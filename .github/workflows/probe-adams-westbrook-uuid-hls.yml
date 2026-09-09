@@ -1,0 +1,22 @@
+name: Probe Adams Westbrook UUID HLS bridge
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/probe_uuid_hls_bridge.py'
+      - '.github/workflows/probe-adams-westbrook-uuid-hls.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+      - name: Probe UUID HLS namespace and QA archive assets
+        run: python -u analysis/probe_uuid_hls_bridge.py
