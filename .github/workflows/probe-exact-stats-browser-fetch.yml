@@ -1,0 +1,19 @@
+name: Probe exact Stats Events browser fetch
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - analysis/probe_exact_stats_browser_fetch.py
+      - .github/workflows/probe-exact-stats-browser-fetch.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - run: python -u analysis/probe_exact_stats_browser_fetch.py
