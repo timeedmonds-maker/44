@@ -1,0 +1,95 @@
+name: Probe NBA boxscore event video route
+
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - '.github/workflows/probe-boxscore-event-video-route.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/adams-westbrook-hls-final
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi beautifulsoup4
+      - name: Trace historical play-by-play event video resolver
+        shell: bash
+        run: |
+          python - <<'PY'
+          import re, html as htmllib
+          from pathlib import Path
+          from urllib.parse import urljoin
+          from curl_cffi import requests
+          from bs4 import BeautifulSoup
+
+          page='https://www.nba.com/game/por-vs-okc-0041800163/play-by-play'
+          target_terms=['09:46','Adams 2\' Cutting Dunk Shot','GameEventID','videoeventsasset','stats/events','videoUrl','lurl','murl','surl','hasVideo','videoAvailable','actionNumber','eventNum','playByPlay']
+          s=requests.Session(impersonate='chrome')
+          r=s.get(page, timeout=30)
+          out=[]
+          out.append(f'PAGE {page}')
+          out.append(f'HTTP {r.status_code} bytes={len(r.content)} final={r.url}')
+          text=r.text
+          out.append(f'contains_adams_target={"Adams 2\' Cutting Dunk Shot" in text}')
+          out.append(f'contains_09_46={"09:46" in text}')
+          for pat in ['stats/events','GameEventID','videoeventsasset','videoAvailable','hasVideo','eventNum','actionNumber']:
+              out.append(f'HTML_CONTAINS {pat}={pat in text}')
+          # snippets from HTML
+          for term in target_terms:
+              pos=text.find(term)
+              if pos>=0:
+                  out.append(f'\nHTML TERM {term}\n'+htmllib.unescape(text[max(0,pos-500):pos+900]).replace('\\u0026','&'))
+          soup=BeautifulSoup(text,'html.parser')
+          scripts=[]
+          for tag in soup.find_all('script'):
+              src=tag.get('src')
+              if src:
+                  u=urljoin(page,src)
+                  if u not in scripts: scripts.append(u)
+          out.append(f'\nSCRIPT_COUNT {len(scripts)}')
+          hits=0
+          for idx,u in enumerate(scripts):
+              try:
+                  rr=s.get(u, timeout=30)
+              except Exception as e:
+                  out.append(f'SCRIPT_ERROR {u} {e}')
+                  continue
+              body=rr.text
+              matched=[t for t in target_terms if t in body]
+              if not matched:
+                  continue
+              hits+=1
+              out.append(f'\n=== SCRIPT HIT {idx} HTTP={rr.status_code} bytes={len(rr.content)} ===\n{u}\nTERMS={matched}')
+              for term in matched:
+                  start=0
+                  shown=0
+                  while shown<3:
+                      p=body.find(term,start)
+                      if p<0: break
+                      out.append(f'-- {term} @ {p} --\n'+body[max(0,p-900):p+1800])
+                      start=p+len(term)
+                      shown+=1
+          out.append(f'\nSCRIPT_FILES_WITH_HITS={hits}')
+          Path('analysis').mkdir(exist_ok=True)
+          Path('analysis/boxscore_event_video_route_probe.txt').write_text('\n'.join(out), encoding='utf-8')
+          print('\n'.join(out[-40:]))
+          PY
+      - name: Commit trace result
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add analysis/boxscore_event_video_route_probe.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record historical boxscore event video route probe'
+            git push origin HEAD:codex/adams-westbrook-hls-final
+          fi
