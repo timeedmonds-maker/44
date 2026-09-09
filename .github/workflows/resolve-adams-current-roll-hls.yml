@@ -1,0 +1,138 @@
+name: Resolve Adams archive through current NBA roll CDN
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/resolve-adams-current-roll-hls.yml
+  workflow_dispatch:
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Resolve current NBA CDN and validate unencrypted media bytes
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import json,re,urllib.parse,hashlib,os,subprocess,tempfile,shutil
+
+          PROGRAM='fake_E03503130405E830BD3AFC12D0853E7DFEFA7372.nba_2573663_1920x1080_5904_NBA_movie'
+          MEDIA_ID='NBA_E03503130405E830BD3AFC12D0853E7DFEFA7372.nba_2573663_1920x1080_5904_Jitp_Reach_HD'
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          AZUKI_IMC='IMC7.2.0_AN_D3.0.0_S0'
+          DEVICE_PROFILE='eyJtb2RlbCI6IkRlc2t0b3AiLCJvc1ZlcnNpb24iOiIxMCIsInZlbmRvck5hbWUiOiJNaWNyb3NvZnQiLCJvc05hbWUiOiJIVE1MNSIsInd2TGV2ZWwiOiJMMyIsImRldmljZVVVSUQiOiJkZXZpY2VVVUlEIn0='
+          WATCH='https://www.nba.com/watch/video/adams-for-the-slam-in-the-second-quarter'
+          s=requests.Session(impersonate='chrome120')
+          base_headers={'User-Agent':UA,'Accept':'application/json, text/plain, */*','Origin':'https://www.nba.com','Referer':WATCH}
+
+          # 1) Anonymous NBA bootstrap token.
+          st=s.get('https://identity.nba.com/api/v1/sts',headers=base_headers,timeout=20)
+          print('STS',st.status_code,len(st.content),flush=True)
+          st.raise_for_status()
+          token=(st.json().get('data') or st.json())['AccessToken']
+
+          # 2) Re-check entitlement metadata and hard-abort on encrypted content.
+          po=s.get('https://ottapp-appgw-client.nba.com/S1/subscriber/v3/programs/'+PROGRAM+'/play-options',
+                   headers={**base_headers,'Authorization':f'OAUTH2 access_token="{token}"'},
+                   params={'IsexternalId':'true'},timeout=25)
+          print('PLAY_OPTIONS',po.status_code,len(po.content),flush=True)
+          po.raise_for_status(); pobj=po.json()
+          profiles=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  if isinstance(x.get('VideoProfile'),dict): profiles.append(x['VideoProfile'])
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+          walk(pobj)
+          chosen=next((p for p in profiles if p.get('Id')==MEDIA_ID), profiles[0] if profiles else None)
+          if not chosen: raise SystemExit('NO_VIDEO_PROFILE')
+          print('PROFILE',json.dumps({k:chosen.get(k) for k in ['Id','Owner','Encoding','QualityLevel','ClientType','IsEncrypted','PlaybackOrigin']},sort_keys=True),flush=True)
+          if chosen.get('IsEncrypted') is not False:
+              raise SystemExit('ABORT_ENCRYPTED_CONTENT')
+
+          # 3) Current NBA player delivery resolver. Metadata only; no license/DRM request.
+          roll=s.post('https://ottapp-appgw-amp.nba.com/v1/client/roll',
+                      headers={'User-Agent':UA,'AuthorizationToken':token,'AzukiIMC':AZUKI_IMC,
+                               'DeviceProfile':DEVICE_PROFILE,'Content-Type':'application/json','Origin':'https://www.nba.com','Referer':WATCH},
+                      params={'ownerUid':'azuki','mediaId':MEDIA_ID,'sessionId':'sessionId'},
+                      data='{}',timeout=30)
+          print('ROLL',roll.status_code,roll.headers.get('content-type'),len(roll.content),flush=True)
+          print('ROLL_BODY',roll.text[:16000],flush=True)
+          roll.raise_for_status(); robj=roll.json()
+          resp=robj.get('response') or robj.get('Response') or robj
+          manifest_uri=resp.get('manifest_uri') or resp.get('manifestUri')
+          cdns=(resp.get('cdns') or {}).get('cdn') or []
+          if isinstance(cdns,dict): cdns=[cdns]
+          print('MANIFEST_URI',manifest_uri,flush=True)
+          print('CDN_COUNT',len(cdns),flush=True)
+          for i,c in enumerate(cdns): print('CDN',i,json.dumps(c)[:4000],flush=True)
+          if not manifest_uri or not cdns: raise SystemExit('ROLL_NO_MANIFEST')
+
+          # 4) Try each official CDN base URI until one returns HLS.
+          manifest_url=None; manifest_text=None
+          for c in cdns:
+              base=c.get('base_uri') or c.get('baseUri') or ''
+              if not base: continue
+              u=urllib.parse.urljoin(base.rstrip('/')+'/',manifest_uri.lstrip('/'))
+              try:
+                  mr=s.get(u,headers={'User-Agent':UA,'Referer':WATCH,'Origin':'https://www.nba.com','Accept':'*/*'},timeout=30,allow_redirects=True)
+                  print('MANIFEST_TRY',mr.status_code,mr.headers.get('content-type'),len(mr.content),mr.url,flush=True)
+                  print(mr.text[:8000] if len(mr.content)<100000 else '<large>',flush=True)
+                  if mr.status_code==200 and '#EXTM3U' in mr.text:
+                      manifest_url=mr.url; manifest_text=mr.text; break
+              except Exception as e: print('MANIFEST_ERR',type(e).__name__,str(e)[:500],flush=True)
+          if not manifest_url: raise SystemExit('NO_ACTIVE_MANIFEST')
+
+          # 5) Resolve highest bandwidth variant and fetch real segments.
+          lines=[x.strip() for x in manifest_text.splitlines() if x.strip()]
+          variants=[]
+          for i,line in enumerate(lines[:-1]):
+              if line.startswith('#EXT-X-STREAM-INF') and not lines[i+1].startswith('#'):
+                  m=re.search(r'BANDWIDTH=(\d+)',line); variants.append((int(m.group(1)) if m else 0,lines[i+1]))
+          media_url=manifest_url; media_text=manifest_text
+          if variants:
+              bw,v=max(variants)
+              media_url=urllib.parse.urljoin(manifest_url,v)
+              vr=s.get(media_url,headers={'User-Agent':UA,'Referer':WATCH,'Origin':'https://www.nba.com','Accept':'*/*'},timeout=30,allow_redirects=True)
+              print('VARIANT',bw,vr.status_code,vr.headers.get('content-type'),len(vr.content),vr.url,flush=True)
+              print(vr.text[:10000],flush=True)
+              vr.raise_for_status(); media_url=vr.url; media_text=vr.text
+          segs=[urllib.parse.urljoin(media_url,x.strip()) for x in media_text.splitlines() if x.strip() and not x.strip().startswith('#')]
+          print('SEGMENTS',len(segs),flush=True)
+          if not segs: raise SystemExit('NO_SEGMENTS')
+          hashes=[]
+          for i,u in enumerate(segs[:4]):
+              sr=s.get(u,headers={'User-Agent':UA,'Referer':WATCH,'Origin':'https://www.nba.com','Accept':'*/*'},timeout=30,allow_redirects=True)
+              sha=hashlib.sha256(sr.content).hexdigest(); hashes.append(sha)
+              print('SEG',i,sr.status_code,sr.headers.get('content-type'),len(sr.content),sha,sr.url,flush=True)
+              if sr.status_code!=200 or len(sr.content)<10000: raise SystemExit(f'BAD_SEGMENT_{i}')
+
+          # 6) Download the whole ~23 sec asset without transcoding and produce QA frames.
+          os.makedirs('out',exist_ok=True)
+          out='out/adams_game3_current_nba_archive.mp4'
+          hdr='Referer: '+WATCH+'\r\nUser-Agent: '+UA+'\r\nOrigin: https://www.nba.com\r\n'
+          ff=subprocess.run(['ffmpeg','-y','-headers',hdr,'-i',media_url,'-c','copy',out],capture_output=True,text=True,timeout=120)
+          print('FFMPEG_RC',ff.returncode,flush=True); print(ff.stderr[-8000:],flush=True)
+          if ff.returncode!=0 or not os.path.exists(out): raise SystemExit('FFMPEG_FAIL')
+          data=open(out,'rb').read(); sha=hashlib.sha256(data).hexdigest()
+          print('MP4_BYTES',len(data),'SHA256',sha,flush=True)
+          if sha=='45934326c3cac055be7389cc27484107cafbda429afa54ca35b3ac2350df79a0': raise SystemExit('KNOWN_TOMBSTONE_HASH')
+          fp=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration,size:stream=index,codec_name,codec_type,width,height,avg_frame_rate','-of','json',out],capture_output=True,text=True,timeout=30)
+          print('FFPROBE',fp.stdout,flush=True)
+          for t in ['2','10','18']:
+              jpg=f'out/frame_{t}.jpg'
+              q=subprocess.run(['ffmpeg','-y','-ss',t,'-i',out,'-frames:v','1','-q:v','2',jpg],capture_output=True,text=True,timeout=30)
+              if os.path.exists(jpg): print('FRAME',t,os.path.getsize(jpg),hashlib.sha256(open(jpg,'rb').read()).hexdigest(),flush=True)
+          with open('out/qa.json','w') as f:
+              json.dump({'program_id':PROGRAM,'media_id':MEDIA_ID,'is_encrypted':False,'manifest_url':manifest_url,
+                         'media_url':media_url,'segment_hashes':hashes,'mp4_sha256':sha,'known_tombstone':False},f,indent=2)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-current-nba-archive-real-media
+          path: out/
+          if-no-files-found: error
