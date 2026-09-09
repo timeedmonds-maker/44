@@ -1,0 +1,56 @@
+name: Trace NBA Neulion refresh caller
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/trace-neulion-refresh-caller.yml
+  workflow_dispatch:
+jobs:
+  trace:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Trace refresh caller and AMS/key construction
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import re, urllib.parse, html
+
+          URLS=[
+            'https://www.nba.com/watch/video/adams-for-the-slam-in-the-second-quarter',
+            'https://www.nba.com/game/nyk-vs-okc-0021700015?watch'
+          ]
+          s=requests.Session(impersonate='chrome120')
+          H={'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Accept':'*/*'}
+          scripts=[]
+          for u in URLS:
+              r=s.get(u,headers=H,timeout=25)
+              print('PAGE',u,r.status_code,len(r.text))
+              for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',r.text,re.I):
+                  su=urllib.parse.urljoin(u,html.unescape(src))
+                  if '/_next/static/' in su and su not in scripts: scripts.append(su)
+
+          needles=['.Bn(', 'Bn(', 'generateKey(', '.generateKey(', 'X-NL-SW-AMS', '/api/refresh', '.ea(', '.$t(', 'accessTimestamp', 'broadcastId', 'manifestURI', 'personal_info', 'credential_value']
+          for i,su in enumerate(scripts):
+              try: t=s.get(su,headers=H,timeout=25).text
+              except Exception as e:
+                  print('ERR',su,e); continue
+              positions=[]
+              for nd in needles:
+                  for m in re.finditer(re.escape(nd),t): positions.append((m.start(),nd))
+              if not positions: continue
+              print('\n===',i,su,'bytes',len(t),'===')
+              # Merge nearby hits into large windows so minified call chains stay intact.
+              positions.sort()
+              groups=[]
+              for p,nd in positions:
+                  if not groups or p-groups[-1][-1][0] > 18000: groups.append([])
+                  groups[-1].append((p,nd))
+              for gi,g in enumerate(groups):
+                  lo=max(0,g[0][0]-18000); hi=min(len(t),g[-1][0]+24000)
+                  print('\n--- WINDOW',gi,'RANGE',lo,hi,'HITS',g[:30],'---')
+                  print(t[lo:hi])
