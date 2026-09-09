@@ -1,0 +1,105 @@
+[
+  {
+    "id": 26564109,
+    "cerebroId": "5cbaad35ca84b7335bc086a3",
+    "source": "espn",
+    "headline": "Westbrook, George not in the mood to answer questions",
+    "description": "After fielding a few questions on the game, Russell Westbrook and Paul George respond with \"next question\" or don't respond at all.",
+    "lastModified": "2019-04-20T05:27:10Z",
+    "originalPublishDate": "2019-04-20T05:25:09Z",
+    "duration": 46,
+    "timeRestrictions": {
+      "embargoDate": "2019-04-20T05:23:38Z",
+      "expirationDate": "2037-12-31T06:23:38Z"
+    },
+    "deviceRestrictions": {
+      "devices": [
+        "settop",
+        "tablet",
+        "handset",
+        "ipad",
+        "desktop"
+      ],
+      "type": "whitelist"
+    },
+    "thumbnail": "https://espnmedia-cdn.akamaized.net/espn/media/common/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering.jpg",
+    "links": {
+      "api": {
+        "artwork": {
+          "href": "https://artwork.api.espn.com/artwork/collections/media/bb312aa1-0619-4305-b256-d30dc7241671"
+        },
+        "self": {
+          "href": "https://content.core.api.espn.com/v1/video/clips/26564109"
+        }
+      },
+      "mobile": {
+        "href": "http://once.unicornmedia.com/now/od/auto/4d993388-8b49-4f34-9e48-87906e690281/85957be9-026a-415e-a8ce-7bfdc19d5e23/dc52c6ff-7d2d-4d81-84e7-ba46a7d4ba0d/content.once?UMADPARAMreferer=http://www.espn.com/video/clip?id=26564109",
+        "alert": {
+          "href": "https://m.espn.com/general/video/videoAlert?vid=26564109"
+        },
+        "progressiveDownload": {
+          "href": "http://once.unicornmedia.com/now/od/auto/4d993388-8b49-4f34-9e48-87906e690281/85957be9-026a-415e-a8ce-7bfdc19d5e23/dc52c6ff-7d2d-4d81-84e7-ba46a7d4ba0d/content.once?UMADPARAMreferer=http://www.espn.com/video/clip?id=26564109"
+        },
+        "source": {
+          "href": "https://espnmedia-cdn.akamaized.net/espn/media/16x9/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering.mp4"
+        },
+        "streaming": {
+          "href": "http://once.unicornmedia.com/now/od/auto/4d993388-8b49-4f34-9e48-87906e690281/85957be9-026a-415e-a8ce-7bfdc19d5e23/dc52c6ff-7d2d-4d81-84e7-ba46a7d4ba0d/content.once?UMADPARAMreferer=http://www.espn.com/video/clip?id=26564109"
+        }
+      },
+      "source": {
+        "href": "https://espnmedia-cdn.akamaized.net/espn/media/16x9/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering.mp4",
+        "HD": {
+          "href": "https://espnmedia-cdn.akamaized.net/espn/media/16x9/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering.mp4"
+        },
+        "HLS": {
+          "href": "https://cmp-espn.media.dssott.com/opp/hls/espn/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/playlist.m3u8",
+          "HD": {
+            "href": "https://cmp-espn.media.dssott.com/opp/hls/espn/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/playlist.m3u8"
+          },
+          "cmaf": {
+            "href": "https://cmp-espn.media.dssott.com/opp/cmaf/espn/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/playlist.m3u8"
+          },
+          "shield": {
+            "href": "https://watch.auth.api.espn.com/video/auth/media/bb312aa1-0619-4305-b256-d30dc7241671/asset"
+          }
+        },
+        "flash": {
+          "href": "https://espnmedia-cdn.akamaized.net/espn/media/16x9/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering.mp4"
+        },
+        "full": {
+          "href": "https://espnmedia-cdn.akamaized.net/espn/media/16x9/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering.mp4"
+        },
+        "hds": {
+          "href": "https://espnmedia-cdn.akamaized.net/espn/media/16x9/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering.mp4"
+        },
+        "mezzanine": {
+          "href": "https://espnmedia-cdn.akamaized.net/espn/media/16x9/2019/0420/dm_190420_NBA_Presser_George_and_Westbrook_not_answering/dm_190420_NBA_Presser_George_and_Westbrook_not_answering.mp4"
+        }
+      },
+      "sportscenter": {
+        "href": "sportscenter://x-callback-url/showVideo?videoID=26564109&videoDSI=ecd4616ddaceb"
+      },
+      "web": {
+        "href": "http://www.espn.com/video/clip?id=26564109",
+        "self": {
+          "href": "http://www.espn.com/video/clip?id=26564109",
+          "dsi": {
+            "href": "https://www.espn.com/video/clip?id=ecd4616ddaceb"
+          }
+        }
+      }
+    },
+    "ad": {
+      "bundle": "nba_sound_bites",
+      "sport": "nba"
+    },
+    "tracking": {
+      "coverageType": "Analysis",
+      "leagueName": "NBA",
+      "sportName": "basketball",
+      "trackingId": "dm_190420_NBA_Presser_George_and_Westbrook_not_answering",
+      "trackingName": "COM_NBA Presser (Westbrook, George not in the mood to answer questions) 2019/04/19"
+    }
+  }
+]
