@@ -1,0 +1,21 @@
+name: Probe historical NBA video asset recovery
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/probe_historical_nba_video_assets.py'
+      - '.github/workflows/probe-historical-nba-video-assets.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe videoevents and videoeventsasset
+        run: python -u analysis/probe_historical_nba_video_assets.py
