@@ -1,0 +1,53 @@
+name: Probe NBA Stats cross-egress
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/probe-stats-cross-egress.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install curl_cffi
+        run: python -m pip install curl_cffi
+      - name: Probe 2017 and 2025 canonical Stats video resolver
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import time, json, platform
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          P='https://www.nba.com/stats/events'
+          print('PLATFORM', platform.platform(), flush=True)
+          s=requests.Session(impersonate='chrome120')
+          try:
+              r=s.get('https://www.nba.com/',headers={'User-Agent':UA},timeout=12)
+              print('PREWARM',r.status_code,len(r.content),sorted(s.cookies.get_dict().keys()),flush=True)
+          except Exception as ex:
+              print('PREWARM_ERR',type(ex).__name__,str(ex)[:250],flush=True)
+          for label,g,e in [('2017','0021700015','438'),('2025','0022500375','608')]:
+              u=f'https://stats.nba.com/stats/videoeventsasset?GameID={g}&GameEventID={e}'
+              h={'User-Agent':UA,'Accept':'*/*','Origin':'https://www.nba.com','Referer':P}
+              t=time.time()
+              try:
+                  r=s.get(u,headers=h,timeout=10)
+                  print(label,'STATUS',r.status_code,'SECS',round(time.time()-t,2),'CT',r.headers.get('content-type'),'BYTES',len(r.content),flush=True)
+                  if r.status_code==200:
+                      obj=r.json()
+                      rs=obj.get('resultSets',{}) if isinstance(obj,dict) else {}
+                      meta=rs.get('Meta',{}) if isinstance(rs,dict) else {}
+                      vids=meta.get('videoUrls',[]) if isinstance(meta,dict) else []
+                      pl=rs.get('playlist',[]) if isinstance(rs,dict) else []
+                      print(label,'PLAYLIST',len(pl),'VIDEOURLS',len(vids),flush=True)
+                      for i,v in enumerate(vids[:5]):
+                          print(label,'VIDEO',i,{k:v.get(k) for k in ['uuid','ldur','lth','lurl','murl','surl'] if k in v},flush=True)
+              except Exception as ex:
+                  print(label,'ERR',type(ex).__name__,str(ex)[:250],'SECS',round(time.time()-t,2),flush=True)
