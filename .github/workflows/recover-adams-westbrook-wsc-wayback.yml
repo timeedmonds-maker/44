@@ -1,0 +1,21 @@
+name: Recover historical Adams Westbrook WSC asset identity
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/recover_wsc_from_wayback.py'
+      - '.github/workflows/recover-adams-westbrook-wsc-wayback.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Query archived NBA secure WSC resolver
+        run: python -u analysis/recover_wsc_from_wayback.py
