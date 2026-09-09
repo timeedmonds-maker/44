@@ -1,0 +1,78 @@
+name: Adams Jazz three-camera visual sync v11
+
+on:
+  push:
+    branches: [codex/three-camera-volumetric-v8-run]
+    paths:
+      - 'freeze_spin/refine_three_camera_visual_sync_v11.py'
+      - '.github/workflows/adams-jazz-three-camera-visual-sync-v11.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  exact-state-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 pillow
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+      - name: Verify synchronizer imports
+        run: PYTHONPATH=.:freeze_spin python -c "import freeze_spin.refine_three_camera_visual_sync_v11; print('V11_IMPORT_OK')"
+      - name: Retrieve Jazz event 489 official HLS angles and audio-coarse map
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py --clips target_source/clips --out frame_c_target
+      - name: Retrieve accepted Right Above Rim v73 metric report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p inputs_v73
+          gh run download 33911842169 --repo timeedmonds-maker/44 --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 --dir inputs_v73
+      - name: Search exact visual state around audio predictions
+        run: |
+          mkdir -p visual_sync_v11
+          PYTHONPATH=.:freeze_spin python -u -m freeze_spin.refine_three_camera_visual_sync_v11 \
+            --clips-dir target_source/clips \
+            --options frame_c_target/options.json \
+            --frames-dir frame_c_target/frames \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --out visual_sync_v11 --radius-frames 6 | tee visual_sync_v11/run.log
+      - name: Gate common ball geometry
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('visual_sync_v11/three_camera_visual_sync_v11.json'))
+          print(json.dumps(q['gates'],indent=2))
+          if not q['gates']['all_ball_geometry_pass']:
+              raise SystemExit('EXACT_VISUAL_SYNC_BALL_GATE_FAILED')
+          PY
+      - name: Package sync proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp visual_sync_v11/*.json delivery/ 2>/dev/null || true
+          cp visual_sync_v11/*.png delivery/ 2>/dev/null || true
+          cp visual_sync_v11/run.log delivery/ 2>/dev/null || true
+          touch delivery/_artifact_present
+      - name: Upload sync proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-visual-sync-v11-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
