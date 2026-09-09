@@ -1,0 +1,27 @@
+name: Probe Adams Westbrook historical HLS
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/probe_adams_westbrook_hls.py'
+      - '.github/workflows/probe-adams-westbrook-hls.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe exact historical clips HLS
+        run: python -u analysis/probe_adams_westbrook_hls.py
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-westbrook-hls-probe
+          path: adams_westbrook_hls_probe.json
