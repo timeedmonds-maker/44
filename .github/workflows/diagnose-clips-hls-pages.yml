@@ -1,0 +1,21 @@
+name: Diagnose clips NBA HLS page references
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/diagnose_clips_hls_pages.py'
+      - '.github/workflows/diagnose-clips-hls-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compare fresh page media references across eras
+        run: python -u analysis/diagnose_clips_hls_pages.py
