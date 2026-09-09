@@ -44,7 +44,7 @@ jobs:
           python freeze_spin/prepare_locked_frame_c_sources.py \
             --clips target_source/clips \
             --out frame_c_target
-          find frame_c_target -maxdepth 1 -type f -name '*.png' -printf '%f\n' | sort
+          find frame_c_target/frames -maxdepth 1 -type f -name '*.png' -printf '%f\n' | sort
 
       - name: Retrieve accepted Right Above Rim v73 metric report
         env:
@@ -60,12 +60,14 @@ jobs:
       - name: Render volumetric perspective arc
         run: |
           mkdir -p three_camera_v8
-          BCAST="$(find frame_c_target -maxdepth 1 -type f -name '*A_Broadcast*.png' | head -n 1)"
+          FRAMES="frame_c_target/frames"
+          BCAST="$(find "$FRAMES" -maxdepth 1 -type f -name 'A_Broadcast*.png' | head -n 1)"
+          echo "FRAMES=$FRAMES"
           echo "BCAST=$BCAST"
           test -n "$BCAST"
           set -o pipefail
           PYTHONPATH=.:freeze_spin python -X dev -u -m freeze_spin.build_three_camera_volumetric_v8 \
-            --frames-dir frame_c_target \
+            --frames-dir "$FRAMES" \
             --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
             --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
             --broadcast-event-frame "$BCAST" \
@@ -115,9 +117,9 @@ jobs:
           cp three_camera_v8/*.mp4 delivery/ 2>/dev/null || true
           cp three_camera_v8/v8_*.png delivery/ 2>/dev/null || true
           cp three_camera_v8/*_body_mask.png delivery/ 2>/dev/null || true
-          cp frame_c_target/*Left_Above_Rim*.png delivery/ 2>/dev/null || true
-          cp frame_c_target/*Right_Above_Rim*.png delivery/ 2>/dev/null || true
-          cp frame_c_target/*A_Broadcast*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/*Left_Above_Rim*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/*Right_Above_Rim*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/A_Broadcast*.png delivery/ 2>/dev/null || true
           if [ -f delivery/adams_jazz_three_camera_volumetric_v8_UHD.mp4 ]; then
             cd delivery && zip -0 adams_jazz_three_camera_volumetric_v8_package.zip \
               adams_jazz_three_camera_volumetric_v8_UHD.mp4 \
