@@ -1,0 +1,50 @@
+name: Probe NBA Stats media bytes on macOS
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/probe-stats-macos-media-bytes.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Resolve and fetch media bytes
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import hashlib, json, os, subprocess, tempfile, urllib.parse
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36'
+          s=requests.Session(impersonate='chrome120')
+          s.get('https://www.nba.com/',headers={'User-Agent':UA},timeout=12)
+          events=[('2017','0021700015','438'),('2019','0041800163','215'),('2025','0022500375','608')]
+          for label,g,e in events:
+              api=f'https://stats.nba.com/stats/videoeventsasset?GameID={g}&GameEventID={e}'
+              r=s.get(api,headers={'User-Agent':UA,'Accept':'*/*','Origin':'https://www.nba.com','Referer':'https://www.nba.com/stats/events'},timeout=12)
+              print('\nEVENT',label,'API',r.status_code,len(r.content),flush=True)
+              obj=r.json(); rs=obj.get('resultSets',{}); vids=(rs.get('Meta') or {}).get('videoUrls') or []
+              if not vids:
+                  print('NO_VIDEOURLS',flush=True); continue
+              v=vids[0]
+              print('META',{k:v.get(k) for k in ['uuid','ldur','lurl','murl','surl','lth']},flush=True)
+              for key in ['lurl','murl','surl','lth']:
+                  u=v.get(key)
+                  if not u: continue
+                  try:
+                      mr=s.get(u,headers={'User-Agent':UA,'Referer':'https://www.nba.com/stats/events','Origin':'https://www.nba.com'},timeout=25,allow_redirects=True)
+                      p=urllib.parse.urlsplit(mr.url)
+                      print('FETCH',key,'status',mr.status_code,'ct',mr.headers.get('content-type'),'bytes',len(mr.content),'sha256',hashlib.sha256(mr.content).hexdigest(),'final_host',p.netloc,'final_path',p.path,flush=True)
+                      if key.endswith('url') and mr.status_code==200 and len(mr.content)>10000:
+                          fn=os.path.join(tempfile.gettempdir(),f'{label}_{key}.mp4')
+                          open(fn,'wb').write(mr.content)
+                          try:
+                              q=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration,size:stream=codec_name,width,height,avg_frame_rate','-of','json',fn],capture_output=True,text=True,timeout=20)
+                              print('FFPROBE',key,q.returncode,q.stdout[:1200],flush=True)
+                          except Exception as ex: print('FFPROBE_ERR',key,type(ex).__name__,str(ex)[:200],flush=True)
+                  except Exception as ex:
+                      print('FETCH_ERR',key,type(ex).__name__,str(ex)[:250],flush=True)
