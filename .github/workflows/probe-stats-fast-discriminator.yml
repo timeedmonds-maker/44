@@ -1,0 +1,19 @@
+name: Probe Stats fast discriminator
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - analysis/probe_stats_fast_discriminator.py
+      - .github/workflows/probe-stats-fast-discriminator.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - run: python -u analysis/probe_stats_fast_discriminator.py
