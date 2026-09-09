@@ -1,0 +1,63 @@
+name: Probe 2019 Common Crawl exact WSC target
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/probe-wsc-commoncrawl-2019.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Query historical Common Crawl indexes
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import json,urllib.parse,time
+          UUID='995096ac-c2a1-b2fa-89ed-a345759b84be'
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          s=requests.Session(impersonate='chrome120')
+          H={'User-Agent':UA,'Accept':'*/*'}
+          def get(url,t=25):
+              try:
+                  r=s.get(url,headers=H,timeout=t,allow_redirects=True)
+                  return r.status_code,r.text,r.url
+              except Exception as e:
+                  return 'ERR',f'{type(e).__name__}: {e}',''
+          st,txt,_=get('https://index.commoncrawl.org/collinfo.json',30)
+          print('COLLINFO',st,'bytes',len(txt),flush=True)
+          if st!=200: raise SystemExit(2)
+          arr=json.loads(txt)
+          idx=[x for x in arr if str(x.get('id','')).startswith('CC-MAIN-2019')]
+          print('INDEXES',[x['id'] for x in idx],flush=True)
+          targets=[]
+          targets.append(('secure_exact',f'https://secure.nba.com/video/wsc/league/{UUID}.secure.xml','exact'))
+          targets.append(('secure_http',f'http://secure.nba.com/video/wsc/league/{UUID}.secure.xml','exact'))
+          for day in ['18','19','20','21']:
+              for scheme in ['http','https']:
+                  for host in ['ssl.cdn.turner.com','nba.cdn.turner.com','pmd.cdn.turner.com']:
+                      targets.append((f'{host}_{day}_{scheme}',f'{scheme}://{host}/nba/big/nba/wsc/2019/04/{day}/{UUID}','prefix'))
+          hits=0
+          # Prefer 2019 indexes around event date, then all other 2019 indexes.
+          for x in idx:
+              api=x['cdx-api']; iid=x['id']
+              print('\nINDEX',iid,api,flush=True)
+              for label,target,match in targets:
+                  params={'url':target,'output':'json'}
+                  if match=='prefix': params['matchType']='prefix'
+                  u=api+'?'+urllib.parse.urlencode(params)
+                  st,body,_=get(u,22)
+                  b=body.strip()
+                  if st==200 and b:
+                      hits+=1
+                      print('HIT',iid,label,target,flush=True)
+                      print(b[:12000],flush=True)
+                  elif st not in (200,404):
+                      print('STATUS',iid,label,st,b[:300],flush=True)
+                  time.sleep(.08)
+          print('\nTOTAL_HITS',hits,flush=True)
