@@ -1,0 +1,70 @@
+name: Probe current NBA Neulion roll auth construction
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/probe-current-neulion-roll-auth.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Extract exact roll/header/source construction from current NBA player
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import re, urllib.parse, html, json
+
+          PAGE='https://www.nba.com/watch/video/adams-for-the-slam-in-the-second-quarter'
+          GAME='https://www.nba.com/game/nyk-vs-okc-0021700015?watch'
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          s=requests.Session(impersonate='chrome120')
+          H={'User-Agent':UA,'Referer':'https://www.nba.com/','Accept':'*/*'}
+
+          pages=[]
+          for u in [PAGE,GAME]:
+              r=s.get(u,headers=H,timeout=25)
+              print('PAGE',u,r.status_code,len(r.text),flush=True)
+              pages.append((u,r.text))
+
+          scripts=[]
+          for base,txt in pages:
+              for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',txt,re.I):
+                  su=urllib.parse.urljoin(base,html.unescape(src))
+                  if '/_next/static/' in su and su not in scripts: scripts.append(su)
+          print('SCRIPT_COUNT',len(scripts),flush=True)
+
+          terms=[
+            'nbaapi.neulion.com','X-NL-SW-AMS','/api/roll','/api/refresh','/api/ping',
+            'accessToken','access_token','broadcast_id','access_timestamp','manifest_uri',
+            'addUserInfo','wmsAuthSign','akamaized.net','lpnba','personal_info','source:',
+            'program_entitlements','drm_type','Request("POST","/api/roll"',
+            "Request('POST','/api/roll'"
+          ]
+          matched=0
+          for i,su in enumerate(scripts):
+              try:
+                  rr=s.get(su,headers=H,timeout=25)
+              except Exception as e:
+                  print('SCRIPT_ERR',i,type(e).__name__,str(e)[:200],flush=True); continue
+              t=rr.text
+              hits=[x for x in terms if x.lower() in t.lower()]
+              if not hits: continue
+              matched += 1
+              print('\n=== CHUNK',i,su,'bytes',len(t),'hits',hits,'===',flush=True)
+              seen=set()
+              for term in hits:
+                  for m in list(re.finditer(re.escape(term),t,re.I))[:25]:
+                      p=m.start()
+                      key=(term,p//500)
+                      if key in seen: continue
+                      seen.add(key)
+                      ctx=re.sub(r'\s+',' ',t[max(0,p-5000):p+9000])
+                      print('\nCTX_TERM',term,'POS',p,flush=True)
+                      print(ctx[:14000],flush=True)
+          print('MATCHED_CHUNKS',matched,flush=True)
