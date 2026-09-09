@@ -56,7 +56,7 @@ jobs:
           mkdir -p three_camera_v8
           BCAST="$(find frame_c_target -maxdepth 1 -type f -name '*A_Broadcast*.png' | head -n 1)"
           test -n "$BCAST"
-          python freeze_spin/build_three_camera_volumetric_v8.py \
+          PYTHONPATH=. python -m freeze_spin.build_three_camera_volumetric_v8 \
             --frames-dir frame_c_target \
             --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
             --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
