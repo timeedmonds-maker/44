@@ -1,75 +1,32 @@
-[
-  {
-    "short_status": 200,
-    "final_url": "https://t.co/lGWNgDfRCr",
-    "bytes": 354,
-    "head": "<head><noscript><META http-equiv=\"refresh\" content=\"0;URL=https://twitter.com/okcthunder/status/1117515963782406144/video/1\"></noscript><title>https://twitter.com/okcthunder/status/1117515963782406144/video/1</title></head><script>window.opener = null; location.replace(\"https:\\/\\/twitter.com\\/okcthunder\\/status\\/1117515963782406144\\/video\\/1\")</script>"
-  },
-  {
-    "url": "https://x.com/okcthunder/status/1117515963782406144",
-    "status": 200,
-    "final": "https://x.com/okcthunder/status/1117515963782406144",
-    "bytes": 127427,
-    "type": "text/html; charset=UTF-8",
-    "video_urls_found": 5
-  },
-  {
-    "url": "https://twitter.com/okcthunder/status/1117515963782406144",
-    "status": 200,
-    "final": "https://x.com/okcthunder/status/1117515963782406144",
-    "bytes": 127427,
-    "type": "text/html; charset=UTF-8",
-    "video_urls_found": 5
-  },
-  {
-    "url": "https://twitter.com/i/videos/tweet/1117515963782406144",
-    "status": 200,
-    "final": "https://twitter.com/i/videos/tweet/1117515963782406144",
-    "bytes": 388,
-    "type": "text/html;charset=utf-8",
-    "video_urls_found": 5
-  },
-  {
-    "url": "https://publish.twitter.com/oembed?url=https://twitter.com/okcthunder/status/1117515963782406144",
-    "status": 200,
-    "final": "https://publish.x.com/oembed?url=https://twitter.com/okcthunder/status/1117515963782406144",
-    "bytes": 921,
-    "type": "application/json; charset=utf-8",
-    "video_urls_found": 5
-  },
-  {
-    "url": "https://api.fxtwitter.com/status/1117515963782406144",
-    "status": 200,
-    "final": "https://api.fxtwitter.com/status/1117515963782406144",
-    "bytes": 4755,
-    "type": "application/json",
-    "video_urls_found": 5
-  },
-  {
-    "url": "https://api.vxtwitter.com/Twitter/status/1117515963782406144",
-    "status": 200,
-    "final": "https://api.vxtwitter.com/Twitter/status/1117515963782406144",
-    "bytes": 1238,
-    "type": "application/json",
-    "video_urls_found": 6
-  },
-  {
-    "url": "https://cdn.syndication.twimg.com/tweet-result?id=1117515963782406144&lang=en",
-    "status": 200,
-    "final": "https://cdn.syndication.twimg.com/tweet-result?id=1117515963782406144&lang=en",
-    "bytes": 2,
-    "type": "application/json; charset=utf-8",
-    "video_urls_found": 6
-  },
-  {
-    "tweet_id": "1117515963782406144",
-    "candidates": [
-      "https://video.twimg.com",
-      "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/pl/1-z-Yuo7gjIKHpek.m3u8?tag=8",
-      "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/320x180/JFXhxoQrPgKqsNeM.mp4?tag=8",
-      "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/640x360/Q5-E7rQ4WpR7CuAp.mp4?tag=8",
-      "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/1280x720/90LlqqmG95DKSRi9.mp4?tag=8",
-      "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/1280x720/90LlqqmG95DKSRi9.mp4"
-    ]
-  }
-]
+{
+  "tweet_id": "1117515963782406144",
+  "selected": "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/1280x720/90LlqqmG95DKSRi9.mp4?tag=8",
+  "bytes": 1291685,
+  "sha256": "b2fcaa7d38eefa33396bbf362a8ac7c837e18cb5db6b1cfba347f2113d38c342",
+  "probes": [
+    {
+      "url": "https://x.com/okcthunder/status/1117515963782406144",
+      "status": 200,
+      "bytes": 127427,
+      "candidate_count": 3
+    },
+    {
+      "url": "https://api.vxtwitter.com/Twitter/status/1117515963782406144",
+      "status": 200,
+      "bytes": 1238,
+      "candidate_count": 4
+    },
+    {
+      "url": "https://api.fxtwitter.com/status/1117515963782406144",
+      "status": 200,
+      "bytes": 4755,
+      "candidate_count": 4
+    }
+  ],
+  "candidates": [
+    "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/1280x720/90LlqqmG95DKSRi9.mp4?tag=8",
+    "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/1280x720/90LlqqmG95DKSRi9.mp4",
+    "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/640x360/Q5-E7rQ4WpR7CuAp.mp4?tag=8",
+    "https://video.twimg.com/ext_tw_video/1117515917049520128/pu/vid/320x180/JFXhxoQrPgKqsNeM.mp4?tag=8"
+  ]
+}
