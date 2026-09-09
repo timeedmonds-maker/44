@@ -1,0 +1,55 @@
+name: Probe free NBA Watch play-options
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/probe-watch-free-play-options.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Resolve free historical Watch program
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import json,re
+          PROGRAM='fake_E03503130405E830BD3AFC12D0853E7DFEFA7372.nba_2573663_1920x1080_5904_NBA_movie'
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          s=requests.Session(impersonate='chrome120')
+          H={'User-Agent':UA,'Accept':'application/json, text/plain, */*','Origin':'https://www.nba.com','Referer':'https://www.nba.com/watch/video/adams-for-the-slam-in-the-second-quarter'}
+          # Anonymous token is the same public bootstrap used by NBA.com for free content.
+          r=s.get('https://identity.nba.com/api/v1/sts',headers=H,timeout=20)
+          print('STS',r.status_code,'bytes',len(r.content),flush=True)
+          if r.status_code!=200:
+              print(r.text[:2000],flush=True); raise SystemExit(2)
+          j=r.json(); data=j.get('data') or j
+          token=data.get('AccessToken') or data.get('accessToken')
+          print('TOKEN_PRESENT',bool(token),'keys',sorted(data.keys()) if isinstance(data,dict) else type(data),flush=True)
+          if not token: raise SystemExit(3)
+          u='https://ottapp-appgw-client.nba.com/S1/subscriber/v3/programs/'+PROGRAM+'/play-options'
+          hh=dict(H); hh['Authorization']=f'OAUTH2 access_token="{token}"'
+          p=s.get(u,headers=hh,params={'IsexternalId':'true'},timeout=25)
+          print('PLAY_OPTIONS',p.status_code,'bytes',len(p.content),'ct',p.headers.get('content-type'),flush=True)
+          # Safe structured dump: this endpoint is metadata/play-options, not a DRM license.
+          try:
+              obj=p.json()
+              print(json.dumps(obj,indent=2)[:30000],flush=True)
+              ids=[]
+              def walk(x):
+                  if isinstance(x,dict):
+                      for k,v in x.items():
+                          if k.lower() in ('id','mediaid','assetid','contentid','programid') and isinstance(v,(str,int)):
+                              ids.append((k,str(v)))
+                          walk(v)
+                  elif isinstance(x,list):
+                      for v in x: walk(v)
+              walk(obj)
+              print('IDS',ids[:100],flush=True)
+          except Exception as e:
+              print('PARSE_ERR',type(e).__name__,str(e),p.text[:8000],flush=True)
