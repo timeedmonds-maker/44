@@ -1,0 +1,72 @@
+name: Probe exact WSC archive target
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/probe-wsc-archive-target.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Probe Wayback and Common Crawl for target UUID
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import json, urllib.parse, time
+          UUID='995096ac-c2a1-b2fa-89ed-a345759b84be'
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          s=requests.Session(impersonate='chrome120')
+          headers={'User-Agent':UA,'Accept':'*/*'}
+          queries=[]
+          # Exact old secure resolver.
+          queries.append(('secure_xml',f'https://secure.nba.com/video/wsc/league/{UUID}.secure.xml'))
+          # WSC CDN folders: old API examples frequently use next-day UTC folder dates.
+          for day in ['18','19','20','21']:
+              for host in ['nba.cdn.turner.com','ssl.cdn.turner.com','pmd.cdn.turner.com']:
+                  queries.append((f'{host}_{day}',f'https://{host}/nba/big/nba/wsc/2019/04/{day}/{UUID}*'))
+          def get(url, timeout=20):
+              try:
+                  r=s.get(url,headers=headers,timeout=timeout,allow_redirects=True)
+                  return r.status_code,r.text[:12000],r.url
+              except Exception as e:
+                  return 'ERR',f'{type(e).__name__}: {e}',''
+          print('=== WAYBACK CDX ===',flush=True)
+          for label,target in queries:
+              params={'url':target,'output':'json','fl':'timestamp,original,statuscode,mimetype,digest,length','filter':'statuscode:200','collapse':'urlkey'}
+              u='https://web.archive.org/cdx/search/cdx?'+urllib.parse.urlencode(params)
+              st,txt,final=get(u,25)
+              print('\nWB',label,'status',st,'target',target,flush=True)
+              print(txt[:4000],flush=True)
+              time.sleep(0.35)
+          print('\n=== COMMON CRAWL INDEX LIST ===',flush=True)
+          st,txt,final=get('https://index.commoncrawl.org/collinfo.json',25)
+          print('CC_LIST_STATUS',st,txt[:5000],flush=True)
+          indexes=[]
+          if st==200:
+              try:
+                  arr=json.loads(txt)
+                  indexes=[x.get('cdx-api') for x in arr[:8] if x.get('cdx-api')]
+              except Exception as e: print('CC_LIST_PARSE_ERR',e,flush=True)
+          # Probe exact secure XML + prefix around expected CDN date paths on recent CC indexes.
+          cc_targets=[f'https://secure.nba.com/video/wsc/league/{UUID}.secure.xml']
+          for day in ['19','20','21']:
+              for host in ['nba.cdn.turner.com','ssl.cdn.turner.com','pmd.cdn.turner.com']:
+                  cc_targets.append(f'https://{host}/nba/big/nba/wsc/2019/04/{day}/{UUID}')
+          for api in indexes[:6]:
+              print('\nCC_INDEX',api,flush=True)
+              for target in cc_targets:
+                  params={'url':target,'output':'json'}
+                  if target.endswith(UUID): params['matchType']='prefix'
+                  u=api+'?'+urllib.parse.urlencode(params)
+                  st,txt,final=get(u,18)
+                  if st==200 and txt.strip():
+                      print('CC_HIT',target,txt[:5000],flush=True)
+                  elif st not in (200,404):
+                      print('CC_STATUS',st,target,txt[:300],flush=True)
+                  time.sleep(0.2)
