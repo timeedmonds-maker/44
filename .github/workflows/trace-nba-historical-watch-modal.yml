@@ -1,0 +1,25 @@
+name: Trace NBA historical Watch Replay
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/trace_nba_historical_watch_modal.py'
+      - '.github/workflows/trace-nba-historical-watch-modal.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Trace replay click and ?watch network
+        run: python -u analysis/trace_nba_historical_watch_modal.py
