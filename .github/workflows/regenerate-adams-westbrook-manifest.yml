@@ -1,0 +1,29 @@
+name: Verify Adams Westbrook 381-event manifest
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/regenerate_adams_westbrook_manifest.py'
+      - '.github/workflows/regenerate-adams-westbrook-manifest.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install manifest dependencies
+        run: pip install pandas pyreadr requests
+      - name: Regenerate and enforce 381 unique events
+        run: python -u analysis/regenerate_adams_westbrook_manifest.py
+      - name: Upload verified manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-westbrook-381-manifest
+          retention-days: 30
+          path: public_manifest/adams_westbrook_dunk_event_links_public.csv
