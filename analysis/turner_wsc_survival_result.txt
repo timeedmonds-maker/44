@@ -1,0 +1,51 @@
+=== PROBE 1 ===
+https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/14/574d0faf-b0fc-fcfe-8ef2-96b4fb4c561e.nba_3677698_1280x720_3500.mp4
+http=404 size=10 final=https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/14/574d0faf-b0fc-fcfe-8ef2-96b4fb4c561e.nba_3677698_1280x720_3500.mp4 type=
+HTTP/2 404 
+accept-ranges: bytes
+content-length: 10
+server: AkamaiNetStorage
+cache-control: max-age=1209600
+expires: Wed, 23 Sep 2026 08:09:26 GMT
+date: Wed, 09 Sep 2026 08:09:26 GMT
+access-control-allow-methods: GET,POST,Options
+access-control-allow-origin: *
+
+/tmp/wsc_1.bin: ASCII text
+493fda53120050f85836032324409be6c6484f90a0755ae0c6a673ba7626818b  /tmp/wsc_1.bin
+bytes=10
+magic=4e6f7420666f756e640a
+=== PROBE 2 ===
+https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/14/f12a16bb-c684-3c9f-9540-2f9a9e5981ba.nba_3678039_1920x1080_5904.mp4
+http=404 size=10 final=https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/14/f12a16bb-c684-3c9f-9540-2f9a9e5981ba.nba_3678039_1920x1080_5904.mp4 type=
+HTTP/2 404 
+accept-ranges: bytes
+content-length: 10
+server: AkamaiNetStorage
+cache-control: max-age=1209600
+expires: Wed, 23 Sep 2026 08:09:27 GMT
+date: Wed, 09 Sep 2026 08:09:27 GMT
+access-control-allow-methods: GET,POST,Options
+access-control-allow-origin: *
+
+/tmp/wsc_2.bin: ASCII text
+493fda53120050f85836032324409be6c6484f90a0755ae0c6a673ba7626818b  /tmp/wsc_2.bin
+bytes=10
+magic=4e6f7420666f756e640a
+=== PROBE 3 ===
+https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/11/3d698a32-b385-326e-ce38-e8f8adc76495.nba_3665376_1920x1080_5904.mp4
+http=404 size=10 final=https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/11/3d698a32-b385-326e-ce38-e8f8adc76495.nba_3665376_1920x1080_5904.mp4 type=
+HTTP/2 404 
+accept-ranges: bytes
+content-length: 10
+server: AkamaiNetStorage
+cache-control: max-age=1209600
+expires: Wed, 23 Sep 2026 08:09:27 GMT
+date: Wed, 09 Sep 2026 08:09:27 GMT
+access-control-allow-methods: GET,POST,Options
+access-control-allow-origin: *
+
+/tmp/wsc_3.bin: ASCII text
+493fda53120050f85836032324409be6c6484f90a0755ae0c6a673ba7626818b  /tmp/wsc_3.bin
+bytes=10
+magic=4e6f7420666f756e640a
