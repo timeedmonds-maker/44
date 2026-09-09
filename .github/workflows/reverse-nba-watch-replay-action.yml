@@ -1,0 +1,21 @@
+name: Reverse NBA historical Watch Replay action
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/reverse_nba_watch_replay_action.py'
+      - '.github/workflows/reverse-nba-watch-replay-action.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Extract historical replay CTA construction
+        run: python -u analysis/reverse_nba_watch_replay_action.py
