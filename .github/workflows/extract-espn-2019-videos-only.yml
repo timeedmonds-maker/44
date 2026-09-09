@@ -1,0 +1,42 @@
+name: Extract ESPN 2019 videos only
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/extract-espn-2019-videos-only.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/adams-westbrook-hls-final
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q curl_cffi
+      - name: Extract videos array
+        shell: python
+        run: |
+          from curl_cffi import requests
+          from pathlib import Path
+          import json
+          url='https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401126844'
+          H={'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36','Accept':'application/json,*/*','Referer':'https://www.espn.com/'}
+          r=requests.get(url,headers=H,impersonate='chrome120',timeout=25)
+          r.raise_for_status()
+          j=r.json()
+          videos=j.get('videos') or []
+          Path('analysis/espn_2019_videos_only.json').write_text(json.dumps(videos,indent=2))
+          print(json.dumps(videos,indent=2))
+      - name: Persist
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add analysis/espn_2019_videos_only.json
+          git commit -m 'Persist ESPN 2019 videos array' || exit 0
+          git push origin HEAD:codex/adams-westbrook-hls-final
