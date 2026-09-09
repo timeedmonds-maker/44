@@ -1,0 +1,61 @@
+name: Recover Adams from official NBA YouTube
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/recover-adams-from-official-youtube.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install tools
+        run: |
+          python -m pip install -q yt-dlp pillow
+          brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+      - name: Download official NBA highlight
+        run: |
+          mkdir -p out frames
+          yt-dlp --no-playlist -f 'bv*[height<=1080]+ba/b[height<=1080]' --merge-output-format mp4 \
+            -o 'out/nba_okc_por_2019_04_19.%(ext)s' \
+            'https://www.youtube.com/watch?v=PWukkSyAxTA'
+          VIDEO=$(ls out/nba_okc_por_2019_04_19.* | head -1)
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=index,codec_type,codec_name,width,height,r_frame_rate -of json "$VIDEO" > out/ffprobe.json
+          shasum -a 256 "$VIDEO" > out/sha256.txt
+      - name: Make one-frame-per-second contact sheet
+        run: |
+          VIDEO=$(ls out/nba_okc_por_2019_04_19.* | head -1)
+          ffmpeg -hide_banner -loglevel error -i "$VIDEO" -vf "fps=1,scale=320:-2" frames/f_%04d.jpg
+          python - <<'PY'
+          from PIL import Image,ImageOps,ImageDraw
+          from pathlib import Path
+          fs=sorted(Path('frames').glob('f_*.jpg'))
+          thumbs=[]
+          for i,p in enumerate(fs):
+              im=Image.open(p).convert('RGB')
+              canvas=Image.new('RGB',(320,200),'black')
+              canvas.paste(im,(0,0))
+              d=ImageDraw.Draw(canvas)
+              d.rectangle((0,180,90,200),fill='black')
+              d.text((4,182),f'{i:03d}s',fill='white')
+              thumbs.append(canvas)
+          cols=5; rows=(len(thumbs)+cols-1)//cols
+          sheet=Image.new('RGB',(cols*320,rows*200),'black')
+          for i,im in enumerate(thumbs):
+              sheet.paste(im,((i%cols)*320,(i//cols)*200))
+          sheet.save('out/contact_sheet.jpg',quality=92)
+          print('frames',len(fs),'sheet',sheet.size)
+          PY
+      - name: Upload recovery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-official-youtube-recovery
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
