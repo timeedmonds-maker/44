@@ -1,0 +1,60 @@
+name: Probe ESPN 2019 game video
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/probe-espn-2019-video.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/adams-westbrook-hls-final
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q requests
+      - name: Query ESPN game summary and extract every media URL
+        shell: python
+        run: |
+          import requests,json,re
+          from pathlib import Path
+          url='https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401126844'
+          r=requests.get(url,headers={'User-Agent':'Mozilla/5.0'},timeout=25)
+          out=[]
+          out.append(f'HTTP {r.status_code} bytes={len(r.content)} type={r.headers.get("content-type")}')
+          if not r.ok:
+              Path('analysis/espn_2019_video_probe.txt').write_text('\n'.join(out)); raise SystemExit(1)
+          j=r.json()
+          out.append('TOP_KEYS '+','.join(sorted(j.keys())))
+          def walk(x,path=''):
+              if isinstance(x,dict):
+                  for k,v in x.items():
+                      p=f'{path}.{k}' if path else k
+                      kl=k.lower()
+                      if any(t in kl for t in ['video','media','source','href','url','poster','thumbnail']) and isinstance(v,(str,int,float,bool,type(None))):
+                          s=str(v)
+                          if 'http' in s or 'video' in kl or 'media' in kl: out.append(f'{p} = {s}')
+                      walk(v,p)
+              elif isinstance(x,list):
+                  for i,v in enumerate(x): walk(v,f'{path}[{i}]')
+          walk(j)
+          raw=json.dumps(j)
+          urls=sorted(set(re.findall(r'https?[^"\\ ]+',raw)))
+          out.append('\n=== URLS WITH VIDEO/MEDIA/MP4/M3U8 ===')
+          for u in urls:
+              if any(t in u.lower() for t in ['video','media','.mp4','m3u8','akamai','cdn','espncdn']): out.append(u)
+          Path('analysis/espn_2019_video_probe.txt').write_text('\n'.join(out))
+          print('\n'.join(out[-200:]))
+      - name: Persist result
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add analysis/espn_2019_video_probe.txt
+          git commit -m 'Persist ESPN 2019 media probe' || exit 0
+          git push origin HEAD:codex/adams-westbrook-hls-final
