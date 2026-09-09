@@ -1,0 +1,37 @@
+name: Probe Turner WSC survival
+
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - '.github/workflows/probe-turner-wsc-survival.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    steps:
+      - name: Probe known historical WSC objects
+        shell: bash
+        run: |
+          set -u
+          urls=(
+            'https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/14/574d0faf-b0fc-fcfe-8ef2-96b4fb4c561e.nba_3677698_1280x720_3500.mp4'
+            'https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/14/f12a16bb-c684-3c9f-9540-2f9a9e5981ba.nba_3678039_1920x1080_5904.mp4'
+            'https://ssl.cdn.turner.com/nba/big/nba/wsc/2019/04/11/3d698a32-b385-326e-ce38-e8f8adc76495.nba_3665376_1920x1080_5904.mp4'
+          )
+          i=0
+          for url in "${urls[@]}"; do
+            i=$((i+1))
+            out="/tmp/wsc_${i}.bin"
+            echo "=== PROBE $i ==="
+            echo "$url"
+            curl -L --connect-timeout 10 --max-time 45 -r 0-1048575 -sS -D "/tmp/h_${i}.txt" -o "$out" -w 'http=%{http_code} size=%{size_download} final=%{url_effective} type=%{content_type}\n' "$url" || true
+            sed -n '1,25p' "/tmp/h_${i}.txt" || true
+            if [ -f "$out" ]; then
+              file "$out" || true
+              shasum -a 256 "$out" || true
+              ls -lh "$out" || true
+              head -c 16 "$out" | xxd || true
+            fi
+          done
