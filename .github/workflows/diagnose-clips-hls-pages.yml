@@ -19,3 +19,5 @@ jobs:
           python-version: '3.12'
       - name: Compare fresh page media references across eras
         run: python -u analysis/diagnose_clips_hls_pages.py
+      - name: Mark diagnostic completion
+        run: echo "diagnostic complete"
