@@ -1,0 +1,21 @@
+name: Mine NBAPlayDB public resolver
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/mine_nbaplaydb_public_resolver.py'
+      - '.github/workflows/mine-nbaplaydb-public-resolver.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Mine public bundles, source maps and read-only resolver surfaces
+        run: python -u analysis/mine_nbaplaydb_public_resolver.py
