@@ -1,0 +1,29 @@
+name: Dump Game 3 UUID neighborhood
+
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - analysis/dump_game3_uuid_neighborhood.py
+      - .github/workflows/dump-game3-uuid-neighborhood.yml
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: macos-26
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - run: python analysis/dump_game3_uuid_neighborhood.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: game3-uuid-neighborhood
+          path: |
+            game3_uuid_neighborhood.json
+            game3_uuid_neighborhood.csv
+          if-no-files-found: warn
