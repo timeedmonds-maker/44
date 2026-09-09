@@ -1,0 +1,63 @@
+name: Reverse NBA Watch MediaKind resolver
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/reverse-watch-mediakind-resolver.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - name: Extract current Watch route resolver strings
+        shell: python
+        run: |
+          from curl_cffi import requests
+          import re,html,urllib.parse,json
+          BASE='https://www.nba.com'
+          PAGE='/watch/video/adams-for-the-slam-in-the-second-quarter'
+          ASSET='E03503130405E830BD3AFC12D0853E7DFEFA7372.nba_2573663_1920x1080_5904'
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          s=requests.Session(impersonate='chrome120')
+          H={'User-Agent':UA,'Referer':BASE+PAGE}
+          r=s.get(BASE+PAGE,headers=H,timeout=20)
+          print('PAGE',r.status_code,len(r.text),flush=True)
+          scripts=[]
+          for src in re.findall(r'<script[^>]+src="([^"]+)"',r.text,re.I):
+              if src.startswith('/'): src=BASE+src
+              if 'watch/video' in src or '/_next/static/chunks/' in src:
+                  if src not in scripts: scripts.append(src)
+          print('SCRIPTS',len(scripts),flush=True)
+          needles=['mediaKindAssetId','mediakindExternalProgramId','videoAssets','playback','m3u8','.mp4','.mpd','mediakind','mediaKind','programId','entitlement','vodClips','playbackUrl','manifest','streamUrl','license','widevine','drm']
+          url_re=re.compile(r'https?://[^"\'`\\\s]+')
+          for su in scripts:
+              try:
+                  x=s.get(su,headers=H,timeout=20)
+              except Exception as e:
+                  print('SCRIPT_ERR',su,type(e).__name__,str(e)[:160],flush=True); continue
+              text=x.text
+              matched=[n for n in needles if n.lower() in text.lower()]
+              if not matched: continue
+              print('\nSCRIPT',su,'status',x.status_code,'bytes',len(text),'MATCH',matched,flush=True)
+              # print compact contexts around resolver-relevant terms only
+              for n in ['mediaKindAssetId','mediakindExternalProgramId','playbackUrl','programId','m3u8','manifest','vodClips','mediakind','playback']:
+                  for m in list(re.finditer(re.escape(n),text,re.I))[:12]:
+                      ctx=text[max(0,m.start()-1000):m.start()+2500]
+                      print('CTX',n,re.sub(r'\s+',' ',ctx)[:3500],flush=True)
+              urls=[]
+              for u in url_re.findall(text):
+                  if any(k in u.lower() for k in ['video','media','playback','manifest','akamai','nba','m3u8','mpd']):
+                      if u not in urls: urls.append(u)
+              for u in urls[:80]: print('EMBED_URL',u[:1200],flush=True)
+          # Try public Next data JSON, which sometimes exposes API route names not HTML-expanded.
+          bid=re.search(r'"buildId":"([^"]+)"',r.text)
+          if bid:
+              data_url=f'{BASE}/_next/data/{bid.group(1)}/en/watch/video/adams-for-the-slam-in-the-second-quarter.json'
+              d=s.get(data_url,headers=H,timeout=20)
+              print('\nNEXT_DATA',d.status_code,len(d.text),data_url,flush=True)
+              print(d.text[:8000],flush=True)
