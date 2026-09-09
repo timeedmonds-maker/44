@@ -1,0 +1,32 @@
+name: Deep Adams Westbrook historical media recovery
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/probe_commoncrawl_wsc.py'
+      - 'analysis/probe_lrmedia_wowza_surfaces.py'
+      - '.github/workflows/probe-adams-westbrook-deep-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  wowza:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe alternate lrmedia Wowza protocols and app aliases
+        run: python -u analysis/probe_lrmedia_wowza_surfaces.py
+  commoncrawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Search Common Crawl WARC index for original NBA Turner WSC mappings
+        run: python -u analysis/probe_commoncrawl_wsc.py
