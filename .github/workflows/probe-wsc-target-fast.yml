@@ -1,0 +1,27 @@
+name: Probe exact WSC target fast
+
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - analysis/probe_wsc_target_fast.py
+      - .github/workflows/probe-wsc-target-fast.yml
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: macos-26
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi
+      - run: python analysis/probe_wsc_target_fast.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wsc-target-fast
+          path: wsc_target_fast.json
+          if-no-files-found: warn
