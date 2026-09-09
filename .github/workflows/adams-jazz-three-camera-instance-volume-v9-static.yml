@@ -1,0 +1,110 @@
+name: Adams Jazz three-camera instance volume v9 static
+
+on:
+  push:
+    branches: [codex/three-camera-volumetric-v8-run]
+    paths:
+      - '.github/workflows/adams-jazz-three-camera-instance-volume-v9-static.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  static-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests pillow
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Verify v9 imports
+        run: |
+          PYTHONPATH=.:freeze_spin python -u - <<'PY'
+          import freeze_spin.build_three_camera_instance_volume_v9
+          print('V9_IMPORT_OK')
+          PY
+
+      - name: Retrieve Jazz event 489 native source angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips \
+            --out frame_c_target
+          find frame_c_target/frames -maxdepth 1 -type f -name '*.png' -printf '%f\n' | sort
+
+      - name: Retrieve accepted Right Above Rim v73 metric report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p inputs_v73
+          gh run download 33911842169 \
+            --repo timeedmonds-maker/44 \
+            --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 \
+            --dir inputs_v73
+          test -f inputs_v73/right_above_rim_metric_camera_v73.json
+
+      - name: Render six-angle instance-separated static proof
+        run: |
+          mkdir -p three_camera_v9
+          FRAMES="frame_c_target/frames"
+          BCAST="$(find "$FRAMES" -maxdepth 1 -type f -name 'A_Broadcast*.png' | head -n 1)"
+          test -n "$BCAST"
+          set -o pipefail
+          PYTHONPATH=.:freeze_spin python -X dev -u -m freeze_spin.build_three_camera_instance_volume_v9 \
+            --frames-dir "$FRAMES" \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-event-frame "$BCAST" \
+            --out three_camera_v9 \
+            --tokens 1200 \
+            --voxel-cm 4.0 2>&1 | tee three_camera_v9/render.log
+
+      - name: Build six-angle montage
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageOps, ImageDraw
+          from pathlib import Path
+          names=['v9_00deg.png','v9_05deg.png','v9_10deg.png','v9_15deg.png','v9_20deg.png','v9_25deg.png']
+          ims=[Image.open('three_camera_v9/'+n).convert('RGB') for n in names]
+          w,h=ims[0].size
+          canvas=Image.new('RGB',(w*3,h*2),(0,0,0))
+          for i,im in enumerate(ims): canvas.paste(im,((i%3)*w,(i//3)*h))
+          canvas.save('three_camera_v9/v9_key_arc_montage.png')
+          PY
+
+      - name: Package static proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp three_camera_v9/render.log delivery/ 2>/dev/null || true
+          cp three_camera_v9/three_camera_instance_volume_v9_qa.json delivery/ 2>/dev/null || true
+          cp three_camera_v9/v9_*.png delivery/ 2>/dev/null || true
+          cp three_camera_v9/*_instance_union.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/K_Left_Above_Rim*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/A_Broadcast*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/frames/L_Right_Above_Rim*.png delivery/ 2>/dev/null || true
+          touch delivery/_artifact_present
+
+      - name: Upload static proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-instance-volume-v9-static-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
