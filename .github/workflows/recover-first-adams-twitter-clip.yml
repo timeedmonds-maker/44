@@ -19,46 +19,28 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -q curl_cffi
-      - name: Resolve tweet and recover public video
+      - name: Resolve tweet and recover highest-resolution public video
         shell: python
         run: |
           from curl_cffi import requests
           from pathlib import Path
-          import json,re,html,urllib.parse,subprocess,hashlib
+          import json,re,html,hashlib,subprocess
           Path('analysis').mkdir(exist_ok=True); Path('out').mkdir(exist_ok=True)
           H={'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36','Accept':'*/*'}
           s=requests.Session(impersonate='chrome120')
-          report=[]
           short='https://t.co/lGWNgDfRCr'
           r=s.get(short,headers=H,timeout=25,allow_redirects=True)
-          report.append({'short_status':r.status_code,'final_url':r.url,'bytes':len(r.content),'head':r.text[:500]})
-          print('SHORT',r.status_code,r.url,len(r.content),flush=True)
           m=re.search(r'/status/(\d+)',str(r.url)) or re.search(r'/status/(\d+)',r.text)
-          if not m:
-              Path('analysis/twitter_recovery_report.json').write_text(json.dumps(report,indent=2)); raise SystemExit('tweet id not found')
+          if not m: raise SystemExit('tweet id not found')
           tid=m.group(1); print('TWEET_ID',tid,flush=True)
-          candidates=[]
-          probes=[
-            f'https://x.com/okcthunder/status/{tid}',
-            f'https://twitter.com/okcthunder/status/{tid}',
-            f'https://twitter.com/i/videos/tweet/{tid}',
-            f'https://publish.twitter.com/oembed?url=https://twitter.com/okcthunder/status/{tid}',
-            f'https://api.fxtwitter.com/status/{tid}',
-            f'https://api.vxtwitter.com/Twitter/status/{tid}',
-            f'https://cdn.syndication.twimg.com/tweet-result?id={tid}&lang=en',
-          ]
+          candidates=[]; report=[]
+          probes=[f'https://x.com/okcthunder/status/{tid}',f'https://api.vxtwitter.com/Twitter/status/{tid}',f'https://api.fxtwitter.com/status/{tid}']
           for u in probes:
               try:
                   q=s.get(u,headers=H,timeout=25,allow_redirects=True)
-                  rec={'url':u,'status':q.status_code,'final':q.url,'bytes':len(q.content),'type':q.headers.get('content-type','')}
                   text=q.text
                   urls=re.findall(r'https?[^"\'<>\\ ]+',text)
                   urls += [html.unescape(x) for x in re.findall(r'https?:\\/\\/[^"\']+',text)]
-                  for x in urls:
-                      x=html.unescape(x).replace('\\/','/')
-                      if 'video.twimg.com' in x:
-                          candidates.append(x.rstrip('),;}]'))
-                  # JSON recursive scan
                   try:
                       j=q.json()
                       def walk(x):
@@ -66,56 +48,43 @@ jobs:
                               for v in x.values(): walk(v)
                           elif isinstance(x,list):
                               for v in x: walk(v)
-                          elif isinstance(x,str) and 'video.twimg.com' in x: candidates.append(x)
+                          elif isinstance(x,str) and 'video.twimg.com' in x: urls.append(x)
                       walk(j)
                   except Exception: pass
-                  rec['video_urls_found']=len(set(candidates)); report.append(rec)
-                  print('PROBE',q.status_code,len(q.content),u,'videos',len(set(candidates)),flush=True)
-              except Exception as e:
-                  report.append({'url':u,'error':type(e).__name__+': '+str(e)[:180]})
-          # Normalize and select likely highest bitrate mp4.
-          cleaned=[]
-          for x in candidates:
-              x=html.unescape(x).replace('\\u0026','&').replace('\\/','/')
-              x=x.split('"')[0]
-              if x.startswith('http') and x not in cleaned: cleaned.append(x)
-          report.append({'tweet_id':tid,'candidates':cleaned})
-          Path('analysis/twitter_recovery_report.json').write_text(json.dumps(report,indent=2))
-          print('CANDIDATES',len(cleaned),flush=True)
-          for x in cleaned: print(x,flush=True)
-          if not cleaned: raise SystemExit('no video.twimg.com candidate found')
+                  for x in urls:
+                      x=html.unescape(x).replace('\\u0026','&').replace('\\/','/').split('"')[0].rstrip('),;}]')
+                      if 'video.twimg.com' in x and '.mp4' in x and x not in candidates: candidates.append(x)
+                  report.append({'url':u,'status':q.status_code,'bytes':len(q.content),'candidate_count':len(candidates)})
+              except Exception as e: report.append({'url':u,'error':str(e)[:160]})
           def score(u):
-              m=re.search(r'/(\d+)x(\d+)/',u)
-              area=int(m.group(1))*int(m.group(2)) if m else 0
-              m2=re.search(r'bitrate=(\d+)',u); br=int(m2.group(1)) if m2 else 0
-              return (area,br,len(u))
-          for src in sorted(cleaned,key=score,reverse=True):
-              if '.mp4' not in src: continue
-              try:
-                  v=s.get(src,headers={**H,'Referer':f'https://x.com/okcthunder/status/{tid}'},timeout=30)
-                  print('DOWNLOAD',v.status_code,len(v.content),src,flush=True)
-                  if v.ok and len(v.content)>100000:
-                      out=Path('out/adams_westbrook_game1_twitter.mp4'); out.write_bytes(v.content)
-                      subprocess.run(['ffprobe','-v','error','-show_entries','format=duration,size','-show_entries','stream=codec_type,codec_name,width,height,r_frame_rate','-of','json',str(out)],stdout=open('out/ffprobe.json','w'),check=True)
-                      Path('out/sha256.txt').write_text(hashlib.sha256(v.content).hexdigest()+'  '+out.name+'\n')
-                      Path('out/source.txt').write_text(f'tweet_id={tid}\nsource={src}\n')
-                      break
-              except Exception as e: print('DLERR',type(e).__name__,str(e)[:150],flush=True)
-          if not Path('out/adams_westbrook_game1_twitter.mp4').exists(): raise SystemExit('no playable mp4 downloaded')
+              m=re.search(r'/(\d+)x(\d+)/',u); area=int(m.group(1))*int(m.group(2)) if m else 0
+              return (area,len(u))
+          candidates=sorted(candidates,key=score,reverse=True)
+          if not candidates: raise SystemExit('no mp4 candidate')
+          src=candidates[0]
+          print('SELECTED',src,flush=True)
+          v=s.get(src,headers={**H,'Referer':f'https://x.com/okcthunder/status/{tid}'},timeout=30)
+          print('DOWNLOAD',v.status_code,len(v.content),flush=True)
+          if not v.ok or len(v.content)<500000: raise SystemExit('highest-resolution download failed')
+          if b'ftyp' not in v.content[:64]: raise SystemExit('download is not MP4')
+          out=Path('out/adams_westbrook_game1_twitter_1280x720.mp4'); out.write_bytes(v.content)
+          sha=hashlib.sha256(v.content).hexdigest()
+          Path('out/sha256.txt').write_text(f'{sha}  {out.name}\n')
+          Path('out/source.txt').write_text(f'tweet_id={tid}\nsource={src}\nbytes={len(v.content)}\nsha256={sha}\n')
+          Path('analysis/twitter_recovery_report.json').write_text(json.dumps({'tweet_id':tid,'selected':src,'bytes':len(v.content),'sha256':sha,'probes':report,'candidates':candidates},indent=2))
+          subprocess.run(['file',str(out)],check=False)
       - name: Persist resolver report
-        if: always()
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add analysis/twitter_recovery_report.json || true
-          git commit -m 'Persist Twitter clip recovery report' || true
+          git add analysis/twitter_recovery_report.json
+          git commit -m 'Persist 1280x720 Twitter recovery report' || true
           git pull --rebase origin codex/adams-westbrook-hls-final || true
           git push origin HEAD:codex/adams-westbrook-hls-final || true
-      - name: Upload recovered clip
-        if: success()
+      - name: Upload recovered 1280x720 clip
         uses: actions/upload-artifact@v4
         with:
-          name: recovered-adams-westbrook-game1-twitter
+          name: recovered-adams-westbrook-game1-twitter-1280x720
           path: out/
           if-no-files-found: error
           retention-days: 7
