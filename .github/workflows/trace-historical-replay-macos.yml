@@ -1,0 +1,88 @@
+name: Trace historical NBA replay on macOS
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - .github/workflows/trace-historical-replay-macos.yml
+  workflow_dispatch:
+jobs:
+  trace:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install curl_cffi playwright
+      - run: python -m playwright install chromium
+      - name: Trace current NBA watch route for historical games
+        shell: python
+        run: |
+          import asyncio,re,json,urllib.parse
+          from curl_cffi import requests as crequests
+          from playwright.async_api import async_playwright
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36'
+          games=[
+            ('2017','https://www.nba.com/game/nyk-vs-okc-0021700015?watch'),
+            ('2019','https://www.nba.com/game/okc-vs-por-0041800163?watch'),
+          ]
+          WATCH_TERMS=('watch','replay','leaguepass','league-pass','playback','stream','manifest','m3u8','mpd','media','akamai','cloudfront','wsc','turner','video','program','entitlement')
+          def safe(u):
+              p=urllib.parse.urlsplit(u); return {'host':p.netloc,'path':p.path,'query_keys':sorted(urllib.parse.parse_qs(p.query).keys())}
+          async def run_one(browser,label,url):
+              s=crequests.Session(impersonate='chrome120')
+              s.get('https://www.nba.com/',headers={'User-Agent':UA},timeout=12)
+              try:
+                  r=s.get(url,headers={'User-Agent':UA,'Referer':'https://www.nba.com/'},timeout=15)
+                  print('\nSTATIC',label,r.status_code,len(r.content),safe(r.url),flush=True)
+                  txt=r.text
+                  title=re.search(r'<title[^>]*>(.*?)</title>',txt,re.I|re.S)
+                  print('TITLE',re.sub(r'\s+',' ',title.group(1)).strip()[:200] if title else None,flush=True)
+                  for term in WATCH_TERMS:
+                      if term.lower() in txt.lower():
+                          i=txt.lower().find(term.lower())
+                          print('HTML_CTX',term,re.sub(r'\s+',' ',txt[max(0,i-600):i+1600])[:2200],flush=True)
+              except Exception as ex:
+                  print('STATIC_ERR',label,type(ex).__name__,str(ex)[:250],flush=True)
+              ctx=await browser.new_context(user_agent=UA,viewport={'width':1440,'height':1000})
+              page=await ctx.new_page()
+              seen=set()
+              def req(req):
+                  u=req.url.lower()
+                  if any(t in u for t in WATCH_TERMS):
+                      k=(req.method,req.url)
+                      if k not in seen:
+                          seen.add(k); print('REQ',req.method,json.dumps(safe(req.url)),flush=True)
+              async def resp(resp):
+                  u=resp.url.lower()
+                  if any(t in u for t in WATCH_TERMS):
+                      print('RESP',resp.status,json.dumps(safe(resp.url)),resp.headers.get('content-type'),flush=True)
+              page.on('request',req); page.on('response',resp)
+              try:
+                  await page.goto(url,wait_until='domcontentloaded',timeout=35000)
+                  print('BROWSER_TITLE',label,await page.title(),flush=True)
+                  await page.wait_for_timeout(6000)
+                  # Click visible watch/play/replay controls without attempting login bypass.
+                  for sel in ['button:has-text("Watch Replay")','button:has-text("Watch")','button:has-text("Play")','[data-testid*=watch]','[aria-label*=play i]','.vjs-big-play-button']:
+                      try:
+                          loc=page.locator(sel).first
+                          if await loc.count() and await loc.is_visible():
+                              print('CLICK',sel,flush=True); await loc.click(timeout=2500); await page.wait_for_timeout(8000)
+                      except Exception as ex: print('CLICK_ERR',sel,type(ex).__name__,flush=True)
+                  # Emit anchors around watch/player actions.
+                  anchors=await page.evaluate('''() => Array.from(document.querySelectorAll('a')).map(a=>({text:(a.innerText||'').trim(),href:a.href})).filter(x=>/watch|replay|league pass|play/i.test(x.text+' '+x.href)).slice(0,30)''')
+                  for a in anchors:
+                      print('ANCHOR',a['text'][:120],json.dumps(safe(a['href'])),flush=True)
+                  vids=await page.evaluate('''() => Array.from(document.querySelectorAll('video')).map(v=>({src:v.currentSrc||v.src,ready:v.readyState,duration:v.duration,error:v.error&&v.error.code}))''')
+                  for v in vids:
+                      if v.get('src'): v['src']=safe(v['src'])
+                      print('VIDEO',json.dumps(v),flush=True)
+              except Exception as ex:
+                  print('BROWSER_ERR',label,type(ex).__name__,str(ex)[:300],flush=True)
+              await ctx.close()
+          async def main():
+              async with async_playwright() as p:
+                  b=await p.chromium.launch(headless=True)
+                  for args in games: await run_one(b,*args)
+                  await b.close()
+          asyncio.run(main())
