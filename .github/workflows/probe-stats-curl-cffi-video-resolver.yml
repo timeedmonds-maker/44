@@ -1,0 +1,19 @@
+name: Probe canonical NBA stats resolver with browser TLS
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - analysis/probe_stats_curl_cffi_video_resolver.py
+      - .github/workflows/probe-stats-curl-cffi-video-resolver.yml
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - run: python -u analysis/probe_stats_curl_cffi_video_resolver.py
