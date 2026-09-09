@@ -17,38 +17,93 @@ jobs:
           python-version: '3.12'
       - name: Install tools
         run: |
-          python -m pip install -q yt-dlp pillow
+          python -m pip install -q requests pillow
           brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
-      - name: Download official NBA highlight
+      - name: Resolve and download official NBA upload through public Piped APIs
+        shell: python
         run: |
-          mkdir -p out frames
-          yt-dlp --no-playlist -f 'bv*[height<=1080]+ba/b[height<=1080]' --merge-output-format mp4 \
-            -o 'out/nba_okc_por_2019_04_19.%(ext)s' \
-            'https://www.youtube.com/watch?v=PWukkSyAxTA'
-          VIDEO=$(ls out/nba_okc_por_2019_04_19.* | head -1)
-          ffprobe -v error -show_entries format=duration,size -show_entries stream=index,codec_type,codec_name,width,height,r_frame_rate -of json "$VIDEO" > out/ffprobe.json
-          shasum -a 256 "$VIDEO" > out/sha256.txt
+          import json, os, re, subprocess, sys
+          from pathlib import Path
+          import requests
+
+          video_id='PWukkSyAxTA'
+          instances=[
+            'https://pipedapi.kavin.rocks',
+            'https://pipedapi.leptons.xyz',
+            'https://api.piped.projectsegfau.lt',
+            'https://pipedapi.in.projectsegfau.lt',
+            'https://pipedapi.eu.projectsegfau.lt',
+            'https://pipedapi.adminforge.de',
+            'https://api.piped.private.coffee',
+            'https://api.piped.yt',
+            'https://pipedapi.drgns.space',
+            'https://pipedapi.owo.si',
+          ]
+          Path('out').mkdir(exist_ok=True); Path('frames').mkdir(exist_ok=True)
+          report=[]; data=None; chosen_api=None
+          H={'User-Agent':'Mozilla/5.0'}
+          for base in instances:
+              url=f'{base}/streams/{video_id}'
+              try:
+                  r=requests.get(url,headers=H,timeout=20)
+                  rec={'api':base,'status':r.status_code,'bytes':len(r.content),'type':r.headers.get('content-type','')}
+                  if r.ok:
+                      try:
+                          j=r.json(); rec['title']=j.get('title'); rec['videoStreams']=len(j.get('videoStreams') or []); rec['audioStreams']=len(j.get('audioStreams') or [])
+                          if (j.get('videoStreams') or []): data=j; chosen_api=base; report.append(rec); break
+                      except Exception as e: rec['json_error']=str(e)
+                  report.append(rec)
+              except Exception as e:
+                  report.append({'api':base,'error':type(e).__name__+': '+str(e)[:180]})
+          Path('out/piped_resolution.json').write_text(json.dumps({'chosen_api':chosen_api,'attempts':report},indent=2))
+          print(json.dumps(report,indent=2),flush=True)
+          if not data:
+              raise SystemExit('No Piped instance returned stream metadata')
+
+          def height(s):
+              q=str(s.get('quality',''))
+              m=re.search(r'(\d{3,4})',q)
+              return int(m.group(1)) if m else 0
+          videos=[x for x in (data.get('videoStreams') or []) if x.get('url')]
+          audios=[x for x in (data.get('audioStreams') or []) if x.get('url')]
+          progressive=[x for x in videos if not x.get('videoOnly') and height(x)<=1080]
+          src=Path('out/nba_okc_por_2019_04_19.mp4')
+          if progressive:
+              v=max(progressive,key=lambda x:(height(x),x.get('bitrate') or 0))
+              print('PROGRESSIVE',height(v),v.get('format'),v.get('mimeType'),flush=True)
+              rr=requests.get(v['url'],headers=H,stream=True,timeout=30)
+              rr.raise_for_status()
+              with src.open('wb') as f:
+                  for chunk in rr.iter_content(1024*1024):
+                      if chunk: f.write(chunk)
+          else:
+              candidates=[x for x in videos if height(x)<=1080]
+              if not candidates or not audios: raise SystemExit('No usable video/audio streams')
+              v=max(candidates,key=lambda x:(height(x),x.get('bitrate') or 0))
+              a=max(audios,key=lambda x:x.get('bitrate') or 0)
+              print('SEPARATE',height(v),v.get('format'),a.get('format'),flush=True)
+              subprocess.run(['ffmpeg','-hide_banner','-loglevel','warning','-y','-i',v['url'],'-i',a['url'],'-map','0:v:0','-map','1:a:0','-c','copy',str(src)],check=True)
+          if not src.exists() or src.stat().st_size < 100000:
+              raise SystemExit(f'bad source bytes {src.stat().st_size if src.exists() else 0}')
+          subprocess.run(['ffprobe','-v','error','-show_entries','format=duration,size','-show_entries','stream=index,codec_type,codec_name,width,height,r_frame_rate','-of','json',str(src)],check=True,stdout=open('out/ffprobe.json','w'))
+          subprocess.run(['shasum','-a','256',str(src)],check=True,stdout=open('out/sha256.txt','w'))
+          print('SOURCE_BYTES',src.stat().st_size,flush=True)
       - name: Make one-frame-per-second contact sheet
         run: |
-          VIDEO=$(ls out/nba_okc_por_2019_04_19.* | head -1)
-          ffmpeg -hide_banner -loglevel error -i "$VIDEO" -vf "fps=1,scale=320:-2" frames/f_%04d.jpg
+          ffmpeg -hide_banner -loglevel error -i out/nba_okc_por_2019_04_19.mp4 -vf "fps=1,scale=320:-2" frames/f_%04d.jpg
           python - <<'PY'
-          from PIL import Image,ImageOps,ImageDraw
+          from PIL import Image,ImageDraw
           from pathlib import Path
           fs=sorted(Path('frames').glob('f_*.jpg'))
           thumbs=[]
           for i,p in enumerate(fs):
               im=Image.open(p).convert('RGB')
-              canvas=Image.new('RGB',(320,200),'black')
-              canvas.paste(im,(0,0))
-              d=ImageDraw.Draw(canvas)
-              d.rectangle((0,180,90,200),fill='black')
-              d.text((4,182),f'{i:03d}s',fill='white')
+              canvas=Image.new('RGB',(320,200),'black'); canvas.paste(im,(0,0))
+              d=ImageDraw.Draw(canvas); d.rectangle((0,180,90,200),fill='black'); d.text((4,182),f'{i:03d}s',fill='white')
               thumbs.append(canvas)
           cols=5; rows=(len(thumbs)+cols-1)//cols
           sheet=Image.new('RGB',(cols*320,rows*200),'black')
-          for i,im in enumerate(thumbs):
-              sheet.paste(im,((i%cols)*320,(i//cols)*200))
+          for i,im in enumerate(thumbs): sheet.paste(im,((i%cols)*320,(i//cols)*200))
           sheet.save('out/contact_sheet.jpg',quality=92)
           print('frames',len(fs),'sheet',sheet.size)
           PY
