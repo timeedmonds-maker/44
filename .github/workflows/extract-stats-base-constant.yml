@@ -1,0 +1,19 @@
+name: Extract NBA Stats request base
+on:
+  push:
+    branches: [codex/adams-westbrook-hls-final]
+    paths:
+      - analysis/extract_stats_base_constant.py
+      - .github/workflows/extract-stats-base-constant.yml
+  workflow_dispatch:
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - run: python -u analysis/extract_stats_base_constant.py
