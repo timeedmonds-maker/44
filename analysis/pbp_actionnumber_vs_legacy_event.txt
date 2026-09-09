@@ -1,0 +1,114 @@
+
+=== EVENT 21 ===
+URL https://stats.nba.com/stats/videoeventsasset?GameID=0041800163&GameEventID=21
+HTTP 200 bytes=1510
+{
+  "resource": "videoevents",
+  "parameters": {
+    "GameID": "0041800163",
+    "GameEventID": 21
+  },
+  "resultSets": {
+    "Meta": {
+      "videoUrls": [
+        {
+          "uuid": "9bbb0699-70ae-dea9-b0f2-ca45091d8ec2",
+          "sdur": 9983,
+          "surl": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2_320x180.mp4",
+          "sth": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2_320x180.jpg",
+          "mdur": 9983,
+          "murl": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2_960x540.mp4",
+          "mth": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2_960x540.jpg",
+          "ldur": 9983,
+          "lurl": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2_1280x720.mp4",
+          "lth": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2_1280x720.jpg",
+          "vtt": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2.vtt",
+          "scc": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2.scc",
+          "srt": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/21/9bbb0699-70ae-dea9-b0f2-ca45091d8ec2.srt"
+        }
+      ]
+    },
+    "playlist": [
+      {
+        "gi": "0041800163",
+        "ei": 21,
+        "y": 2019,
+        "m": "04",
+        "d": "19",
+        "gc": "2019-04-19/POROKC",
+        "p": 1,
+        "dsc": "Adams 2' Cutting Dunk Shot (2 PTS) (Westbrook 2 AST)",
+        "ha": "OKC",
+        "hid": 1610612760,
+        "va": "POR",
+        "vid": 1610612757,
+        "hpb": 5,
+        "hpa": 7,
+        "vpb": 2,
+        "vpa": 2,
+        "pta": 1
+      }
+    ]
+  }
+}
+DESC=Adams 2' Cutting Dunk Shot (2 PTS) (Westbrook 2 AST)
+MEDIA 21 0 lurl http=200 bytes=31580089 final=https://videos.nba.com/watch/missing.mp4 sha256=45934326c3cac055be7389cc27484107cafbda429afa54ca35b3ac2350df79a0 type=video/mp4
+MEDIA 21 0 murl http=200 bytes=31580089 final=https://videos.nba.com/watch/missing.mp4 sha256=45934326c3cac055be7389cc27484107cafbda429afa54ca35b3ac2350df79a0 type=video/mp4
+MEDIA 21 0 surl http=200 bytes=31580089 final=https://videos.nba.com/watch/missing.mp4 sha256=45934326c3cac055be7389cc27484107cafbda429afa54ca35b3ac2350df79a0 type=video/mp4
+
+=== EVENT 215 ===
+URL https://stats.nba.com/stats/videoeventsasset?GameID=0041800163&GameEventID=215
+HTTP 200 bytes=1528
+{
+  "resource": "videoevents",
+  "parameters": {
+    "GameID": "0041800163",
+    "GameEventID": 215
+  },
+  "resultSets": {
+    "Meta": {
+      "videoUrls": [
+        {
+          "uuid": "995096ac-c2a1-b2fa-89ed-a345759b84be",
+          "sdur": 11833,
+          "surl": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be_320x180.mp4",
+          "sth": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be_320x180.jpg",
+          "mdur": 11833,
+          "murl": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be_960x540.mp4",
+          "mth": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be_960x540.jpg",
+          "ldur": 11833,
+          "lurl": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be_1280x720.mp4",
+          "lth": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be_1280x720.jpg",
+          "vtt": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be.vtt",
+          "scc": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be.scc",
+          "srt": "https://videos.nba.com/nba/pbp/media/2019/04/19/0041800163/215/995096ac-c2a1-b2fa-89ed-a345759b84be.srt"
+        }
+      ]
+    },
+    "playlist": [
+      {
+        "gi": "0041800163",
+        "ei": 215,
+        "y": 2019,
+        "m": "04",
+        "d": "19",
+        "gc": "2019-04-19/POROKC",
+        "p": 2,
+        "dsc": "Adams 1' Cutting Dunk Shot (4 PTS) (Westbrook 3 AST)",
+        "ha": "OKC",
+        "hid": 1610612760,
+        "va": "POR",
+        "vid": 1610612757,
+        "hpb": 27,
+        "hpa": 29,
+        "vpb": 27,
+        "vpa": 27,
+        "pta": 1
+      }
+    ]
+  }
+}
+DESC=Adams 1' Cutting Dunk Shot (4 PTS) (Westbrook 3 AST)
+MEDIA 215 0 lurl http=200 bytes=31580089 final=https://videos.nba.com/watch/missing.mp4 sha256=45934326c3cac055be7389cc27484107cafbda429afa54ca35b3ac2350df79a0 type=video/mp4
+MEDIA 215 0 murl http=200 bytes=31580089 final=https://videos.nba.com/watch/missing.mp4 sha256=45934326c3cac055be7389cc27484107cafbda429afa54ca35b3ac2350df79a0 type=video/mp4
+MEDIA 215 0 surl http=200 bytes=31580089 final=https://videos.nba.com/watch/missing.mp4 sha256=45934326c3cac055be7389cc27484107cafbda429afa54ca35b3ac2350df79a0 type=video/mp4
