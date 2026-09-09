@@ -1,0 +1,21 @@
+name: Inspect NBAPlayDB play resolver actions
+on:
+  push:
+    branches: ['codex/adams-westbrook-hls-final']
+    paths:
+      - 'analysis/inspect_nbaplaydb_play_actions.py'
+      - '.github/workflows/inspect-nbaplaydb-play-actions.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Extract play-page resolver code
+        run: python -u analysis/inspect_nbaplaydb_play_actions.py
