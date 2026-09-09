@@ -2,7 +2,7 @@ name: Adams Jazz three-camera volumetric perspective v8
 
 on:
   push:
-    branches: [codex/multi-angle-freeze-spin-poc]
+    branches: [codex/three-camera-volumetric-v8-run]
     paths:
       - 'freeze_spin/build_three_camera_volumetric_v8.py'
       - '.github/workflows/adams-jazz-three-camera-volumetric-v8.yml'
