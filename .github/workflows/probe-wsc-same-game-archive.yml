@@ -1,0 +1,31 @@
+name: Probe same-game WSC archive on macOS
+
+on:
+  push:
+    branches:
+      - codex/adams-westbrook-hls-final
+    paths:
+      - analysis/probe_wsc_same_game_archive.py
+      - .github/workflows/probe-wsc-same-game-archive.yml
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependency
+        run: python -m pip install curl_cffi
+      - name: Probe WSC archive
+        run: python analysis/probe_wsc_same_game_archive.py
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wsc-same-game-archive
+          path: wsc_same_game_archive
+          if-no-files-found: warn
