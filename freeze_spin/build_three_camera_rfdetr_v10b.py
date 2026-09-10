@@ -24,11 +24,11 @@ from pathlib import Path
 import numpy as np
 
 from freeze_spin import build_three_camera_rfdetr_v10 as v10
-from freeze_spin import build_three_camera_semantic_v9 as v9
 from freeze_spin import build_three_camera_volumetric_v8 as v8
 
 BROADCAST_MATCHES = {}
 TRIPLE_AUDIT = []
+BASE_POSE_MATCH = v10._one_to_one_pose
 
 
 def _triple_pose_consistency(primary_i, broadcast_i, rar_i, instances, conf_min=0.20):
@@ -93,7 +93,7 @@ def _triple_pose_consistency(primary_i, broadcast_i, rar_i, instances, conf_min=
 
 
 def strict_one_to_one(primary_label, other_label, instances, supports):
-    mapping, qa = v10._one_to_one_pose(primary_label, other_label, instances, supports)
+    _mapping, qa = BASE_POSE_MATCH(primary_label, other_label, instances, supports)
     hardened = {}
     for row in qa:
         i = int(row["primary_instance"]); j = int(row["other_instance"])
@@ -131,8 +131,8 @@ def strict_one_to_one(primary_label, other_label, instances, supports):
 
 
 def main():
-    # v10.main will patch v9.one_to_one_match to v10._one_to_one_pose, so replace
-    # the module-global function it resolves before entering that main.
+    # v10.main installs whatever is currently bound to v10._one_to_one_pose into
+    # v9, while BASE_POSE_MATCH remains the original non-recursive v10 matcher.
     v10._one_to_one_pose = strict_one_to_one
     v10.main()
     out = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv else Path("three_camera_v10b")
