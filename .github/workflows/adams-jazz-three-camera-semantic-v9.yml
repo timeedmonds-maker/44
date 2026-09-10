@@ -1,0 +1,156 @@
+name: Adams Jazz three-camera semantic perspective v9
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_three_camera_semantic_v9.py'
+      - '.github/workflows/adams-jazz-three-camera-semantic-v9.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  render-semantic-v9:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      PYTHONFAULTHANDLER: '1'
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install reconstruction runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet requests pillow scipy opencv-python-headless
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+          python - <<'PY'
+          import cv2, numpy, scipy, torch, torchvision
+          from moge.model.v2 import MoGeModel
+          print('RUNTIME', cv2.__version__, numpy.__version__, scipy.__version__, torch.__version__, torchvision.__version__)
+          print('MOGE_IMPORT_OK', MoGeModel)
+          PY
+
+      - name: Package-entrypoint smoke test
+        run: |
+          set -euxo pipefail
+          mkdir -p three_camera_v9
+          python -u -X faulthandler -c "import freeze_spin.build_three_camera_semantic_v9 as m; print('V9_MODULE_IMPORT_OK',m.W,m.H,m.CAMERA_ORDER,flush=True)" 2>&1 | tee three_camera_v9/module_import.log
+          python -u -X faulthandler -m freeze_spin.build_three_camera_semantic_v9 --help 2>&1 | tee three_camera_v9/help.log
+
+      - name: Retrieve exact event-489 native source angles
+        run: |
+          set -euxo pipefail
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips \
+            --out frame_c_target
+          find frame_c_target -type f -name '*.png' -printf '%p\n' | sort | tee three_camera_v9/source_frames.txt
+
+      - name: Retrieve accepted Right Above Rim v73 metric report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v73
+          gh run download 33911842169 \
+            --repo timeedmonds-maker/44 \
+            --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 \
+            --dir inputs_v73
+          test -s inputs_v73/right_above_rim_metric_camera_v73.json
+          python -m json.tool inputs_v73/right_above_rim_metric_camera_v73.json >/dev/null
+
+      - name: Render identity-aware native diagnostic
+        run: |
+          set -euxo pipefail
+          BCAST="$(find frame_c_target -type f -name '*Broadcast*.png' ! -name '*Mobile*' ! -name '*Other*' | head -n 1)"
+          test -n "$BCAST"
+          echo "BROADCAST_EVENT_FRAME=$BCAST"
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.build_three_camera_semantic_v9 \
+            --frames-dir frame_c_target \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-event-frame "$BCAST" \
+            --out three_camera_v9 \
+            --tokens 1200 \
+            --voxel-cm 4.0 \
+            2>&1 | tee three_camera_v9/render.log
+
+      - name: Encode native source-resolution diagnostic only
+        if: success()
+        run: |
+          set -euxo pipefail
+          ffmpeg -y -framerate 30 -i three_camera_v9/frame_%03d.png \
+            -c:v libx264 -preset medium -crf 14 -pix_fmt yuv420p -movflags +faststart \
+            three_camera_v9/adams_jazz_three_camera_semantic_v9_native.mp4
+          ffprobe -v error -select_streams v:0 \
+            -show_entries stream=width,height,r_frame_rate,nb_frames -show_entries format=duration,size \
+            -of json three_camera_v9/adams_jazz_three_camera_semantic_v9_native.mp4 \
+            > three_camera_v9/native_ffprobe.json
+          python - <<'PY'
+          import json
+          p='three_camera_v9/native_ffprobe.json'
+          j=json.load(open(p))
+          s=j['streams'][0]
+          assert int(s['width'])==960 and int(s['height'])==540, j
+          print('NATIVE_RESOLUTION_CONFIRMED',s['width'],s['height'])
+          PY
+
+      - name: Extract static arc QA
+        if: success()
+        run: |
+          set -euxo pipefail
+          cp three_camera_v9/frame_011.png three_camera_v9/v9_00deg.png
+          cp three_camera_v9/frame_026.png three_camera_v9/v9_05deg.png
+          cp three_camera_v9/frame_041.png three_camera_v9/v9_10deg.png
+          cp three_camera_v9/frame_056.png three_camera_v9/v9_15deg.png
+          cp three_camera_v9/frame_071.png three_camera_v9/v9_20deg.png
+          cp three_camera_v9/frame_087.png three_camera_v9/v9_25deg.png
+          python - <<'PY'
+          from PIL import Image
+          names=['v9_00deg.png','v9_05deg.png','v9_10deg.png','v9_15deg.png','v9_20deg.png','v9_25deg.png']
+          ims=[Image.open('three_camera_v9/'+n).convert('RGB') for n in names]
+          canvas=Image.new('RGB',(ims[0].width*3,ims[0].height*2),(0,0,0))
+          for i,im in enumerate(ims): canvas.paste(im,((i%3)*im.width,(i//3)*im.height))
+          canvas.save('three_camera_v9/v9_key_arc_montage.png')
+          PY
+
+      - name: Package evidence even on failure
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp three_camera_v9/*.log delivery/ 2>/dev/null || true
+          cp three_camera_v9/source_frames.txt delivery/ 2>/dev/null || true
+          cp three_camera_v9/three_camera_semantic_v9_qa.json delivery/ 2>/dev/null || true
+          cp three_camera_v9/native_ffprobe.json delivery/ 2>/dev/null || true
+          cp three_camera_v9/v9_key_arc_montage.png delivery/ 2>/dev/null || true
+          cp three_camera_v9/v9_*.png delivery/ 2>/dev/null || true
+          cp three_camera_v9/*_person_*.png delivery/ 2>/dev/null || true
+          cp three_camera_v9/adams_jazz_three_camera_semantic_v9_native.mp4 delivery/ 2>/dev/null || true
+          find frame_c_target -type f \( -name '*Left_Above_Rim*.png' -o -name '*Right_Above_Rim*.png' -o -name '*Broadcast*.png' \) -exec cp {} delivery/ \; 2>/dev/null || true
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_three_camera_semantic_v9_package.zip ./*)
+
+      - name: Upload semantic diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-semantic-v9-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
