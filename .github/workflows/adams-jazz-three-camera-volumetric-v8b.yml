@@ -5,6 +5,7 @@ on:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
       - 'freeze_spin/build_three_camera_volumetric_v8.py'
+      - 'build_portable_moge_pnp_freeview_v12.py'
       - '.github/workflows/adams-jazz-three-camera-volumetric-v8b.yml'
   workflow_dispatch:
 
