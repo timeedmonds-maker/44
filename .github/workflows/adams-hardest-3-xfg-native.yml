@@ -1,0 +1,157 @@
+name: Steven Adams 3 hardest official-xFG makes native
+
+on:
+  push:
+    branches:
+      - agent/adams-hardest-3-xfg-20260910
+    paths:
+      - '.github/workflows/adams-hardest-3-xfg-native.yml'
+      - 'resolve_adams_hardest_3_xfg.py'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/adams-hardest-3-xfg-native.yml'
+      - 'resolve_adams_hardest_3_xfg.py'
+      - 'build_kd_top10_all_angles.py'
+      - 'nba_video_worker.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare dependencies and FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir pandas requests
+          mkdir -p vendor bin
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir --target vendor imageio-ffmpeg==0.6.0
+          FFMPEG_EXE=$(PYTHONPATH=vendor python3 - <<'PY'
+          import imageio_ffmpeg
+          print(imageio_ffmpeg.get_ffmpeg_exe())
+          PY
+          )
+          ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve Adams three hardest made FGs from exact official NBA xFG
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 resolve_adams_hardest_3_xfg.py
+          cat request.json
+
+      - name: Download every official NBA camera angle at highest native HLS rendition
+        shell: bash
+        run: |
+          set -euo pipefail
+          FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 build_kd_top10_all_angles.py --request request.json --out output --workers 8
+
+      - name: Verify exact three events and native-source QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, subprocess
+          from collections import Counter
+          from pathlib import Path
+
+          req = json.loads(Path('request.json').read_text())
+          qa = json.loads(Path('output/qa.json').read_text())
+          events = req.get('events', [])
+          if len(events) != 3:
+              raise SystemExit(f'Expected exactly 3 Adams events, got {len(events)}')
+          if qa.get('valid_clip_count') != qa.get('expanded_clip_count'):
+              raise SystemExit('Native all-angle QA count mismatch')
+          counts = Counter(int(c['shot_rank']) for c in qa.get('clips', []) if c.get('status') == 'ok')
+          if sorted(counts) != [1, 2, 3] or any(counts[r] < 1 for r in (1,2,3)):
+              raise SystemExit(f'Missing validated native angles: {dict(counts)}')
+
+          summary = []
+          for e in events:
+              rank = int(e['rank'])
+              clips = [c for c in qa['clips'] if c.get('status') == 'ok' and int(c['shot_rank']) == rank]
+              probes = []
+              for c in clips:
+                  p = c.get('probe') or {}
+                  probes.append({
+                      'label': c.get('label'),
+                      'source_path': c.get('source_path'),
+                      'width': p.get('width'),
+                      'height': p.get('height'),
+                      'fps': p.get('fps'),
+                      'duration': p.get('duration'),
+                      'sha256': p.get('sha256'),
+                  })
+              summary.append({**e, 'validated_angle_count': counts[rank], 'native_angles': probes})
+          Path('adams_top3_native_summary.json').write_text(json.dumps(summary, indent=2))
+          print('ADAMS_TOP3_NATIVE=' + json.dumps(summary))
+          PY
+
+      - name: Package each shot with all native angles
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p packages
+          python3 - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+
+          req = json.loads(Path('request.json').read_text())
+          clips = Path('output/clips')
+          packages = []
+          for e in req['events']:
+              rank = int(e['rank'])
+              gid = str(e['game_id'])
+              eid = int(e['event_id'])
+              files = sorted(clips.glob(f'*_R{rank:02d}_{gid}_{eid}_*_SOURCE.mp4'))
+              if not files:
+                  raise SystemExit(f'No native source angle clips for rank {rank}')
+              z = Path('packages') / f'steven_adams_hardest_xfg_{rank:02d}_{gid}_{eid}_ALL_NATIVE_ANGLES.zip'
+              with zipfile.ZipFile(z, 'w', compression=zipfile.ZIP_STORED) as a:
+                  for p in files:
+                      a.write(p, arcname=f'angles/{p.name}')
+                  a.write('request.json', arcname='event_manifest.json')
+                  a.write('output/qa.json', arcname='video_qa.json')
+                  a.write('adams_top3_native_summary.json', arcname='native_summary.json')
+              packages.append({
+                  'rank': rank,
+                  'game_id': gid,
+                  'event_id': eid,
+                  'xfg_pct': e.get('xfg_pct'),
+                  'angle_count': len(files),
+                  'filename': z.name,
+                  'bytes': z.stat().st_size,
+              })
+          Path('packages/packages.json').write_text(json.dumps(packages, indent=2))
+          print('PACKAGES=' + json.dumps(packages))
+          PY
+          ls -lh packages
+
+      - name: Upload native-source deliverables
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-hardest-3-official-xfg-NATIVE-${{ github.run_id }}
+          path: |
+            packages/*.zip
+            packages/packages.json
+            request.json
+            adams_top3_native_summary.json
+            adams_official_xfg_shots_2025_26.csv
+            adams_xfg_errors.json
+            output/qa.json
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
