@@ -1,0 +1,178 @@
+name: Adams Jazz three-camera exact visual-state v11
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_three_camera_exact_sync_v11.py'
+      - '.github/workflows/adams-jazz-three-camera-exact-sync-v11.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  exact-sync-and-render-v11:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONFAULTHANDLER: '1'
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install RF-DETR and reconstruction runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet requests pillow scipy opencv-python-headless
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet 'rfdetr>=1.8.1'
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+          python - <<'PY'
+          from rfdetr import RFDETRKeypointPreview
+          from moge.model.v2 import MoGeModel
+          import cv2, numpy, scipy, torch
+          print('RUNTIME_OK', cv2.__version__, numpy.__version__, scipy.__version__, torch.__version__)
+          print('RFDETR_OK', RFDETRKeypointPreview)
+          print('MOGE_OK', MoGeModel)
+          PY
+          python -m freeze_spin.build_three_camera_exact_sync_v11 --help
+
+      - name: Retrieve exact event-489 native source angles and audio centres
+        run: |
+          set -euxo pipefail
+          mkdir -p v11_sync v11_recon
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips \
+            --out frame_c_target
+          find frame_c_target -type f -name '*.png' -printf '%p\n' | sort | tee v11_sync/audio_centre_frames.txt
+
+      - name: Retrieve accepted Right Above Rim v73 metric report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v73
+          gh run download 33911842169 \
+            --repo timeedmonds-maker/44 \
+            --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 \
+            --dir inputs_v73
+          test -s inputs_v73/right_above_rim_metric_camera_v73.json
+          python -m json.tool inputs_v73/right_above_rim_metric_camera_v73.json >/dev/null
+
+      - name: Search plus or minus four frames for exact visual state
+        run: |
+          set -euxo pipefail
+          BCAST_CENTER="$(find frame_c_target -type f -name '*Broadcast*.png' ! -name '*Mobile*' ! -name '*Other*' | head -n 1)"
+          test -n "$BCAST_CENTER"
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.build_three_camera_exact_sync_v11 \
+            --clips target_source/clips \
+            --options frame_c_target/options.json \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-event-frame "$BCAST_CENTER" \
+            --out v11_sync \
+            --radius 4 --pose-threshold 0.18 --joint-threshold 0.24 --require-strict-tracks 1 \
+            2>&1 | tee v11_sync/exact_sync.log
+          python -m json.tool v11_sync/exact_visual_state_v11_qa.json >/dev/null
+          cat v11_sync/selected_offsets.json
+
+      - name: Reconstruct chosen exact-state frames with hardened v10b
+        run: |
+          set -euxo pipefail
+          BCAST_SELECTED="$(find v11_sync/selected_frames -type f -name '*Broadcast*.png' | head -n 1)"
+          test -n "$BCAST_SELECTED"
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.build_three_camera_rfdetr_v10b \
+            --frames-dir v11_sync/selected_frames \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-event-frame "$BCAST_SELECTED" \
+            --out v11_recon --tokens 1200 --voxel-cm 4.0 \
+            2>&1 | tee v11_recon/render.log
+
+      - name: Encode Ultra HD v11 diagnostic
+        if: success()
+        run: |
+          set -euxo pipefail
+          ffmpeg -y -framerate 30 -i v11_recon/frame_%03d.png \
+            -c:v libx264 -preset medium -crf 14 -pix_fmt yuv420p -movflags +faststart \
+            v11_recon/adams_jazz_three_camera_exact_sync_v11_native.mp4
+          ffmpeg -y -i v11_recon/adams_jazz_three_camera_exact_sync_v11_native.mp4 \
+            -vf "hqdn3d=0.45:0.45:1.5:1.5,scale=3840:2160:flags=lanczos,cas=0.18,fps=30" \
+            -c:v libx264 -preset medium -crf 15 -profile:v high -maxrate 40M -bufsize 80M \
+            -pix_fmt yuv420p -movflags +faststart \
+            v11_recon/adams_jazz_three_camera_exact_sync_v11_UHD.mp4
+          ffprobe -v error -select_streams v:0 \
+            -show_entries stream=width,height,r_frame_rate,nb_frames -show_entries format=duration,size \
+            -of json v11_recon/adams_jazz_three_camera_exact_sync_v11_UHD.mp4 \
+            > v11_recon/uhd_ffprobe.json
+          python - <<'PY'
+          import json
+          j=json.load(open('v11_recon/uhd_ffprobe.json')); s=j['streams'][0]
+          assert int(s['width'])==3840 and int(s['height'])==2160, j
+          print('UHD_CONFIRMED',s['width'],s['height'],s.get('nb_frames'))
+          PY
+
+      - name: Extract static arc QA
+        if: success()
+        run: |
+          set -euxo pipefail
+          cp v11_recon/frame_011.png v11_recon/v11_00deg.png
+          cp v11_recon/frame_026.png v11_recon/v11_05deg.png
+          cp v11_recon/frame_041.png v11_recon/v11_10deg.png
+          cp v11_recon/frame_056.png v11_recon/v11_15deg.png
+          cp v11_recon/frame_071.png v11_recon/v11_20deg.png
+          cp v11_recon/frame_087.png v11_recon/v11_25deg.png
+          python - <<'PY'
+          from PIL import Image
+          ns=['v11_00deg.png','v11_05deg.png','v11_10deg.png','v11_15deg.png','v11_20deg.png','v11_25deg.png']
+          ims=[Image.open('v11_recon/'+n).convert('RGB') for n in ns]
+          c=Image.new('RGB',(ims[0].width*3,ims[0].height*2),(0,0,0))
+          for i,im in enumerate(ims): c.paste(im,((i%3)*im.width,(i//3)*im.height))
+          c.save('v11_recon/v11_key_arc_montage.png')
+          PY
+
+      - name: Package v11 evidence even on failure
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v11_sync/exact_sync.log delivery/ 2>/dev/null || true
+          cp v11_sync/exact_visual_state_v11_qa.json delivery/ 2>/dev/null || true
+          cp v11_sync/selected_offsets.json delivery/ 2>/dev/null || true
+          cp v11_sync/v11_selected_pose_montage.png delivery/ 2>/dev/null || true
+          cp v11_sync/selected_pose_*.png delivery/ 2>/dev/null || true
+          cp v11_sync/audio_centre_frames.txt delivery/ 2>/dev/null || true
+          find v11_sync/selected_frames -type f -name '*.png' -exec cp {} delivery/ \; 2>/dev/null || true
+          cp v11_recon/render.log delivery/ 2>/dev/null || true
+          cp v11_recon/three_camera_rfdetr_v10b_qa.json delivery/ 2>/dev/null || true
+          cp v11_recon/three_camera_rfdetr_v10_qa.json delivery/ 2>/dev/null || true
+          cp v11_recon/three_camera_semantic_v9_qa.json delivery/ 2>/dev/null || true
+          cp v11_recon/uhd_ffprobe.json delivery/ 2>/dev/null || true
+          cp v11_recon/v11_key_arc_montage.png delivery/ 2>/dev/null || true
+          cp v11_recon/v11_*.png delivery/ 2>/dev/null || true
+          cp v11_recon/rfdetr_pose_*.png delivery/ 2>/dev/null || true
+          cp v11_recon/adams_jazz_three_camera_exact_sync_v11_UHD.mp4 delivery/ 2>/dev/null || true
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_three_camera_exact_sync_v11_package.zip ./*)
+
+      - name: Upload exact-state v11 diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-exact-sync-v11-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
