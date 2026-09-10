@@ -1,0 +1,89 @@
+name: Adams Jazz three-camera mesh v17 static
+
+on:
+  push:
+    branches: [codex/three-camera-volumetric-v8-run]
+    paths:
+      - 'freeze_spin/build_three_camera_mesh_v17.py'
+      - '.github/workflows/adams-jazz-three-camera-mesh-v17-static.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  static-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 pillow requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+      - name: Verify v17 import
+        run: PYTHONPATH=.:freeze_spin python -c "import freeze_spin.build_three_camera_mesh_v17; print('V17_IMPORT_OK')"
+      - name: Retrieve exact sync, accepted RAR camera, and passed v16 clean plate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p sync_v11 inputs_v73 clean_v16
+          gh run download 34418704333 --repo timeedmonds-maker/44 --name adams-jazz-three-camera-visual-sync-v11-34418704333 --dir sync_v11
+          gh run download 33911842169 --repo timeedmonds-maker/44 --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 --dir inputs_v73
+          gh run download 34422925333 --repo timeedmonds-maker/44 --name adams-jazz-temporal-clean-plate-v16-static-34422925333 --dir clean_v16
+          test -f clean_v16/lar_temporal_clean_plate.png
+          test -f clean_v16/temporal_clean_plate_v16_qa.json
+      - name: Render native combined static proof
+        run: |
+          mkdir -p v17_static
+          PYTHONPATH=.:freeze_spin python -u -m freeze_spin.build_three_camera_mesh_v17 \
+            --clean-plate-dir clean_v16 \
+            --sync-dir sync_v11 \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --out v17_static --tokens 1200 --static-only | tee v17_static/render.log
+      - name: Build native montage and preserve foreground gate result
+        run: |
+          python - <<'PY'
+          import json
+          from PIL import Image
+          q=json.load(open('v17_static/three_camera_mesh_v17_qa.json'))
+          ims=[Image.open(f'v17_static/frame_{i:03d}.png').convert('RGB') for i in range(6)]
+          assert all(im.size==(960,540) for im in ims)
+          c=Image.new('RGB',(2880,1080))
+          for i,im in enumerate(ims): c.paste(im,((i%3)*960,(i//3)*540))
+          c.save('v17_static/v17_key_arc_montage.png')
+          b=[Image.open(f'v17_static/background_{i:03d}.png').convert('RGB') for i in range(6)]
+          cb=Image.new('RGB',(2880,1080))
+          for i,im in enumerate(b): cb.paste(im,((i%3)*960,(i//3)*540))
+          cb.save('v17_static/v17_background_montage.png')
+          print(json.dumps({'native_only':q['native_only'],'legacy_v15_foreground_numeric_pass':q['legacy_v15_foreground_numeric_pass'],'self_projection':q['self_projection']},indent=2))
+          if not q['native_only'] or q['native_dimensions']!=[960,540]:
+              raise SystemExit('V17_NATIVE_GATE_FAILED')
+          PY
+      - name: Package proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v17_static/*.png delivery/ 2>/dev/null || true
+          cp v17_static/*.json delivery/ 2>/dev/null || true
+          cp v17_static/render.log delivery/ 2>/dev/null || true
+          cp clean_v16/lar_temporal_clean_plate.png delivery/ 2>/dev/null || true
+          cp clean_v16/lar_temporal_provenance.png delivery/ 2>/dev/null || true
+          touch delivery/_artifact_present
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-mesh-v17-static-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
