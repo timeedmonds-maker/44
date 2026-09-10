@@ -1,0 +1,87 @@
+name: Adams Jazz temporal clean plate v16 static
+
+on:
+  push:
+    branches: [codex/three-camera-volumetric-v8-run]
+    paths:
+      - 'freeze_spin/build_temporal_clean_plate_v16.py'
+      - '.github/workflows/adams-jazz-temporal-clean-plate-v16-static.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  static-background-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 pillow requests
+      - name: Verify v16 import
+        run: PYTHONPATH=.:freeze_spin python -c "import freeze_spin.build_temporal_clean_plate_v16; print('V16_IMPORT_OK')"
+      - name: Retrieve passed exact-sync and strict v15 diagnostics
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p sync_v11 strict_v15 inputs_v73
+          gh run download 34418704333 --repo timeedmonds-maker/44 --name adams-jazz-three-camera-visual-sync-v11-34418704333 --dir sync_v11
+          gh run download 34421852407 --repo timeedmonds-maker/44 --name adams-jazz-three-camera-mesh-v15-static-34421852407 --dir strict_v15
+          gh run download 33911842169 --repo timeedmonds-maker/44 --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 --dir inputs_v73
+          test -f sync_v11/three_camera_visual_sync_v11.json
+          test -f strict_v15/Left_Above_Rim_floor_visibility_strict.png
+      - name: Retrieve native official event 489 clips
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          find target_source/clips -maxdepth 2 -type f -print
+      - name: Build native same-camera temporal clean plate
+        run: |
+          mkdir -p v16_static
+          PYTHONPATH=.:freeze_spin python -u -m freeze_spin.build_temporal_clean_plate_v16 \
+            --clips-dir target_source/clips \
+            --sync-dir sync_v11 \
+            --strict-dir strict_v15 \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --out v16_static | tee v16_static/render.log
+      - name: Build native background montages and gate
+        run: |
+          python - <<'PY'
+          import json
+          from PIL import Image
+          q=json.load(open('v16_static/temporal_clean_plate_v16_qa.json'))
+          for prefix,outname in [('baseline_floor','v16_baseline_floor_montage.png'),('clean_floor','v16_clean_floor_montage.png')]:
+              ims=[Image.open(f'v16_static/{prefix}_{i:03d}.png').convert('RGB') for i in range(6)]
+              assert all(im.size==(960,540) for im in ims)
+              c=Image.new('RGB',(2880,1080))
+              for i,im in enumerate(ims): c.paste(im,((i%3)*960,(i//3)*540))
+              c.save('v16_static/'+outname)
+          print(json.dumps(q['gates'],indent=2))
+          if not q['gates']['numeric_pass']:
+              raise SystemExit('V16_NUMERIC_GATE_FAILED')
+          PY
+      - name: Package proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v16_static/*.png delivery/ 2>/dev/null || true
+          cp v16_static/*.json delivery/ 2>/dev/null || true
+          cp v16_static/render.log delivery/ 2>/dev/null || true
+          cp sync_v11/*visual_sync.png delivery/ 2>/dev/null || true
+          touch delivery/_artifact_present
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-temporal-clean-plate-v16-static-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
