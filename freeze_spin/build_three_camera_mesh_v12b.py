@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-"""v12b plumbing fixes for the three-camera high-standard hypothesis test.
+"""v12b execution compatibility fixes for the three-camera high-standard test.
 
-The first v12 run stopped before geometry because RF-DETR's shared helper returns
-(xy, confidence, detection_confidence, boxes, covariance) as a tuple while v12
-expected a dict.  The next run reached geometry and built three player meshes,
-but OpenCV 5 rejected a very tall remap buffer used by the far-background
-source warp (the destination exceeded SHRT_MAX rows).  This wrapper fixes only
-those execution adapters and then executes the unchanged v12 three-camera
-experiment.
+The core v12 experiment is unchanged.  This wrapper adapts three runtime issues
+encountered on the current GitHub runner: RF-DETR's tuple return format, OpenCV's
+SHRT_MAX remap limit for very tall maps, and NumPy 2.x no longer accepting
+``np.cross`` on 2-D vectors.  Geometry, camera solves, player associations and
+rendering policy remain unchanged.
 """
 
 import cv2
@@ -17,6 +15,18 @@ from scipy.optimize import linear_sum_assignment
 
 from freeze_spin import build_three_camera_mesh_v12 as v12
 from freeze_spin import build_three_camera_rfdetr_v10 as v10
+
+
+_ORIGINAL_NP_CROSS = np.cross
+
+
+def cross_compat(a, b, *args, **kwargs):
+    """Restore the historical scalar 2-D cross product used by v12's triangle-area test."""
+    aa = np.asarray(a)
+    bb = np.asarray(b)
+    if aa.ndim >= 1 and bb.ndim >= 1 and aa.shape[-1] == 2 and bb.shape[-1] == 2:
+        return aa[..., 0] * bb[..., 1] - aa[..., 1] * bb[..., 0]
+    return _ORIGINAL_NP_CROSS(a, b, *args, **kwargs)
 
 
 def attach_rfdetr_poses_fixed(pose_model, image, instances):
@@ -74,6 +84,9 @@ def bilinear_sample_chunked(image: np.ndarray, uv: np.ndarray, chunk: int = 3000
 def main():
     v12.attach_rfdetr_poses = attach_rfdetr_poses_fixed
     v12.v8.bilinear_sample = bilinear_sample_chunked
+    v12.np.cross = cross_compat
+    # Cheap runtime guard: must return the scalar 2-D signed area expected by v12.
+    assert float(v12.np.cross(np.asarray([1.0, 0.0]), np.asarray([0.0, 1.0]))) == 1.0
     v12.main()
 
 
