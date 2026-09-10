@@ -23,6 +23,11 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg gh zip
           python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 pillow requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
       - name: Verify v16 import
         run: PYTHONPATH=.:freeze_spin python -c "import freeze_spin.build_temporal_clean_plate_v16; print('V16_IMPORT_OK')"
       - name: Retrieve passed exact-sync and strict v15 diagnostics
