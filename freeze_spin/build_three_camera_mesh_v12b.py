@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-"""v12b plumbing fix for the three-camera high-standard hypothesis test.
+"""v12b plumbing fixes for the three-camera high-standard hypothesis test.
 
-v12's first run stopped before geometry because RF-DETR's shared helper returns
-(xy, confidence, detection_confidence, boxes, covariance) as a tuple.  v12
-incorrectly treated that tuple as a dict.  This wrapper fixes only that adapter
-and then executes the unchanged v12 three-camera experiment.
+The first v12 run stopped before geometry because RF-DETR's shared helper returns
+(xy, confidence, detection_confidence, boxes, covariance) as a tuple while v12
+expected a dict.  The next run reached geometry and built three player meshes,
+but OpenCV 5 rejected a very tall remap buffer used by the far-background
+source warp (the destination exceeded SHRT_MAX rows).  This wrapper fixes only
+those execution adapters and then executes the unchanged v12 three-camera
+experiment.
 """
 
+import cv2
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
@@ -52,8 +56,24 @@ def attach_rfdetr_poses_fixed(pose_model, image, instances):
     return pose, matched
 
 
+def bilinear_sample_chunked(image: np.ndarray, uv: np.ndarray, chunk: int = 30000):
+    """Equivalent to v8.bilinear_sample without OpenCV's SHRT_MAX remap limit."""
+    uv = np.asarray(uv)
+    out = np.zeros((len(uv), 3), dtype=np.uint8)
+    for start in range(0, len(uv), chunk):
+        end = min(len(uv), start + chunk)
+        mapx = uv[start:end, 0].astype(np.float32).reshape(-1, 1)
+        mapy = uv[start:end, 1].astype(np.float32).reshape(-1, 1)
+        out[start:end] = cv2.remap(
+            image, mapx, mapy, cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT, borderValue=0,
+        ).reshape(-1, 3)
+    return out
+
+
 def main():
     v12.attach_rfdetr_poses = attach_rfdetr_poses_fixed
+    v12.v8.bilinear_sample = bilinear_sample_chunked
     v12.main()
 
 
