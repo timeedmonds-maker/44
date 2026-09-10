@@ -1,0 +1,88 @@
+name: Adams Jazz three-camera mesh v14 static
+
+on:
+  push:
+    branches: [codex/three-camera-volumetric-v8-run]
+    paths:
+      - 'freeze_spin/build_three_camera_mesh_v14.py'
+      - '.github/workflows/adams-jazz-three-camera-mesh-v14-static.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  static-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 pillow requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+      - name: Verify renderer imports
+        run: PYTHONPATH=.:freeze_spin python -c "import freeze_spin.build_three_camera_mesh_v14; print('V14_IMPORT_OK')"
+      - name: Retrieve exact visual-sync frames from passed v11
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p sync_v11 inputs_v73
+          gh run download 34418704333 --repo timeedmonds-maker/44 --name adams-jazz-three-camera-visual-sync-v11-34418704333 --dir sync_v11
+          gh run download 33911842169 --repo timeedmonds-maker/44 --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 --dir inputs_v73
+          test -f sync_v11/three_camera_visual_sync_v11.json
+      - name: Render regularized continuous mesh static proof
+        run: |
+          mkdir -p v14_static
+          PYTHONPATH=.:freeze_spin python -u -m freeze_spin.build_three_camera_mesh_v14 \
+            --sync-dir sync_v11 \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --out v14_static --tokens 1200 --static-only | tee v14_static/render.log
+      - name: Build montage and numeric gate
+        run: |
+          cp v14_static/frame_000.png v14_static/v14_00deg.png
+          cp v14_static/frame_001.png v14_static/v14_05deg.png
+          cp v14_static/frame_002.png v14_static/v14_10deg.png
+          cp v14_static/frame_003.png v14_static/v14_15deg.png
+          cp v14_static/frame_004.png v14_static/v14_20deg.png
+          cp v14_static/frame_005.png v14_static/v14_25deg.png
+          python - <<'PY'
+          import json
+          from PIL import Image
+          q=json.load(open('v14_static/three_camera_mesh_v14_qa.json'))
+          names=['v14_00deg.png','v14_05deg.png','v14_10deg.png','v14_15deg.png','v14_20deg.png','v14_25deg.png']
+          ims=[Image.open('v14_static/'+n).convert('RGB') for n in names]
+          c=Image.new('RGB',(ims[0].width*3,ims[0].height*2))
+          for i,im in enumerate(ims): c.paste(im,((i%3)*im.width,(i//3)*im.height))
+          c.save('v14_static/v14_key_arc_montage.png')
+          print(json.dumps(q['gates'],indent=2))
+          if not q['gates']['numeric_pass']:
+              raise SystemExit('V14_NUMERIC_GATE_FAILED')
+          PY
+      - name: Package proof
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v14_static/*.png delivery/ 2>/dev/null || true
+          cp v14_static/*.json delivery/ 2>/dev/null || true
+          cp v14_static/render.log delivery/ 2>/dev/null || true
+          cp sync_v11/*visual_sync.png delivery/ 2>/dev/null || true
+          cp sync_v11/three_camera_visual_sync_v11.json delivery/ 2>/dev/null || true
+          touch delivery/_artifact_present
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-mesh-v14-static-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
