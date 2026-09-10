@@ -34,7 +34,6 @@ jobs:
           print(torch.__version__, torchvision.__version__)
           PY
           python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
-          # Re-pin numerical ABI after MoGe's dependency resolver, then verify the actual runtime.
           python -m pip install --quiet --force-reinstall numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
           python - <<'PY'
           import cv2, numpy, scipy, torch, torchvision
@@ -57,7 +56,7 @@ jobs:
           python freeze_spin/prepare_locked_frame_c_sources.py \
             --clips target_source/clips \
             --out frame_c_target
-          find frame_c_target -maxdepth 1 -type f -name '*.png' -printf '%f\n' | sort | tee three_camera_v8/source_frames.txt
+          find frame_c_target -type f -name '*.png' -printf '%p\n' | sort | tee three_camera_v8/source_frames.txt
 
       - name: Retrieve accepted Right Above Rim v73 metric report
         env:
@@ -75,8 +74,9 @@ jobs:
       - name: Render true three-view volumetric diagnostic
         run: |
           set -euxo pipefail
-          BCAST="$(find frame_c_target -maxdepth 1 -type f -name '*A_Broadcast*.png' | head -n 1)"
+          BCAST="$(find frame_c_target -type f -name '*Broadcast*.png' ! -name '*Mobile*' ! -name '*Other*' | head -n 1)"
           test -n "$BCAST"
+          echo "BROADCAST_EVENT_FRAME=$BCAST"
           /usr/bin/time -v python -u -X faulthandler -m freeze_spin.build_three_camera_volumetric_v8 \
             --frames-dir frame_c_target \
             --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
@@ -136,9 +136,7 @@ jobs:
           cp three_camera_v8/v8c_*.png delivery/ 2>/dev/null || true
           cp three_camera_v8/*_body_mask.png delivery/ 2>/dev/null || true
           cp three_camera_v8/adams_jazz_three_camera_volumetric_v8c_UHD.mp4 delivery/ 2>/dev/null || true
-          cp frame_c_target/*Left_Above_Rim*.png delivery/ 2>/dev/null || true
-          cp frame_c_target/*Right_Above_Rim*.png delivery/ 2>/dev/null || true
-          cp frame_c_target/*A_Broadcast*.png delivery/ 2>/dev/null || true
+          find frame_c_target -type f \( -name '*Left_Above_Rim*.png' -o -name '*Right_Above_Rim*.png' -o -name '*Broadcast*.png' \) -exec cp {} delivery/ \; 2>/dev/null || true
           test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
           (cd delivery && zip -0 adams_jazz_three_camera_volumetric_v8c_package.zip ./*)
 
