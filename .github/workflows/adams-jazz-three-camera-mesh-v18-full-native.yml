@@ -1,0 +1,96 @@
+name: Adams Jazz three-camera mesh v18 full native
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/three-camera-volumetric-v8-run]
+    paths:
+      - '.github/workflows/adams-jazz-three-camera-mesh-v18-full-native.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  full-native-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 pillow requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+      - name: Verify v18 import
+        run: PYTHONPATH=.:freeze_spin python -c "import freeze_spin.build_three_camera_mesh_v18; print('V18_IMPORT_OK')"
+      - name: Retrieve exact sync, accepted RAR camera, and passed v16 clean plate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p sync_v11 inputs_v73 clean_v16
+          gh run download 34418704333 --repo timeedmonds-maker/44 --name adams-jazz-three-camera-visual-sync-v11-34418704333 --dir sync_v11
+          gh run download 33911842169 --repo timeedmonds-maker/44 --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 --dir inputs_v73
+          gh run download 34422925333 --repo timeedmonds-maker/44 --name adams-jazz-temporal-clean-plate-v16-static-34422925333 --dir clean_v16
+          test -f clean_v16/lar_temporal_clean_plate.png
+          test -f clean_v16/temporal_clean_plate_v16_qa.json
+      - name: Render 106-frame native free-view sequence
+        run: |
+          mkdir -p v18_full
+          PYTHONPATH=.:freeze_spin python -u -m freeze_spin.build_three_camera_mesh_v18 \
+            --clean-plate-dir clean_v16 \
+            --sync-dir sync_v11 \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --out v18_full --tokens 1200 | tee v18_full/render.log
+      - name: Gate and encode native 960x540 MP4
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          q=json.load(open('v18_full/three_camera_mesh_v18_qa.json'))
+          frames=sorted(Path('v18_full').glob('frame_*.png'))
+          assert len(frames)==106, len(frames)
+          assert all(Image.open(p).size==(960,540) for p in frames)
+          if not q['gates']['numeric_pass']:
+              raise SystemExit('V18_FULL_NUMERIC_GATE_FAILED')
+          print(json.dumps({'frames':len(frames),'native':[960,540],'gates':q['gates']},indent=2))
+          PY
+          ffmpeg -y -v error -framerate 30 -i v18_full/frame_%03d.png \
+            -c:v libx264 -preset slow -crf 14 -pix_fmt yuv420p -movflags +faststart \
+            v18_full/adams_jazz_event489_v18_freeview_NATIVE_960x540.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x v18_full/adams_jazz_event489_v18_freeview_NATIVE_960x540.mp4)" = "960x540"
+      - name: Build key-view montage
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          ids=[11,27,42,57,72,87]
+          ims=[Image.open(f'v18_full/frame_{i:03d}.png').convert('RGB') for i in ids]
+          c=Image.new('RGB',(2880,1080))
+          for j,im in enumerate(ims): c.paste(im,((j%3)*960,(j//3)*540))
+          c.save('v18_full/v18_full_key_arc_montage.png')
+          PY
+      - name: Package native replay
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v18_full/adams_jazz_event489_v18_freeview_NATIVE_960x540.mp4 delivery/ 2>/dev/null || true
+          cp v18_full/v18_full_key_arc_montage.png delivery/ 2>/dev/null || true
+          cp v18_full/three_camera_mesh_v18_qa.json delivery/ 2>/dev/null || true
+          cp v18_full/render.log delivery/ 2>/dev/null || true
+          touch delivery/_artifact_present
+      - name: Upload native replay
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-mesh-v18-full-native-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
