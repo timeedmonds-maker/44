@@ -1,0 +1,185 @@
+name: Adams Jazz three-camera volumetric perspective v8b
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_three_camera_volumetric_v8.py'
+      - '.github/workflows/adams-jazz-three-camera-volumetric-v8b.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  render-volumetric-v8b:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      PYTHONFAULTHANDLER: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic reconstruction runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests pillow
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Runtime and import preflight
+        run: |
+          set -euxo pipefail
+          mkdir -p three_camera_v8
+          python -V 2>&1 | tee three_camera_v8/preflight.log
+          python -m py_compile freeze_spin/build_three_camera_volumetric_v8.py 2>&1 | tee -a three_camera_v8/preflight.log
+          python -u -X faulthandler - <<'PY' 2>&1 | tee -a three_camera_v8/preflight.log
+          import cv2, numpy, scipy
+          print('CORE_IMPORT_OK', cv2.__version__, numpy.__version__, scipy.__version__, flush=True)
+          PY
+          python -u -X faulthandler - <<'PY' 2>&1 | tee -a three_camera_v8/preflight.log
+          import torch, torchvision
+          print('TORCH_IMPORT_OK', torch.__version__, torchvision.__version__, flush=True)
+          from torchvision.models.detection import MaskRCNN_ResNet50_FPN_V2_Weights, maskrcnn_resnet50_fpn_v2
+          print('MASKRCNN_IMPORT_OK', flush=True)
+          PY
+          python -u -X faulthandler - <<'PY' 2>&1 | tee -a three_camera_v8/preflight.log
+          import moge
+          from moge.model.v2 import MoGeModel
+          print('MOGE_IMPORT_OK', getattr(moge, '__file__', None), flush=True)
+          PY
+          python -u -X faulthandler - <<'PY' 2>&1 | tee -a three_camera_v8/preflight.log
+          from freeze_spin import build_three_camera_diagnostic_v1 as base
+          from freeze_spin import build_three_camera_diagnostic_v3 as v3
+          from freeze_spin import build_three_camera_diagnostic_v4 as v4
+          from freeze_spin import build_three_camera_diagnostic_v5 as v5
+          from freeze_spin import build_three_camera_diagnostic_v6 as v6
+          from freeze_spin.build_portable_moge_pnp_freeview_v12 import moge_infer
+          print('PROJECT_IMPORTS_OK', base.W, base.H, flush=True)
+          PY
+
+      - name: Retrieve exact event-489 native source angles
+        run: |
+          set -euxo pipefail
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          python freeze_spin/prepare_locked_frame_c_sources.py \
+            --clips target_source/clips \
+            --out frame_c_target
+          find frame_c_target -maxdepth 1 -type f -name '*.png' -printf '%f\n' | sort | tee three_camera_v8/source_frames.txt
+
+      - name: Retrieve accepted Right Above Rim v73 metric report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v73
+          gh run download 33911842169 \
+            --repo timeedmonds-maker/44 \
+            --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 \
+            --dir inputs_v73
+          test -s inputs_v73/right_above_rim_metric_camera_v73.json
+          python -m json.tool inputs_v73/right_above_rim_metric_camera_v73.json >/dev/null
+
+      - name: Model initialization preflight
+        run: |
+          set -euxo pipefail
+          python -u -X faulthandler - <<'PY' 2>&1 | tee three_camera_v8/model_init.log
+          from moge.model.v2 import MoGeModel
+          from torchvision.models.detection import MaskRCNN_ResNet50_FPN_V2_Weights, maskrcnn_resnet50_fpn_v2
+          print('MOGE_LOAD_BEGIN', flush=True)
+          m = MoGeModel.from_pretrained('Ruicheng/moge-2-vits-normal').eval()
+          print('MOGE_LOAD_OK', type(m).__name__, flush=True)
+          print('MASKRCNN_LOAD_BEGIN', flush=True)
+          s = maskrcnn_resnet50_fpn_v2(weights=MaskRCNN_ResNet50_FPN_V2_Weights.DEFAULT).eval()
+          print('MASKRCNN_LOAD_OK', type(s).__name__, flush=True)
+          PY
+
+      - name: Render volumetric three-camera perspective diagnostic
+        run: |
+          set -o pipefail
+          BCAST="$(find frame_c_target -maxdepth 1 -type f -name '*A_Broadcast*.png' | head -n 1)"
+          test -n "$BCAST"
+          python -u -X faulthandler freeze_spin/build_three_camera_volumetric_v8.py \
+            --frames-dir frame_c_target \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-event-frame "$BCAST" \
+            --out three_camera_v8 \
+            --tokens 1200 \
+            --voxel-cm 4.0 \
+            2>&1 | tee three_camera_v8/render.log
+
+      - name: Encode Ultra HD diagnostic
+        if: success()
+        run: |
+          set -euxo pipefail
+          ffmpeg -y -framerate 30 -i three_camera_v8/frame_%03d.png \
+            -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart \
+            three_camera_v8/adams_jazz_three_camera_volumetric_v8b_native.mp4
+          ffmpeg -y -i three_camera_v8/adams_jazz_three_camera_volumetric_v8b_native.mp4 \
+            -vf "hqdn3d=0.6:0.6:2.0:2.0,scale=3840:2160:flags=lanczos,cas=0.22,fps=30" \
+            -c:v libx264 -preset medium -crf 16 -profile:v high -maxrate 36M -bufsize 72M \
+            -pix_fmt yuv420p -movflags +faststart \
+            three_camera_v8/adams_jazz_three_camera_volumetric_v8b_UHD.mp4
+          ffprobe -v error -select_streams v:0 \
+            -show_entries stream=width,height,r_frame_rate,nb_frames -show_entries format=duration,size \
+            -of json three_camera_v8/adams_jazz_three_camera_volumetric_v8b_UHD.mp4 \
+            > three_camera_v8/uhd_ffprobe.json
+
+      - name: Extract decisive QA stills
+        if: success()
+        run: |
+          set -euxo pipefail
+          cp three_camera_v8/frame_011.png three_camera_v8/v8b_00deg.png
+          cp three_camera_v8/frame_026.png three_camera_v8/v8b_05deg.png || true
+          cp three_camera_v8/frame_041.png three_camera_v8/v8b_10deg.png || true
+          cp three_camera_v8/frame_056.png three_camera_v8/v8b_15deg.png || true
+          cp three_camera_v8/frame_071.png three_camera_v8/v8b_20deg.png || true
+          cp three_camera_v8/frame_087.png three_camera_v8/v8b_25deg.png
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          names=['v8b_00deg.png','v8b_05deg.png','v8b_10deg.png','v8b_15deg.png','v8b_20deg.png','v8b_25deg.png']
+          ims=[Image.open('three_camera_v8/'+n).convert('RGB') for n in names if Path('three_camera_v8/'+n).exists()]
+          if not ims: raise RuntimeError('No QA frames')
+          canvas=Image.new('RGB',(ims[0].width*3,ims[0].height*2),(0,0,0))
+          for i,im in enumerate(ims[:6]): canvas.paste(im,((i%3)*im.width,(i//3)*im.height))
+          canvas.save('three_camera_v8/v8b_key_arc_montage.png')
+          PY
+
+      - name: Package diagnostic evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp three_camera_v8/*.log delivery/ 2>/dev/null || true
+          cp three_camera_v8/source_frames.txt delivery/ 2>/dev/null || true
+          cp three_camera_v8/adams_jazz_three_camera_volumetric_v8b_UHD.mp4 delivery/ 2>/dev/null || true
+          cp three_camera_v8/three_camera_volumetric_v8_qa.json delivery/ 2>/dev/null || true
+          cp three_camera_v8/uhd_ffprobe.json delivery/ 2>/dev/null || true
+          cp three_camera_v8/v8b_key_arc_montage.png delivery/ 2>/dev/null || true
+          cp three_camera_v8/v8b_*.png delivery/ 2>/dev/null || true
+          cp three_camera_v8/*_body_mask.png delivery/ 2>/dev/null || true
+          cp frame_c_target/*Left_Above_Rim*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/*Right_Above_Rim*.png delivery/ 2>/dev/null || true
+          cp frame_c_target/*A_Broadcast*.png delivery/ 2>/dev/null || true
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_three_camera_volumetric_v8b_package.zip ./*)
+
+      - name: Upload hardened volumetric diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-volumetric-v8b-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
