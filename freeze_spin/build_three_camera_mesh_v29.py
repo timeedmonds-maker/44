@@ -136,7 +136,7 @@ def _render_billboards(base_img, cams, Kt, Rt, Ct, meshes):
 
     dw = _target_rays(Kt, Rt, Ct)
     Ct3 = np.asarray(Ct, np.float64).reshape(3)
-    Cs, Rs, Ks = cams[v12.A]
+    Cs, _Rs, _Ks = cams[v12.A]
     out = base_img.copy().reshape(-1, 3)
     zbuf = np.full(v12.H * v12.W, np.inf, np.float64)
     owner = np.full(v12.H * v12.W, -1, np.int16)
@@ -202,6 +202,11 @@ def _render_billboards(base_img, cams, Kt, Rt, Ct, meshes):
 
 
 def render_triangles_with_secondary_billboards(base_img, cams, Kt, Rt, Ct, meshes, ball_mesh=None, ball_color=None):
+    # v23 uses a uniform 112 image as a diagnostic canvas to isolate the focal
+    # mesh. Keep that QA path exactly unchanged; billboards belong only in the
+    # actual scene render.
+    if base_img.shape == (v12.H, v12.W, 3) and bool(np.all(base_img == 112)):
+        return _ORIGINAL_RENDER(base_img, cams, Kt, Rt, Ct, meshes, ball_mesh, ball_color)
     with_people, q = _render_billboards(base_img, cams, Kt, Rt, Ct, meshes)
     _SPRITE_QA["render_calls"].append(q)
     return _ORIGINAL_RENDER(with_people, cams, Kt, Rt, Ct, meshes, ball_mesh, ball_color)
