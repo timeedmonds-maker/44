@@ -4,6 +4,7 @@ on:
   push:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
+      - 'freeze_spin/build_three_camera_mesh_v28.py'
       - 'freeze_spin/build_three_camera_mesh_v29.py'
       - '.github/workflows/adams-jazz-three-camera-billboards-v29.yml'
   workflow_dispatch:
