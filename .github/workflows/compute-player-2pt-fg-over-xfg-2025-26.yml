@@ -1,0 +1,184 @@
+name: Compute player 2PT FG over xFG 2025-26
+
+on:
+  push:
+    paths:
+      - '.github/workflows/compute-player-2pt-fg-over-xfg-2025-26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  compute:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Download committed xFG-PBP FGA join
+        run: |
+          mkdir -p input
+          curl --retry 5 --retry-delay 2 -fL \
+            'https://raw.githubusercontent.com/timeedmonds-maker/long-rebound-era/main/outputs/integration/nba_xfg_2025_26/nba_xfg_pbp_fga_join_2025_26.csv.gz' \
+            -o input/nba_xfg_pbp_fga_join_2025_26.csv.gz
+          ls -lh input/nba_xfg_pbp_fga_join_2025_26.csv.gz
+
+      - name: Compute exact 2PT leaderboard on matched shots
+        run: |
+          python3 - <<'PY'
+          import csv, gzip, json, math
+          from collections import defaultdict
+          from pathlib import Path
+
+          src = Path('input/nba_xfg_pbp_fga_join_2025_26.csv.gz')
+
+          def fnum(v):
+              try:
+                  if v is None or str(v).strip() == '':
+                      return None
+                  x = float(v)
+                  return x if math.isfinite(x) else None
+              except Exception:
+                  return None
+
+          def sid(v):
+              s = str(v or '').strip()
+              if s.endswith('.0'):
+                  s = s[:-2]
+              return s
+
+          players = defaultdict(lambda: {
+              'player':'', 'two_pa':0, 'two_pm':0, 'xfg_sum':0.0,
+              'total_tracked_fga':0
+          })
+          rows = 0
+          tracked = 0
+          two_rows = 0
+          columns = []
+
+          with gzip.open(src, 'rt', encoding='utf-8', newline='') as fh:
+              r = csv.DictReader(fh)
+              columns = r.fieldnames or []
+              print('COLUMNS=' + ','.join(columns))
+              required = {'player_id','action_type','shot_result','xfg_xfg'}
+              missing = sorted(required - set(columns))
+              if missing:
+                  raise SystemExit('Missing required columns: ' + ','.join(missing))
+
+              for row in r:
+                  rows += 1
+                  pid = sid(row.get('player_id'))
+                  if not pid:
+                      continue
+                  xfg = fnum(row.get('xfg_xfg'))
+                  if xfg is None:
+                      continue
+
+                  p = players[pid]
+                  p['total_tracked_fga'] += 1
+                  if not p['player']:
+                      p['player'] = str(row.get('player_name_pbp') or row.get('xfg_player_name') or pid).strip()
+                  tracked += 1
+
+                  action = str(row.get('action_type') or '').strip().lower()
+                  shot_value = fnum(row.get('xfg_shot_value'))
+                  is_two = action == '2pt' or shot_value == 2.0
+                  if not is_two:
+                      continue
+
+                  two_rows += 1
+                  result = str(row.get('shot_result') or '').strip().lower()
+                  made = result == 'made'
+                  if result not in {'made','missed','miss'}:
+                      xm = fnum(row.get('xfg_made'))
+                      if xm is not None:
+                          made = xm == 1.0
+
+                  p['two_pa'] += 1
+                  p['two_pm'] += int(made)
+                  p['xfg_sum'] += xfg
+
+          recs=[]
+          for pid,p in players.items():
+              if p['two_pa'] <= 0:
+                  continue
+              fg = p['two_pm']/p['two_pa']
+              xfg = p['xfg_sum']/p['two_pa']
+              recs.append({
+                  'player_id':pid,
+                  'player':p['player'],
+                  'two_pa':p['two_pa'],
+                  'two_pm':p['two_pm'],
+                  'two_fg_pct':100*fg,
+                  'two_xfg_pct':100*xfg,
+                  'fg_minus_xfg_pp':100*(fg-xfg),
+                  'total_tracked_fga':p['total_tracked_fga'],
+              })
+
+          recs.sort(key=lambda x:(-x['fg_minus_xfg_pp'],-x['two_pa'],x['player']))
+          for i,x in enumerate(recs,1):
+              x['rank_unrestricted'] = i
+
+          outdir = Path('outputs/analysis/player_2pt_fg_over_xfg_2025_26')
+          outdir.mkdir(parents=True, exist_ok=True)
+          cols=['rank_unrestricted','player_id','player','two_pa','two_pm','two_fg_pct','two_xfg_pct','fg_minus_xfg_pp','total_tracked_fga']
+          with (outdir/'all_players.csv').open('w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=cols); w.writeheader(); w.writerows(recs)
+
+          thresholds = {
+              'unrestricted': lambda x: True,
+              'min_25_2pa': lambda x: x['two_pa'] >= 25,
+              'min_50_2pa': lambda x: x['two_pa'] >= 50,
+              'min_100_2pa': lambda x: x['two_pa'] >= 100,
+              'min_200_2pa': lambda x: x['two_pa'] >= 200,
+              'min_300_2pa': lambda x: x['two_pa'] >= 300,
+              'min_300_total_tracked_fga': lambda x: x['total_tracked_fga'] >= 300,
+          }
+
+          leaders={}
+          print(f'QA rows={rows} tracked_xfg={tracked} tracked_2pt={two_rows} players={len(recs)}')
+          for label,fn in thresholds.items():
+              pool=[x for x in recs if fn(x)]
+              pool.sort(key=lambda x:(-x['fg_minus_xfg_pp'],-x['two_pa'],x['player']))
+              if not pool:
+                  continue
+              leaders[label]=pool[0]
+              print('\n### '+label)
+              print('rank|player|2PA|2PM|2PT_FG_pct|2PT_xFG_pct|FG_minus_xFG_pp|total_tracked_FGA')
+              for rank,x in enumerate(pool[:20],1):
+                  print(f"{rank}|{x['player']}|{x['two_pa']}|{x['two_pm']}|{x['two_fg_pct']:.4f}|{x['two_xfg_pct']:.4f}|{x['fg_minus_xfg_pp']:+.4f}|{x['total_tracked_fga']}")
+
+          qa={
+              'season':'2025-26',
+              'source':'long-rebound-era outputs/integration/nba_xfg_2025_26/nba_xfg_pbp_fga_join_2025_26.csv.gz',
+              'definition':'Among matched 2PT FGA, actual 2PT FG% minus mean per-shot xFG%.',
+              'rows':rows,
+              'tracked_xfg_rows':tracked,
+              'tracked_2pt_rows':two_rows,
+              'players_with_tracked_2pt':len(recs),
+              'leaders':leaders,
+          }
+          (outdir/'leaders.json').write_text(json.dumps(qa,indent=2),encoding='utf-8')
+          PY
+
+      - name: Commit durable leaderboard
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add outputs/analysis/player_2pt_fg_over_xfg_2025_26/
+          git diff --cached --quiet || git commit -m 'analysis: add 2025-26 player 2PT FG over xFG leaderboard'
+          git push origin HEAD:${GITHUB_REF_NAME}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: player-2pt-fg-over-xfg-2025-26-${{ github.run_id }}
+          path: outputs/analysis/player_2pt_fg_over_xfg_2025_26/*
+          retention-days: 7
+          compression-level: 0
