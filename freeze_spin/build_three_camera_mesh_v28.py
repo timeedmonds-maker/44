@@ -40,6 +40,11 @@ def _pop_arg(name: str) -> str:
     return value
 
 
+def _arg_path(name: str) -> Path:
+    i = sys.argv.index(name)
+    return Path(sys.argv[i + 1])
+
+
 def _black_metrics(out: Path):
     rows = []
     for ang in (0, 5, 10, 15, 20, 25):
@@ -63,7 +68,9 @@ def main():
     v26._TEMPORAL.clear(); v26._REG_QA.clear(); v26._ATLAS_QA.clear(); v26._BG_QA.clear()
     v26._CONTEXT = None
     v26._CLIPS_DIR = Path(_pop_arg("--clips-dir"))
-    v26._SYNC_QA_PATH = Path(_pop_arg("--sync-qa"))
+    # --sync-qa is also required by the underlying v12 parser, so read it without
+    # removing it from sys.argv.
+    v26._SYNC_QA_PATH = _arg_path("--sync-qa")
 
     # v15.main installs its current background function into v14 immediately
     # before the lower renderer runs. Redirect only that symbol.
@@ -72,8 +79,7 @@ def main():
     assert (int(v12.W), int(v12.H)) == (960, 540), (v12.W, v12.H)
     v24.main()
 
-    oi = sys.argv.index("--out")
-    out = Path(sys.argv[oi + 1])
+    out = _arg_path("--out")
     qp = out / "three_camera_mesh_v12_qa.json"
     q = json.loads(qp.read_text())
     q["v28_clean_floor_temporal_background"] = {
