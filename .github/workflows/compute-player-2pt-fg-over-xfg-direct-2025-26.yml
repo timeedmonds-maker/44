@@ -1,0 +1,150 @@
+name: Player 2PT FG over xFG direct 2025-26
+
+on:
+  push:
+    paths:
+      - '.github/workflows/compute-player-2pt-fg-over-xfg-direct-2025-26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Install dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas pyreadr requests
+      - name: Extract xFG shard
+        run: |
+          python3 xfg_2pt_shard.py \
+            --shard-index ${{ matrix.shard }} \
+            --num-shards 20 \
+            --workers 2 \
+            --min-fga 300 \
+            --out-dir out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: player-2pt-xfg-shard-${{ matrix.shard }}
+          path: |
+            out/partial_${{ matrix.shard }}.csv
+            out/errors_${{ matrix.shard }}.csv
+            out/summary_${{ matrix.shard }}.json
+          retention-days: 1
+          compression-level: 0
+
+  merge:
+    needs: extract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: player-2pt-xfg-shard-*
+          path: downloaded
+          merge-multiple: true
+      - name: Install pandas
+        run: python3 -m pip install --quiet --disable-pip-version-check pandas
+      - name: Merge and rank
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+
+          files=sorted(Path('downloaded').glob('partial_*.csv'))
+          if len(files) != 20:
+              raise SystemExit(f'Expected 20 shard partials, found {len(files)}')
+          parts=[pd.read_csv(p) for p in files]
+          df=pd.concat(parts,ignore_index=True)
+
+          sums=['tracked_fga','tracked_2pa','tracked_2pm','expected_2pt_makes','successful_games','failed_games']
+          g=(df.groupby(['player_id','player_name'],as_index=False)
+               .agg({**{c:'sum' for c in sums}, 'pbp_fga_global':'max'}))
+          g=g[g['tracked_2pa']>0].copy()
+          g['two_fg_pct']=100*g['tracked_2pm']/g['tracked_2pa']
+          g['two_xfg_pct']=100*g['expected_2pt_makes']/g['tracked_2pa']
+          g['fg_minus_xfg_pp']=g['two_fg_pct']-g['two_xfg_pct']
+          g['xfg_coverage_pct_vs_pbp_fga']=100*g['tracked_fga']/g['pbp_fga_global']
+          g=g.sort_values(['fg_minus_xfg_pp','tracked_2pa'],ascending=[False,False]).reset_index(drop=True)
+          g.insert(0,'rank',range(1,len(g)+1))
+
+          out=Path('outputs/analysis/player_2pt_fg_over_xfg_2025_26_direct')
+          out.mkdir(parents=True,exist_ok=True)
+          g.to_csv(out/'leaderboard.csv',index=False)
+
+          print('FULL TOP 30 — eligible players had >=300 PBP FGA')
+          print(g[['rank','player_name','pbp_fga_global','tracked_fga','tracked_2pa','tracked_2pm','two_fg_pct','two_xfg_pct','fg_minus_xfg_pp','xfg_coverage_pct_vs_pbp_fga']].head(30).to_csv(index=False))
+
+          leaders={}
+          for t in [50,100,150,200,250,300,400,500]:
+              x=g[g['tracked_2pa']>=t]
+              if len(x):
+                  row=x.iloc[0]
+                  leaders[f'min_{t}_tracked_2pa']={
+                      'player_id':int(row.player_id),
+                      'player_name':row.player_name,
+                      'tracked_2pa':int(row.tracked_2pa),
+                      'tracked_2pm':int(row.tracked_2pm),
+                      'two_fg_pct':float(row.two_fg_pct),
+                      'two_xfg_pct':float(row.two_xfg_pct),
+                      'fg_minus_xfg_pp':float(row.fg_minus_xfg_pp),
+                      'pbp_fga_global':int(row.pbp_fga_global),
+                      'tracked_fga':int(row.tracked_fga),
+                  }
+          top=g.iloc[0]
+          qa={
+              'season':'2025-26',
+              'season_type':'Regular Season',
+              'source_resource':'NBA shotqualityvideologs',
+              'source_host':'stats.gleague.nba.com',
+              'pbp_source':'ramirobentes/nba_pbp_data pbp-final-2026',
+              'eligibility':'Players with >=300 PBP FGA; no missing xFG imputed.',
+              'definition':'On tracked 2PT attempts only: actual FG% minus mean per-shot shotQuality xFG%.',
+              'players':int(len(g)),
+              'top_eligible':{
+                  'player_id':int(top.player_id),
+                  'player_name':top.player_name,
+                  'tracked_2pa':int(top.tracked_2pa),
+                  'tracked_2pm':int(top.tracked_2pm),
+                  'two_fg_pct':float(top.two_fg_pct),
+                  'two_xfg_pct':float(top.two_xfg_pct),
+                  'fg_minus_xfg_pp':float(top.fg_minus_xfg_pp),
+                  'pbp_fga_global':int(top.pbp_fga_global),
+                  'tracked_fga':int(top.tracked_fga),
+                  'xfg_coverage_pct_vs_pbp_fga':float(top.xfg_coverage_pct_vs_pbp_fga),
+              },
+              'threshold_leaders':leaders,
+          }
+          (out/'leaders.json').write_text(json.dumps(qa,indent=2),encoding='utf-8')
+          print('QA')
+          print(json.dumps(qa,indent=2))
+          PY
+      - name: Commit durable result
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add outputs/analysis/player_2pt_fg_over_xfg_2025_26_direct/
+          git diff --cached --quiet || git commit -m 'analysis: add direct 2025-26 player 2PT FG over xFG leaderboard'
+          git push origin HEAD:${GITHUB_REF_NAME}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: player-2pt-fg-over-xfg-direct-2025-26-${{ github.run_id }}
+          path: outputs/analysis/player_2pt_fg_over_xfg_2025_26_direct/*
+          retention-days: 7
+          compression-level: 0
