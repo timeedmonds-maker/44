@@ -5,6 +5,7 @@ on:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
       - 'freeze_spin/build_three_camera_mesh_v27.py'
+      - 'freeze_spin/build_three_camera_mesh_v27b.py'
       - '.github/workflows/adams-jazz-three-camera-finite-shell-v27.yml'
   workflow_dispatch:
 
@@ -65,7 +66,7 @@ jobs:
           set -euxo pipefail
           BCAST="$(find inputs_v11 -type f -name 'A_Broadcast_v11_*.png' | head -n 1)"
           test -n "$BCAST"
-          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.build_three_camera_mesh_v27 \
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.build_three_camera_mesh_v27b \
             --clips-dir target_source/clips \
             --frames-dir inputs_v11 \
             --sync-qa inputs_v11/exact_visual_state_v11_qa.json \
@@ -93,7 +94,6 @@ jobs:
           regs=d['temporal_registration']
           assert set(regs)=={'Left Above Rim','Broadcast','Right Above Rim'}
           assert all(x['rejected_frames_are_never_sampled'] for x in regs.values())
-          # Exact 0-degree anchor is untouched.
           out=cv2.imread(str(r/'v12_00deg.png')); ref=cv2.imread(str(next(Path('inputs_v11').glob('K_Left_Above_Rim_v11_*.png'))))
           assert out is not None and ref is not None and np.array_equal(out,ref)
           metrics=[]
