@@ -1,0 +1,132 @@
+name: Adams Jazz three-camera finite arena shell v27
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_three_camera_mesh_v27.py'
+      - '.github/workflows/adams-jazz-three-camera-finite-shell-v27.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  native-finite-shell-v27:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    env:
+      PYTHONFAULTHANDLER: '1'
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install reconstruction runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet requests pillow scipy opencv-python-headless scikit-image
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision; print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet 'rfdetr>=1.8.1'
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve native event source clips
+        run: |
+          set -euxo pipefail
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test -n "$(find target_source/clips -type f -name '*_489_*_SOURCE.mp4' -print -quit)"
+
+      - name: Retrieve v11 exact-state evidence
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v11 three_camera_v27
+          gh run download 34535691949 --repo timeedmonds-maker/44 --name adams-jazz-three-camera-exact-sync-v11-34535691949 --dir inputs_v11
+          test -s inputs_v11/exact_visual_state_v11_qa.json
+
+      - name: Retrieve accepted Right Above Rim v73 metric report
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v73
+          gh run download 33911842169 --repo timeedmonds-maker/44 --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 --dir inputs_v73
+          test -s inputs_v73/right_above_rim_metric_camera_v73.json
+
+      - name: Render native finite-shell proof
+        run: |
+          set -euxo pipefail
+          BCAST="$(find inputs_v11 -type f -name 'A_Broadcast_v11_*.png' | head -n 1)"
+          test -n "$BCAST"
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.build_three_camera_mesh_v27 \
+            --clips-dir target_source/clips \
+            --frames-dir inputs_v11 \
+            --sync-qa inputs_v11/exact_visual_state_v11_qa.json \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-event-frame "$BCAST" \
+            --out three_camera_v27 --tokens 900 --voxel-cm 2.5 \
+            2>&1 | tee three_camera_v27/render.log
+
+      - name: Assert v27 native invariants and report coverage
+        if: success()
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import json,cv2,numpy as np
+          from pathlib import Path
+          r=Path('three_camera_v27'); q=json.load(open(r/'three_camera_mesh_v12_qa.json'))
+          d=q['v27_finite_arena_shell']; f=q['v23_focal_subject']
+          assert d['resolution']==[960,540]
+          assert d['generated_texture'] is False and d['inpainting'] is False and d['crossfade'] is False
+          assert d['upscale'] is False and d['uhd'] is False
+          assert f['accepted_focal_mesh_count']==1
+          assert set(f['accepted_focal_mesh_views'])=={'Left Above Rim','Broadcast','Right Above Rim'}
+          assert q['ball']['status']=='BALL_TRIANGULATED_THREE_VIEW_ENHANCED'
+          regs=d['temporal_registration']
+          assert set(regs)=={'Left Above Rim','Broadcast','Right Above Rim'}
+          assert all(x['rejected_frames_are_never_sampled'] for x in regs.values())
+          # Exact 0-degree anchor is untouched.
+          out=cv2.imread(str(r/'v12_00deg.png')); ref=cv2.imread(str(next(Path('inputs_v11').glob('K_Left_Above_Rim_v11_*.png'))))
+          assert out is not None and ref is not None and np.array_equal(out,ref)
+          metrics=[]
+          for a in (0,5,10,15,20,25):
+              im=cv2.imread(str(r/f'v12_{a:02d}deg.png'))
+              exact_black=float(np.mean(np.all(im==0,axis=2)))
+              metrics.append({'angle':a,'exact_black_fraction':exact_black,'nonblack_fraction':1.0-exact_black})
+          print('V27_FINITE_SHELL_NATIVE_OK')
+          print(json.dumps({'black_metrics':metrics,'background':d['background_render_calls']},indent=2))
+          PY
+
+      - name: Package v27 evidence even on failure
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp three_camera_v27/render.log delivery/ 2>/dev/null || true
+          cp three_camera_v27/three_camera_mesh_v12_qa.json delivery/ 2>/dev/null || true
+          cp three_camera_v27/v12_key_arc_montage.png delivery/ 2>/dev/null || true
+          cp three_camera_v27/v12_*deg.png delivery/ 2>/dev/null || true
+          cp three_camera_v27/v22_focal_*.png delivery/ 2>/dev/null || true
+          cp three_camera_v27/v23_focal_*.png delivery/ 2>/dev/null || true
+          cp three_camera_v27/v21_*.png delivery/ 2>/dev/null || true
+          find inputs_v11 -maxdepth 1 -type f \( -name 'K_Left_Above_Rim_v11_*.png' -o -name 'A_Broadcast_v11_*.png' -o -name 'L_Right_Above_Rim_v11_*.png' \) -exec cp {} delivery/ \; 2>/dev/null || true
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_three_camera_finite_shell_v27_package.zip ./*)
+
+      - name: Upload v27 finite-shell proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-three-camera-finite-shell-v27-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
