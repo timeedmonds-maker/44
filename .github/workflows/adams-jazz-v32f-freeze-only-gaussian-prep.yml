@@ -6,6 +6,8 @@ on:
     paths:
       - 'freeze_spin/build_v32f_freeze_only_4dgs.py'
       - 'freeze_spin/add_v32f_dense_orbit.py'
+      - 'freeze_spin/v32f_freeze_static_4dgs_config.py'
+      - 'freeze_spin/run_v32f_freeze_static_4dgs.sh'
       - '.github/workflows/adams-jazz-v32f-freeze-only-gaussian-prep.yml'
   workflow_dispatch:
 
@@ -90,9 +92,9 @@ jobs:
           set -euxo pipefail
           cp freeze_spin/build_v32f_freeze_only_4dgs.py v32f/
           cp freeze_spin/add_v32f_dense_orbit.py v32f/
-          cp freeze_spin/v32d_4dgs_quality_config.py v32f/
+          cp freeze_spin/v32f_freeze_static_4dgs_config.py v32f/
+          cp freeze_spin/run_v32f_freeze_static_4dgs.sh v32f/
           cp freeze_spin/evaluate_v32d_holdout.py v32f/
-          cp freeze_spin/run_v32d_rar_holdout_4dgs.sh v32f/
           cp v32f_build.log v32f/
           cp v32f_dense_orbit.log v32f/
           mkdir -p delivery
