@@ -1,0 +1,90 @@
+name: Adams Jazz v32d native action crops
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/export_v32b_quality_cluster_4dgs.py'
+      - 'freeze_spin/export_v32c_quality_cluster_tight.py'
+      - 'freeze_spin/export_v32d_native_action_crops.py'
+      - '.github/workflows/adams-jazz-v32d-native-action-crops.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  v32d-native-action-crops:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gh zip
+          python -m pip install --quiet numpy opencv-python-headless
+      - name: Retrieve successful v32 Stage-A package
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p v32_stage_a
+          gh run download 34666457582 --repo timeedmonds-maker/44 \
+            --name adams-jazz-v32-stage-a-sharp-latent-all-court-34666457582 \
+            --dir v32_stage_a
+          test -s v32_stage_a/v32_scene_manifest.json
+      - name: Export native 448 action crops
+        run: |
+          set -euxo pipefail
+          python -u -m freeze_spin.export_v32d_native_action_crops \
+            --stage-a v32_stage_a \
+            --out v32d_action_crops \
+            --max-tracks 5 | tee v32d_build.log
+      - name: Assert crop/ray invariants
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import json,cv2,numpy as np
+          from pathlib import Path
+          r=Path('v32d_action_crops')
+          b=json.load(open(r/'v32d_backend.json'))
+          assert b['source_resolution']==[960,540]
+          assert b['training_crop_resolution']==[448,448]
+          assert b['final_output_resolution']==[960,540]
+          assert b['resized'] is False and b['native_pixels_preserved'] is True
+          assert b['selected_track_ids']==[3,4,11,10]
+          assert b['mandatory_anchor_track_id']==3
+          assert b['sharp_latent_required'] is True
+          assert b['upscale'] is False and b['uhd'] is False
+          assert len(list((r/'ims').glob('*.png')))==39
+          for p in (r/'ims').glob('*.png'):
+              im=cv2.imread(str(p)); assert im is not None and im.shape[:2]==(448,448), (p, None if im is None else im.shape)
+          # Principal point translation must exactly equal source crop origin.
+          for lab,c in b['native_crop_xyxy_source'].items():
+              K=np.asarray(b['full_frame_K_px'][lab],float); Kc=np.asarray(b['crop_K_px'][lab],float)
+              assert abs((K[0,2]-c[0])-Kc[0,2])<1e-7
+              assert abs((K[1,2]-c[1])-Kc[1,2])<1e-7
+              assert abs(K[0,0]-Kc[0,0])<1e-7 and abs(K[1,1]-Kc[1,1])<1e-7
+          tr=json.load(open(r/'train_meta.json'))
+          assert tr['w']==448 and tr['h']==448 and len(tr['fn'])==13 and all(len(x)==3 for x in tr['fn'])
+          assert (r/'v32d_native_crop_montage.png').is_file()
+          print('V32D_NATIVE_ACTION_CROPS_OK')
+          print(json.dumps({'tracks':b['selected_track_ids'],'crops':b['native_crop_xyxy_source']},indent=2))
+          PY
+      - name: Package GPU-ready crop dataset
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp -a v32d_action_crops/. delivery/
+          cp v32d_build.log delivery/
+          (cd delivery && zip -0 -r v32d_native_action_crop_4dgs.zip . -x 'v32d_native_action_crop_4dgs.zip')
+      - name: Upload v32d package
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32d-native-action-crops-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
