@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-"""v32o: fit a real MHR anatomical mesh to the accepted v32m Adams pose.
+"""v32o2: fit the real MHR anatomical rig to the accepted v32m Adams pose.
 
-This stage replaces every previous capsule/blob/visual-hull foreground with a
-parametric skinned triangle mesh.  The image model is NOT used to place the body:
-only v32m's source-grounded metric 3-D joints constrain the fit.  MHR supplies
-anatomical articulation and a continuous surface.  The fit is projected back into
-all three accepted NBA cameras for visual QA; no novel-view render is produced.
+The first v32o attempt used MHR.from_files(), whose PyTorch/PyMomentum wrapper
+segfaulted on the hosted CPU runner before optimization.  This implementation
+uses the lower-level PyMomentum Character + IK path already proven stable by
+v32n.  It fits only source-grounded v32m metric joints, then optionally passes
+the solved 204 MHR pose parameters through Meta's public TorchScript MHR LOD1
+model for pose-corrected surface vertices.
 
-Important: this is a geometry diagnostic, not a photorealistic replay.  No NBA
-pixels are synthesized, no learned texture is generated, and no missing joint is
-silently copied from another player.
+No image pixels are synthesized.  This stage creates no novel view.  It only
+asks whether a genuine articulated human triangle mesh can occupy the measured
+Adams geometry and project coherently into the three calibrated NBA cameras.
 """
 
 import argparse
@@ -22,287 +23,377 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
-import torch.nn.functional as F
+from scipy.spatial.transform import Rotation as SciRot
 
-from mhr.mhr import MHR
-from mhr.io import get_default_asset_folder
+import pymomentum.geometry as geo
+import pymomentum.solver as solver
 
-W,H=960,540
-CAMS=("Left Above Rim","Broadcast","Right Above Rim")
-FRAME_NAMES={
- "Left Above Rim":"v32_chosen_Left_Above_Rim_frame0260.png",
- "Broadcast":"v32_chosen_Broadcast_frame0276.png",
- "Right Above Rim":"v32_chosen_Right_Above_Rim_frame0256.png",
+W, H = 960, 540
+CAMS = ("Left Above Rim", "Broadcast", "Right Above Rim")
+FRAME_NAMES = {
+    "Left Above Rim": "v32_chosen_Left_Above_Rim_frame0260.png",
+    "Broadcast": "v32_chosen_Broadcast_frame0276.png",
+    "Right Above Rim": "v32_chosen_Right_Above_Rim_frame0256.png",
 }
 
-# MHR joint origins corresponding to COCO-style articulation landmarks.
-# Shoulder=upper-arm origin; elbow=lower-arm origin; wrist=wrist; hip=upper-leg
-# origin; knee=lower-leg origin; ankle=foot origin. v32n2 separately audits
-# these choices against the neutral rig before downstream silhouette fitting.
-MHR_MAP={
- "left_shoulder":"l_uparm",
- "right_shoulder":"r_uparm",
- "left_elbow":"l_lowarm",
- "right_elbow":"r_lowarm",
- "left_wrist":"l_wrist",
- "right_wrist":"r_wrist",
- "left_hip":"l_upleg",
- "right_hip":"r_upleg",
- "left_knee":"l_lowleg",
- "right_knee":"r_lowleg",
- "left_ankle":"l_foot",
- "right_ankle":"r_foot",
+MHR_MAP = {
+    "left_shoulder": "l_uparm",
+    "right_shoulder": "r_uparm",
+    "left_elbow": "l_lowarm",
+    "right_elbow": "r_lowarm",
+    "left_wrist": "l_wrist",
+    "right_wrist": "r_wrist",
+    "left_hip": "l_upleg",
+    "right_hip": "r_upleg",
+    "left_knee": "l_lowleg",
+    "right_knee": "r_lowleg",
+    "left_ankle": "l_foot",
+    "right_ankle": "r_foot",
 }
 
-FIT_NAMES=("left_shoulder","left_elbow","left_wrist","right_wrist","left_hip","right_hip","left_knee","left_ankle","right_ankle")
-SEGMENTS=(("left_shoulder","left_elbow"),("left_elbow","left_wrist"),("left_hip","left_knee"),("left_knee","left_ankle"),("left_hip","right_hip"))
+# v32m directly measures these.  Right wrist/ankle are retained but downweighted
+# because their corresponding proximal right-side joints are occluded at t+00.
+FIT_NAMES = (
+    "left_shoulder", "left_elbow", "left_wrist", "right_wrist",
+    "left_hip", "right_hip", "left_knee", "left_ankle", "right_ankle",
+)
+FIT_WEIGHTS = {
+    "left_shoulder": 1.10,
+    "left_elbow": 1.20,
+    "left_wrist": 1.10,
+    "right_wrist": 0.45,
+    "left_hip": 1.35,
+    "right_hip": 1.35,
+    "left_knee": 1.25,
+    "left_ankle": 1.10,
+    "right_ankle": 0.50,
+}
 
 
-def ensure_assets():
-    assets=get_default_asset_folder()
-    if not (assets/'lod1.fbx').exists():
-        subprocess.run(['mhr-download-assets'],check=True)
-    return assets
+def unit(v: np.ndarray) -> np.ndarray:
+    n = float(np.linalg.norm(v))
+    return v / max(n, 1e-9)
 
 
-def skew(v):
-    z=torch.zeros((),dtype=v.dtype,device=v.device)
-    return torch.stack([z,-v[2],v[1], v[2],z,-v[0], -v[1],v[0],z]).reshape(3,3)
+def make_frame(left, right, up_point) -> np.ndarray:
+    x = unit(np.asarray(right, float) - np.asarray(left, float))
+    mid = 0.5 * (np.asarray(left, float) + np.asarray(right, float))
+    yr = np.asarray(up_point, float) - mid
+    y = unit(yr - x * float(np.dot(x, yr)))
+    z = unit(np.cross(x, y))
+    y = unit(np.cross(z, x))
+    return np.column_stack([x, y, z])
 
 
-def exp_so3(v):
-    # matrix_exp is stable around zero and differentiable.
-    return torch.matrix_exp(skew(v))
+def camera(scene, label):
+    d = scene["cameras"][label]
+    return (
+        np.asarray(d["K_px"], float),
+        np.asarray(d["R_world_to_camera"], float),
+        np.asarray(d["C_world_cm"], float),
+    )
 
 
-def unit(v):
-    n=np.linalg.norm(v)
-    return v/max(n,1e-9)
+def project(K, R, C, X):
+    X = np.asarray(X, float)
+    xc = (R @ (X - C).T).T
+    z = xc[:, 2]
+    q = (K @ xc.T).T
+    uv = np.full((len(X), 2), np.nan, float)
+    ok = np.abs(z) > 1e-7
+    uv[ok] = q[ok, :2] / q[ok, 2:3]
+    return uv, z
 
 
-def make_frame(left,right,up_point):
-    x=unit(np.asarray(right)-np.asarray(left))
-    mid=.5*(np.asarray(left)+np.asarray(right))
-    yr=np.asarray(up_point)-mid
-    y=unit(yr-x*np.dot(x,yr))
-    z=unit(np.cross(x,y))
-    # re-orthogonalize y to eliminate accumulated numerical error
-    y=unit(np.cross(z,x))
-    return np.column_stack([x,y,z])
-
-
-def camera(scene,label):
-    d=scene['cameras'][label]
-    return np.asarray(d['K_px'],float),np.asarray(d['R_world_to_camera'],float),np.asarray(d['C_world_cm'],float)
-
-
-def project(K,R,C,X):
-    X=np.asarray(X,float)
-    xc=(R@(X-C).T).T
-    z=xc[:,2]
-    q=(K@xc.T).T
-    uv=np.full((len(X),2),np.nan,float)
-    ok=np.abs(z)>1e-7
-    uv[ok]=q[ok,:2]/q[ok,2:3]
-    return uv,z
-
-
-def mesh_mask(uv,faces):
-    mask=np.zeros((H,W),np.uint8)
-    tri=uv[faces]
-    valid=np.all(np.isfinite(tri),axis=(1,2)) & np.all(np.abs(tri)<6000,axis=(1,2))
+def mesh_mask(uv, faces):
+    mask = np.zeros((H, W), np.uint8)
+    tri = uv[faces]
+    valid = np.all(np.isfinite(tri), axis=(1, 2)) & np.all(np.abs(tri) < 6000, axis=(1, 2))
     for t in tri[valid]:
-        p=np.rint(t).astype(np.int32)
-        cv2.fillConvexPoly(mask,p,255,lineType=cv2.LINE_8)
+        p = np.rint(t).astype(np.int32)
+        cv2.fillConvexPoly(mask, p, 255, lineType=cv2.LINE_8)
     return mask
 
 
-def draw_overlay(img,mask,joint_uv,label):
-    out=img.copy()
-    cnt,_=cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(out,cnt,-1,(255,255,0),2,cv2.LINE_AA)
-    for name,p in joint_uv.items():
-        if p is None or not np.all(np.isfinite(p)): continue
-        x,y=np.rint(p).astype(int)
-        if -20<=x<W+20 and -20<=y<H+20:
-            cv2.circle(out,(x,y),3,(255,0,255),-1,cv2.LINE_AA)
-    cv2.rectangle(out,(0,0),(W,28),(0,0,0),-1)
-    cv2.putText(out,f'v32o MHR mesh projection | {label} | cyan silhouette, magenta fitted joints',(8,19),cv2.FONT_HERSHEY_SIMPLEX,.42,(255,255,255),1,cv2.LINE_AA)
+def draw_overlay(img, mask, joint_uv, label):
+    out = img.copy()
+    cnt, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(out, cnt, -1, (255, 255, 0), 2, cv2.LINE_AA)
+    for p in joint_uv.values():
+        if p is None or not np.all(np.isfinite(p)):
+            continue
+        x, y = np.rint(p).astype(int)
+        if -20 <= x < W + 20 and -20 <= y < H + 20:
+            cv2.circle(out, (x, y), 3, (255, 0, 255), -1, cv2.LINE_AA)
+    cv2.rectangle(out, (0, 0), (W, 28), (0, 0, 0), -1)
+    cv2.putText(
+        out,
+        f"v32o2 MHR mesh projection | {label} | cyan mesh silhouette",
+        (8, 19), cv2.FONT_HERSHEY_SIMPLEX, .42, (255, 255, 255), 1, cv2.LINE_AA,
+    )
     return out
 
 
-def smooth_l1_distance(d,beta=5.0):
-    return torch.where(d<beta,0.5*d*d/beta,d-0.5*beta)
+def find_assets(work: Path) -> Path:
+    assets = work / "assets"
+    if not (assets / "lod1.fbx").exists():
+        subprocess.run(["mhr-download-assets", "--dest", str(work)], check=True)
+    assert (assets / "lod1.fbx").exists(), assets
+    assert (assets / "compact_v6_1.model").exists(), assets
+    return assets
+
+
+def load_character(assets: Path):
+    return geo.Character.load_fbx(
+        str(assets / "lod1.fbx"),
+        str(assets / "compact_v6_1.model"),
+        load_blendshapes=True,
+    )
+
+
+def neutral_positions(character, joint_indices):
+    z = np.zeros((character.parameter_transform.size,), np.float32)
+    parents = np.asarray(joint_indices, np.int64)
+    offsets = np.zeros((len(joint_indices), 3), np.float32)
+    return geo.model_parameters_to_positions(character, z, parents, offsets)
+
+
+def build_initial_pose(character, ji, target_all):
+    n = character.parameter_transform.size
+    init = np.zeros((n,), np.float64)
+    ids = [ji["l_upleg"], ji["r_upleg"], ji["c_head"]]
+    sl, sr, sh = neutral_positions(character, ids)
+    tl = target_all["left_hip"]
+    tr = target_all["right_hip"]
+    tup = target_all.get("nose", target_all["left_shoulder"])
+    Fs = make_frame(sl, sr, sh)
+    Ft = make_frame(tl, tr, tup)
+    R0 = Ft @ Fs.T
+    # Momentum root parameters are XYZ Euler rotations in radians.
+    eul = SciRot.from_matrix(R0).as_euler("xyz", degrees=False)
+    init[3:6] = eul
+    neutral_mid = 0.5 * (sl + sr)
+    target_mid = 0.5 * (tl + tr)
+    init[0:3] = target_mid - (R0 @ neutral_mid)
+    return init, R0
+
+
+def run_ik(character, ji, target_all, fit_names, init):
+    n = character.parameter_transform.size
+    parents = torch.tensor([ji[MHR_MAP[x]] for x in fit_names], dtype=torch.int64)
+    offsets = torch.zeros((len(fit_names), 3), dtype=torch.float64)
+    targets = torch.tensor(
+        np.stack([target_all[x] for x in fit_names])[None, ...], dtype=torch.float64
+    )
+    pos_w = torch.tensor(
+        [[FIT_WEIGHTS.get(x, 1.0) for x in fit_names]], dtype=torch.float64
+    )
+
+    active = torch.zeros((n,), dtype=torch.bool)
+    active[:68] = True  # rigid + torso/arms/legs/neck, no fingers
+    if n >= 136:
+        active[130:136] = True  # interpretable flexible body dimensions only
+
+    mp0 = torch.tensor(init[None, :], dtype=torch.float64)
+    motion_targets = mp0.clone()
+    motion_w = torch.zeros((1, n), dtype=torch.float64)
+    motion_w[:, 6:68] = 0.10
+    if n >= 136:
+        motion_w[:, 130:136] = 0.20
+    # Keep unobserved DOFs close to initialization while allowing root to move freely.
+
+    active_err = [
+        solver.ErrorFunctionType.Limit,
+        solver.ErrorFunctionType.Position,
+        solver.ErrorFunctionType.Motion,
+    ]
+    err_w = torch.tensor([[1.0, 1.0, 0.025]], dtype=torch.float64)
+    opts = solver.SolverOptions()
+    # Defaults are robust here; explicitly increase iterations when exposed.
+    for attr, val in (("max_iterations", 120), ("min_iterations", 5)):
+        if hasattr(opts, attr):
+            setattr(opts, attr, val)
+
+    out = solver.solve_ik(
+        character=character,
+        active_parameters=active,
+        model_parameters_init=mp0,
+        active_error_functions=active_err,
+        error_function_weights=err_w,
+        options=opts,
+        position_cons_parents=parents,
+        position_cons_offsets=offsets,
+        position_cons_weights=pos_w,
+        position_cons_targets=targets,
+        motion_targets=motion_targets,
+        motion_weights=motion_w,
+    )
+    return out.detach().cpu().numpy()[0].astype(np.float32)
 
 
 def main():
-    ap=argparse.ArgumentParser()
-    ap.add_argument('--v32m-root',type=Path,required=True)
-    ap.add_argument('--b32-root',type=Path,required=True)
-    ap.add_argument('--out',type=Path,required=True)
-    ap.add_argument('--iters',type=int,default=900)
-    a=ap.parse_args(); a.out.mkdir(parents=True,exist_ok=True)
-    torch.set_num_threads(max(1,min(4,torch.get_num_threads())))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--v32m-root", type=Path, required=True)
+    ap.add_argument("--b32-root", type=Path, required=True)
+    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--work", type=Path, default=Path("v32o_work"))
+    args = ap.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+    args.work.mkdir(parents=True, exist_ok=True)
 
-    q=json.loads((a.v32m_root/'v32m_single_anchor_qa.json').read_text())
-    assert q['status']=='PASS_V32M_SINGLE_ANCHOR_ARTICULATED_POSITION'
-    assert q['surface_stage_unlocked'] is True
-    target_all={k:np.asarray(v['world_cm'],np.float32) for k,v in q['joints'].items()}
-    fit_names=[n for n in FIT_NAMES if n in target_all]
-    if len(fit_names)<8: raise RuntimeError(f'insufficient trusted body joints: {fit_names}')
+    q = json.loads((args.v32m_root / "v32m_single_anchor_qa.json").read_text())
+    assert q["status"] == "PASS_V32M_SINGLE_ANCHOR_ARTICULATED_POSITION"
+    assert q["surface_stage_unlocked"] is True
+    target_all = {k: np.asarray(v["world_cm"], np.float32) for k, v in q["joints"].items()}
+    fit_names = [n for n in FIT_NAMES if n in target_all]
+    if len(fit_names) < 8:
+        raise RuntimeError(f"insufficient trusted body joints: {fit_names}")
 
-    stage=a.b32_root/'stage_a'
-    scene=json.loads((stage/'v32_scene_manifest.json').read_text())
-    assert scene['resolution']==[W,H] and set(scene['cameras'])==set(CAMS)
-    images={c:cv2.imread(str(stage/FRAME_NAMES[c])) for c in CAMS}
+    stage = args.b32_root / "stage_a"
+    scene = json.loads((stage / "v32_scene_manifest.json").read_text())
+    assert scene["resolution"] == [W, H] and set(scene["cameras"]) == set(CAMS)
+    images = {c: cv2.imread(str(stage / FRAME_NAMES[c])) for c in CAMS}
     assert all(v is not None for v in images.values())
 
-    ensure_assets()
-    model=MHR.from_files(device=torch.device('cpu'),lod=1,wants_pose_correctives=False)
-    char=model.character
-    names=list(char.skeleton.joint_names); ji={n:i for i,n in enumerate(names)}
-    missing=[MHR_MAP[n] for n in fit_names if MHR_MAP[n] not in ji]
-    if missing: raise RuntimeError(f'MHR mapping names missing: {missing}')
+    assets = find_assets(args.work)
+    character = load_character(assets)
+    names = list(character.skeleton.joint_names)
+    ji = {n: i for i, n in enumerate(names)}
+    missing = [MHR_MAP[n] for n in fit_names if MHR_MAP[n] not in ji]
+    if missing:
+        raise RuntimeError(f"MHR joint mapping missing: {missing}")
 
-    zeros204=torch.zeros((1,204),dtype=torch.float32)
-    zeros117=torch.zeros((1,117),dtype=torch.float32)
-    def skel_from(mp):
-        full=torch.cat([mp,zeros117],dim=1)
-        jp=model.character_torch.model_parameters_to_joint_parameters(full)
-        return model.character_torch.joint_parameters_to_skeleton_state(jp)
-    with torch.no_grad(): neutral=skel_from(zeros204)[0,:,:3].cpu().numpy()
+    init, R0 = build_initial_pose(character, ji, target_all)
+    solved = run_ik(character, ji, target_all, fit_names, init)
 
-    # Geometric similarity initialization using hip lateral axis + body-up axis.
-    sh=np.asarray(neutral[ji['c_head']],float)
-    sl=np.asarray(neutral[ji['l_upleg']],float); sr=np.asarray(neutral[ji['r_upleg']],float)
-    th=.5*(target_all['left_hip']+target_all['right_hip'])
-    # Nose is observation-derived and only used to initialize global orientation,
-    # never as a direct MHR joint constraint.
-    tup=target_all.get('nose',target_all['left_shoulder'])
-    Fs=make_frame(sl,sr,sh); Ft=make_frame(target_all['left_hip'],target_all['right_hip'],tup)
-    R0=Ft@Fs.T
+    pidx = np.asarray([ji[MHR_MAP[n]] for n in fit_names], np.int64)
+    zeros = np.zeros((len(fit_names), 3), np.float32)
+    solved_pts = geo.model_parameters_to_positions(character, solved, pidx, zeros)
+    target = np.stack([target_all[n] for n in fit_names])
+    err = np.linalg.norm(solved_pts - target, axis=1)
 
-    ratios=[]
-    for aa,bb in SEGMENTS:
-        if aa in target_all and bb in target_all and MHR_MAP[aa] in ji and MHR_MAP[bb] in ji:
-            ts=float(np.linalg.norm(target_all[aa]-target_all[bb])); ss=float(np.linalg.norm(neutral[ji[MHR_MAP[aa]]]-neutral[ji[MHR_MAP[bb]]]))
-            if ss>1e-5: ratios.append(ts/ss)
-    s0=float(np.median(ratios)) if ratios else 1.2
-    s0=float(np.clip(s0,.85,1.55))
-    sm=.5*(sl+sr); t0=th-s0*(R0@sm)
+    # Stable geometry path: direct PyMomentum skinned vertices.
+    skel = geo.model_parameters_to_skeleton_state(character, solved)
+    raw_verts = np.asarray(character.skin_points(skel), np.float32)
+    faces = np.asarray(character.mesh.faces, np.int32)
+    vworld = raw_verts
+    surface_source = "PyMomentum MHR skinned mesh"
 
-    R0t=torch.tensor(R0,dtype=torch.float32)
-    mp=torch.nn.Parameter(torch.zeros((1,204),dtype=torch.float32))
-    drot=torch.nn.Parameter(torch.zeros(3,dtype=torch.float32))
-    log_s=torch.nn.Parameter(torch.tensor(math.log(s0),dtype=torch.float32))
-    trans=torch.nn.Parameter(torch.tensor(t0,dtype=torch.float32))
+    # Prefer public TorchScript LOD1 pose-corrected surface when it is usable.
+    ts_path = assets / "mhr_model.pt"
+    ts_error = None
+    if ts_path.exists():
+        try:
+            ts = torch.jit.load(str(ts_path), map_location="cpu")
+            ts.eval()
+            with torch.no_grad():
+                vv, _ = ts(
+                    torch.zeros((1, 45), dtype=torch.float32),
+                    torch.tensor(solved[None, :], dtype=torch.float32),
+                    torch.zeros((1, 72), dtype=torch.float32),
+                )
+            vv = vv[0].cpu().numpy().astype(np.float32)
+            if len(vv) == len(raw_verts) and np.all(np.isfinite(vv)):
+                vworld = vv
+                surface_source = "MHR public TorchScript LOD1 with pose correctives"
+        except Exception as e:
+            ts_error = repr(e)
 
-    # Body pose only plus six interpretable flexible body-dimension parameters.
-    active=list(range(6,68))+list(range(130,136))
-    active_mask=torch.zeros(204,dtype=torch.bool); active_mask[active]=True
-    lo,hi=char.model_parameter_limits
-    lo=np.asarray(lo[:204],np.float32); hi=np.asarray(hi[:204],np.float32)
-    # Never optimize the built-in root: external similarity owns world placement.
-    weights={
-      'left_shoulder':1.15,'left_elbow':1.2,'left_wrist':1.05,'right_wrist':.9,
-      'left_hip':1.35,'right_hip':1.35,'left_knee':1.25,'left_ankle':1.15,'right_ankle':1.0,
-    }
-    tidx=torch.tensor([ji[MHR_MAP[n]] for n in fit_names],dtype=torch.long)
-    tgt=torch.tensor(np.stack([target_all[n] for n in fit_names]),dtype=torch.float32)
-    wt=torch.tensor([weights.get(n,1.) for n in fit_names],dtype=torch.float32)
+    ply = args.out / "v32o_adams_mhr_world_cm.ply"
+    with ply.open("w", encoding="utf-8") as f:
+        f.write("ply\nformat ascii 1.0\n")
+        f.write(f"element vertex {len(vworld)}\nproperty float x\nproperty float y\nproperty float z\n")
+        f.write(f"element face {len(faces)}\nproperty list uchar int vertex_indices\nend_header\n")
+        for v in vworld:
+            f.write(f"{v[0]} {v[1]} {v[2]}\n")
+        for tri in faces:
+            f.write(f"3 {int(tri[0])} {int(tri[1])} {int(tri[2])}\n")
 
-    opt=torch.optim.Adam([mp,drot,log_s,trans],lr=.035)
-    history=[]
-    best=None
-    for it in range(a.iters):
-        opt.zero_grad(set_to_none=True)
-        st=skel_from(mp)[0,:,:3]
-        R=exp_so3(drot)@R0t
-        ss=torch.exp(log_s)
-        pred=ss*(st[tidx]@R.T)+trans
-        d=torch.linalg.norm(pred-tgt,dim=1)
-        data=(smooth_l1_distance(d,5.)*wt).sum()/wt.sum()
-        # Pose regularization is intentionally light; MHR anatomy and parameter
-        # limits do most of the plausibility work. Flexible dimensions are more
-        # strongly regularized because only one player instance is available.
-        reg_pose=.006*torch.mean(mp[0,6:68]**2)
-        reg_dim=.035*torch.mean(mp[0,130:136]**2)
-        reg_rot=.003*torch.sum(drot**2)
-        loss=data+reg_pose+reg_dim+reg_rot
-        loss.backward()
-        if mp.grad is not None: mp.grad[:,~active_mask]=0
-        opt.step()
-        with torch.no_grad():
-            # Enforce MHR's declared bounds where finite, plus a conservative
-            # generic cap for otherwise-unbounded articulated parameters.
-            x=mp[0].cpu().numpy()
-            finite=np.isfinite(lo)&np.isfinite(hi)&(np.abs(lo)<1e20)&(np.abs(hi)<1e20)
-            x[finite]=np.minimum(np.maximum(x[finite],lo[finite]),hi[finite])
-            x[6:68]=np.clip(x[6:68],-3.2,3.2)
-            x[130:136]=np.clip(x[130:136],-2.5,2.5)
-            x[~active_mask.cpu().numpy()]=0
-            mp[0].copy_(torch.from_numpy(x))
-            log_s.clamp_(math.log(.75),math.log(1.65))
-        if it%25==0 or it==a.iters-1:
-            rec={'iter':it,'loss':float(loss.detach()),'data':float(data.detach()),'median_cm':float(torch.median(d).detach()),'max_cm':float(torch.max(d).detach()),'scale':float(torch.exp(log_s).detach())}
-            history.append(rec)
-            score=rec['median_cm']+.25*rec['max_cm']
-            if best is None or score<best[0]:
-                best=(score,mp.detach().clone(),drot.detach().clone(),log_s.detach().clone(),trans.detach().clone())
-
-    assert best is not None
-    _,bmp,br,bs,bt=best
-    with torch.no_grad():
-        st=skel_from(bmp)[0,:,:3]
-        R=(exp_so3(br)@R0t); scale=torch.exp(bs)
-        world=scale*(st@R.T)+bt
-        pred=world[tidx]
-        err=torch.linalg.norm(pred-tgt,dim=1).cpu().numpy()
-        # Generate the actual skinned MHR surface with pose correctives enabled.
-        # Re-load with correctives now that optimization is done.
-        full_model=MHR.from_files(device=torch.device('cpu'),lod=1,wants_pose_correctives=True)
-        verts,_=full_model(torch.zeros((1,45)),bmp,torch.zeros((1,72)),apply_correctives=True)
-        vworld=(scale*(verts[0]@R.T)+bt).cpu().numpy()
-    faces=np.asarray(full_model.character.mesh.faces,np.int32)
-
-    # Native PLY in NBA world centimeters.
-    ply=a.out/'v32o_adams_mhr_world_cm.ply'
-    with ply.open('w') as f:
-        f.write('ply\nformat ascii 1.0\n')
-        f.write(f'element vertex {len(vworld)}\nproperty float x\nproperty float y\nproperty float z\n')
-        f.write(f'element face {len(faces)}\nproperty list uchar int vertex_indices\nend_header\n')
-        for v in vworld: f.write(f'{v[0]} {v[1]} {v[2]}\n')
-        for tri in faces: f.write(f'3 {int(tri[0])} {int(tri[1])} {int(tri[2])}\n')
-
-    overlays=[]; camera_qa={}
-    joint_world={n:world[ji[MHR_MAP[n]]].cpu().numpy() for n in fit_names}
+    joint_world = {n: solved_pts[i] for i, n in enumerate(fit_names)}
+    overlays, camera_qa = [], {}
     for c in CAMS:
-        K,Rc,Cc=camera(scene,c); uv,z=project(K,Rc,Cc,vworld); mask=mesh_mask(uv,faces)
-        juv={n:project(K,Rc,Cc,p.reshape(1,3))[0][0] for n,p in joint_world.items()}
-        ov=draw_overlay(images[c],mask,juv,c); cv2.imwrite(str(a.out/f'v32o_{c.replace(" ","_")}_mesh_overlay.png'),ov); overlays.append(ov)
-        camera_qa[c]={'mesh_projected_pixels':int(np.sum(mask>0)),'mesh_vertex_finite_fraction':float(np.mean(np.all(np.isfinite(uv),axis=1))),'signed_depth_median_cm':float(np.nanmedian(z))}
-    cv2.imwrite(str(a.out/'v32o_three_camera_mesh_overlay.png'),np.hstack(overlays))
+        K, Rc, Cc = camera(scene, c)
+        uv, z = project(K, Rc, Cc, vworld)
+        mask = mesh_mask(uv, faces)
+        juv = {n: project(K, Rc, Cc, p.reshape(1, 3))[0][0] for n, p in joint_world.items()}
+        ov = draw_overlay(images[c], mask, juv, c)
+        cv2.imwrite(str(args.out / f"v32o_{c.replace(' ', '_')}_mesh_overlay.png"), ov)
+        cv2.imwrite(str(args.out / f"v32o_{c.replace(' ', '_')}_mesh_mask.png"), mask)
+        overlays.append(ov)
+        camera_qa[c] = {
+            "mesh_projected_pixels": int(np.sum(mask > 0)),
+            "mesh_vertex_finite_fraction": float(np.mean(np.all(np.isfinite(uv), axis=1))),
+            "signed_depth_median_cm": float(np.nanmedian(z)),
+        }
+    cv2.imwrite(str(args.out / "v32o_three_camera_mesh_overlay.png"), np.hstack(overlays))
 
-    per={n:float(e) for n,e in zip(fit_names,err)}
-    med=float(np.median(err)); p90=float(np.percentile(err,90)); mx=float(np.max(err))
-    # This gate only establishes an anatomically coherent metric surface seed.
-    # Silhouette/source-pixel QA is a separate downstream gate.
-    fit_pass=(len(fit_names)>=8 and med<=6.0 and p90<=10.0 and mx<=15.0 and np.all(np.isfinite(vworld)))
-    qa={
-      'version':'v32o_mhr_to_v32m_pose','status':'PASS_V32O_MHR_ANATOMICAL_SEED' if fit_pass else 'FAIL_CLOSED_V32O_MHR_ANATOMICAL_SEED',
-      'source_pose':'v32m PASS pose only','native_resolution':[W,H],'generated_rgb':False,'novel_view_rendered':False,
-      'surface_type':'MHR LOD1 skinned triangle mesh with pose correctives','vertex_count':int(len(vworld)),'face_count':int(len(faces)),
-      'fit_joint_names':fit_names,'mhr_joint_mapping':{n:MHR_MAP[n] for n in fit_names},'per_joint_error_cm':per,
-      'median_joint_error_cm':med,'p90_joint_error_cm':p90,'max_joint_error_cm':mx,'external_similarity_scale':float(scale),
-      'external_rotation_matrix':R.cpu().numpy().tolist(),'external_translation_cm':bt.cpu().numpy().tolist(),
-      'optimized_model_parameters':{full_model.character.parameter_transform.names[i]:float(bmp[0,i]) for i in active if abs(float(bmp[0,i]))>1e-6},
-      'optimizer_history':history,'camera_projection_qa':camera_qa,
-      'gate':{'trusted_body_joints_ge_8':len(fit_names)>=8,'median_joint_error_le_6cm':med<=6.,'p90_joint_error_le_10cm':p90<=10.,'max_joint_error_le_15cm':mx<=15.,'mesh_finite':bool(np.all(np.isfinite(vworld))),'silhouette_stage_unlocked':bool(fit_pass)},
-      'warning':'Passing v32o does not mean photorealistic replay is solved; three-camera silhouette/source-pixel validation is still mandatory.'
+    per = {n: float(e) for n, e in zip(fit_names, err)}
+    med = float(np.median(err))
+    p90 = float(np.percentile(err, 90))
+    mx = float(np.max(err))
+    fit_pass = (
+        len(fit_names) >= 8
+        and med <= 6.0
+        and p90 <= 10.0
+        and mx <= 15.0
+        and np.all(np.isfinite(vworld))
+        and len(vworld) > 10000
+    )
+    qa = {
+        "version": "v32o2_direct_pymomentum_mhr_fit",
+        "status": "PASS_V32O_MHR_ANATOMICAL_SEED" if fit_pass else "FAIL_CLOSED_V32O_MHR_ANATOMICAL_SEED",
+        "source_pose": "v32m accepted source-grounded metric pose",
+        "native_resolution": [W, H],
+        "generated_rgb": False,
+        "novel_view_rendered": False,
+        "surface_type": surface_source,
+        "torchscript_fallback_error": ts_error,
+        "vertex_count": int(len(vworld)),
+        "face_count": int(len(faces)),
+        "fit_joint_names": fit_names,
+        "mhr_joint_mapping": {n: MHR_MAP[n] for n in fit_names},
+        "per_joint_error_cm": per,
+        "median_joint_error_cm": med,
+        "p90_joint_error_cm": p90,
+        "max_joint_error_cm": mx,
+        "initial_root_rotation_matrix": R0.tolist(),
+        "solved_model_parameters": {
+            character.parameter_transform.names[i]: float(x)
+            for i, x in enumerate(solved)
+            if abs(float(x)) > 1e-6
+        },
+        "camera_projection_qa": camera_qa,
+        "gate": {
+            "trusted_body_joints_ge_8": len(fit_names) >= 8,
+            "median_joint_error_le_6cm": med <= 6.0,
+            "p90_joint_error_le_10cm": p90 <= 10.0,
+            "max_joint_error_le_15cm": mx <= 15.0,
+            "mesh_finite": bool(np.all(np.isfinite(vworld))),
+            "mesh_is_real_surface": len(vworld) > 10000,
+            "silhouette_stage_unlocked": bool(fit_pass),
+        },
+        "warning": "Passing this gate only proves an anatomical surface seed. Source-silhouette agreement in all three cameras remains mandatory before any novel-view render.",
     }
-    (a.out/'v32o_mhr_fit_qa.json').write_text(json.dumps(qa,indent=2))
-    np.savez_compressed(a.out/'v32o_mhr_fit.npz',model_parameters=bmp.cpu().numpy(),rotation=R.cpu().numpy(),scale=np.array([float(scale)],np.float32),translation=bt.cpu().numpy(),vertices_world_cm=vworld,faces=faces)
-    print(json.dumps({k:qa[k] for k in ['status','median_joint_error_cm','p90_joint_error_cm','max_joint_error_cm','external_similarity_scale','gate']},indent=2))
-    if not fit_pass: raise SystemExit(5)
+    (args.out / "v32o_mhr_fit_qa.json").write_text(json.dumps(qa, indent=2), encoding="utf-8")
+    np.savez_compressed(
+        args.out / "v32o_mhr_fit.npz",
+        model_parameters=solved,
+        vertices_world_cm=vworld,
+        faces=faces,
+        joint_names=np.asarray(fit_names),
+        joints_world_cm=solved_pts,
+    )
+    print(json.dumps({
+        "status": qa["status"],
+        "surface_type": surface_source,
+        "median_joint_error_cm": med,
+        "p90_joint_error_cm": p90,
+        "max_joint_error_cm": mx,
+        "gate": qa["gate"],
+    }, indent=2), flush=True)
+    if not fit_pass:
+        raise SystemExit(5)
 
-if __name__=='__main__': main()
+
+if __name__ == "__main__":
+    main()
