@@ -45,7 +45,7 @@ jobs:
       - name: Download pinned v32f artifact
         uses: actions/download-artifact@v4
         with:
-          name: adams-jazz-v32f-freeze-only-gpu-ready-34673825231
+          name: adams-jazz-v32f-freeze-only-gaussian-34673825231
           path: inputs/v32f
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
