@@ -34,6 +34,11 @@ jobs:
           import torch, torchvision
           print(torch.__version__, torchvision.__version__)
           PY
+          # The existing accepted camera-loader modules import MoGe at module load
+          # time even though v32 Stage A does not run depth inference. Install it
+          # here to reuse those calibrated-camera utilities without changing any
+          # v32 image formation or introducing learned depth into this stage.
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
 
       - name: Retrieve native event camera clips
         run: |
