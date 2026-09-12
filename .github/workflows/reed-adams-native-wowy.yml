@@ -1,0 +1,58 @@
+name: Reed-Adams 2025-26 native WOWY extract
+
+on:
+  push:
+    branches:
+      - analysis/reed-adams-impact-2025-26
+    paths:
+      - .github/workflows/reed-adams-native-wowy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas requests
+      - name: Extract native PBP Stats pair metrics and exact lineup aggregates
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, re
+          import pandas as pd
+          import requests
+
+          SEASON='2025-26'; HOU='1610612745'; ADAMS=203500; REED=1642263
+          s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*'})
+          j=s.get('https://api.pbpstats.com/get-on-off/nba/player',params={'Season':SEASON,'SeasonType':'Regular Season','TeamId':HOU,'PlayerId':ADAMS},timeout=60).json()
+          rows=[]
+          for metric, arr in j.get('results',{}).items():
+              if not isinstance(arr,list): continue
+              for x in arr:
+                  if not isinstance(x,dict): continue
+                  if x.get('Name')=='Reed Sheppard' or str(x.get('PlayerId',''))==str(REED):
+                      rows.append({'metric':metric, **x})
+                      break
+          print('REED_METRIC_COUNT',len(rows))
+          for row in sorted(rows,key=lambda z:z['metric'].lower()):
+              print('REED_METRIC='+json.dumps(row,sort_keys=True,default=str))
+
+          # Exact lineup sufficient-stat aggregation, Houston-team rows only.
+          url='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/lineup-final2026/data.csv'
+          lu=pd.read_csv(url,low_memory=False)
+          h=lu[lu.team.astype(str).str.upper().eq('HOU')].copy()
+          def has(v,pid): return bool(re.search(rf'(?<!\d){pid}(?!\d)',str(v)))
+          h['reed_on']=h.lineup_team.map(lambda v:has(v,REED)); h['adams_on']=h.lineup_team.map(lambda v:has(v,ADAMS))
+          h=h[h.reed_on].copy()
+          for label,val in [('ADAMS_ON',True),('ADAMS_OFF',False)]:
+              g=h[h.adams_on.eq(val)]
+              sec=float(pd.to_numeric(g.secs_played,errors='coerce').sum()); op=float(pd.to_numeric(g.poss_team,errors='coerce').sum()); dp=float(pd.to_numeric(g.poss_opp,errors='coerce').sum()); pf=float(pd.to_numeric(g.pts_team,errors='coerce').sum()); pa=float(pd.to_numeric(g.pts_opp,errors='coerce').sum())
+              ortg=100*pf/op if op else None; drtg=100*pa/dp if dp else None
+              print('LINEUP_AGG='+json.dumps({'state':label,'stints':len(g),'minutes':sec/60,'off_poss':op,'def_poss':dp,'pts_for':pf,'pts_against':pa,'ortg':ortg,'drtg':drtg,'net':ortg-drtg if ortg is not None and drtg is not None else None,'pace_48':48*60*((op+dp)/2)/sec if sec else None},sort_keys=True))
+          PY
