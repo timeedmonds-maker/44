@@ -1,10 +1,10 @@
-name: Adams Jazz v32y cross-view measurement repair
+name: Adams Jazz v32z identity-locked Broadcast temporal holdout
 
 on:
   push:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
-      - 'freeze_spin/run_v32y_crossview_measurement_repair.py'
+      - 'freeze_spin/run_v32z_identity_locked_broadcast_temporal.py'
       - '.github/workflows/adams-jazz-v32u-epipolar-trimmed-mhr.yml'
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 jobs:
-  crossview-measurement-repair:
+  identity-locked-broadcast-temporal:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -23,12 +23,10 @@ jobs:
       MKL_NUM_THREADS: '4'
     steps:
       - uses: actions/checkout@v4
-
       - name: Install observation and MHR runtime
         run: |
           set -euxo pipefail
           python -m pip install --quiet numpy scipy opencv-python-headless pillow 'rfdetr>=1.8.1' 'pymomentum-core>=0.1.111' 'git+https://github.com/facebookresearch/MHR.git'
-
       - name: Download exact B32 source package
         uses: actions/download-artifact@v4
         with:
@@ -37,57 +35,52 @@ jobs:
           github-token: ${{ github.token }}
           repository: timeedmonds-maker/44
           run-id: 34669584507
-
-      - name: Run v32y cross-view measurement repair
+      - name: Run v32z identity-locked Broadcast temporal solve
         shell: bash
         run: |
           set +e
-          mkdir -p v32y work_v32y
-          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32y_crossview_measurement_repair \
-            --b32-root inputs_b32 --work work_v32y --out v32y --max-nfev 360 2>&1 | tee v32y/run.log
+          mkdir -p v32z work_v32z
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32z_identity_locked_broadcast_temporal \
+            --b32-root inputs_b32 --work work_v32z --out v32z --max-nfev 360 2>&1 | tee v32z/run.log
           rc=${PIPESTATUS[0]}
-          echo "$rc" > v32y/solver_exit_code.txt
+          echo "$rc" > v32z/solver_exit_code.txt
           exit 0
-
-      - name: Print v32y diagnostic
+      - name: Print v32z diagnostic
         if: always()
         run: |
           python - <<'PY'
-          import json, pathlib
-          p=pathlib.Path('v32y/v32y_policy_and_residuals.json')
+          import json,pathlib
+          p=pathlib.Path('v32z/v32z_policy_and_residuals.json')
           if p.exists():
-              q=json.load(open(p))
-              qa=q.get('qa') or {}
+              q=json.load(open(p)); qa=q.get('qa') or {}
               print(json.dumps({
                 'lar_rejected':q.get('lar_rejected'),
-                'broadcast_top3':(q.get('broadcast_rank') or [])[:3],
+                'broadcast_selected':q.get('broadcast_selected'),
+                'broadcast_top5':(q.get('broadcast_rank') or [])[:5],
                 'status':qa.get('status'),
                 'per_camera_reprojection':qa.get('per_camera_reprojection'),
                 'gate':qa.get('gate')},indent=2))
           PY
-
-      - name: Package v32y evidence
+      - name: Package v32z evidence
         if: always()
         run: |
           set -euxo pipefail
           mkdir -p delivery
-          cp v32y/* delivery/ 2>/dev/null || true
+          cp v32z/* delivery/ 2>/dev/null || true
           rm -f delivery/*.zip
           test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
-          (cd delivery && zip -0 adams_jazz_v32y_crossview_measurement_repair.zip ./*)
-
-      - name: Upload v32y evidence
+          (cd delivery && zip -0 adams_jazz_v32z_identity_locked_broadcast_temporal.zip ./*)
+      - name: Upload v32z evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-v32y-crossview-measurement-repair-${{ github.run_id }}
+          name: adams-jazz-v32z-identity-locked-broadcast-temporal-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
           compression-level: 0
-
-      - name: Enforce fail-closed v32y gate
+      - name: Enforce fail-closed v32z gate
         if: always()
         run: |
           set -euxo pipefail
-          test "$(cat v32y/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
+          test "$(cat v32z/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
