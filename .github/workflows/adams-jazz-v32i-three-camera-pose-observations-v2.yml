@@ -1,0 +1,115 @@
+name: Adams Jazz v32i three-camera articulated position v2
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/solve_v32i_three_camera_pose_observations.py'
+      - 'freeze_spin/solve_v32i_three_camera_pose_observations_v2.py'
+      - '.github/workflows/adams-jazz-v32i-three-camera-pose-observations-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  three-camera-position-v2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONFAULTHANDLER: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native CPU observation runtime
+        run: |
+          set -euxo pipefail
+          python -m pip install --quiet numpy opencv-python-headless pillow
+          python - <<'PY' || python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          import torch, torchvision
+          print('torch', torch.__version__, 'torchvision', torchvision.__version__, 'cuda', torch.cuda.is_available())
+          PY
+      - name: Download exact B32 three-camera source package
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs_b32
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34669584507
+      - name: Assert source package identity
+        run: |
+          set -euxo pipefail
+          test -s inputs_b32/stage_a/v32_scene_manifest.json
+          test -s inputs_b32/stage_a/v32_quality_cluster.json
+          python - <<'PY'
+          import json
+          s=json.load(open('inputs_b32/stage_a/v32_scene_manifest.json'))
+          assert s['resolution']==[960,540]
+          assert set(s['cameras'])=={'Left Above Rim','Broadcast','Right Above Rim'}
+          assert s['freeze']['chosen_frame_indices']=={'Left Above Rim':260,'Broadcast':276,'Right Above Rim':256}
+          print('B32_SOURCE_IDENTITY_OK')
+          PY
+      - name: Solve source-grounded three-camera articulated position
+        shell: bash
+        run: |
+          set +e
+          mkdir -p v32i_pose
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.solve_v32i_three_camera_pose_observations_v2 \
+            --b32-root inputs_b32 --out v32i_pose --score-threshold 0.35 2>&1 | tee v32i_pose/run.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > v32i_pose/solver_exit_code.txt
+          exit 0
+      - name: Summarize diagnostic
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('v32i_pose/v32i_pose_observations_qa.json')
+          if not p.exists():
+              print('QA JSON missing')
+              raise SystemExit(0)
+          q=json.load(open(p))
+          print(json.dumps({k:q[k] for k in ['status','triangulated_joint_count','median_observation_reprojection_px','left_measured_pose_found','left_best_projected_pose_median_px','left_best_projected_pose_p75_px','gate']},indent=2))
+          PY
+      - name: Package native v32i position evidence
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v32i_pose/run.log delivery/ 2>/dev/null || true
+          cp v32i_pose/solver_exit_code.txt delivery/ 2>/dev/null || true
+          cp v32i_pose/v32i_pose_observations_qa.json delivery/ 2>/dev/null || true
+          cp v32i_pose/v32i_t00_*.png delivery/ 2>/dev/null || true
+          cp inputs_b32/stage_a/v32_quality_cluster.json delivery/ 2>/dev/null || true
+          cp inputs_b32/stage_a/v32_scene_manifest.json delivery/ 2>/dev/null || true
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_v32i_three_camera_position_evidence.zip ./*)
+      - name: Upload v32i diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32i-three-camera-position-v2-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce fail-closed surface gate
+        if: always()
+        run: |
+          set -euxo pipefail
+          rc="$(cat v32i_pose/solver_exit_code.txt 2>/dev/null || echo 99)"
+          test "$rc" = "0"
+          python - <<'PY'
+          import json
+          q=json.load(open('v32i_pose/v32i_pose_observations_qa.json'))
+          assert q['status']=='PASS_V32I_THREE_CAMERA_ARTICULATED_POSITION'
+          assert q['native_resolution']==[960,540]
+          assert q['generated_rgb'] is False and q['upscaled'] is False and q['warped'] is False
+          assert q['camera_geometry_modified'] is False
+          assert q['gate']['surface_reconstruction_unlocked'] is True
+          print('V32I_THREE_CAMERA_POSITION_GATE_PASS')
+          PY
