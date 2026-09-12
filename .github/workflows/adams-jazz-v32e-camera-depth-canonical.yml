@@ -1,0 +1,98 @@
+name: Adams Jazz v32e 4DGS camera depth canonical
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/canonicalize_v32e_4dgs_camera_sign.py'
+      - '.github/workflows/adams-jazz-v32e-camera-depth-canonical.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  v32e-camera-depth-canonical:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deterministic QA runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gh zip
+          python -m pip install --quiet numpy
+
+      - name: Retrieve successful v32d native action-crop package
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p v32d
+          gh run download 34669545892 --repo timeedmonds-maker/44 \
+            --name adams-jazz-v32d-native-action-crops-34669545892 \
+            --dir v32d
+          test -s v32d/v32d_backend.json
+          test -s v32d/init_pt_cld.npz
+          test -s v32d/train_meta.json
+          test -s v32d/test_meta_holdout_right_above_rim.json
+
+      - name: Hash native source pixels before camera-only fix
+        run: |
+          set -euxo pipefail
+          find v32d/ims -type f -name '*.png' -print0 | sort -z | xargs -0 sha256sum > native_pixels_before.sha256
+          test "$(wc -l < native_pixels_before.sha256)" -eq 39
+
+      - name: Canonicalize projective camera depth signs
+        run: |
+          set -euxo pipefail
+          python -u freeze_spin/canonicalize_v32e_4dgs_camera_sign.py \
+            --dataset v32d 2>&1 | tee v32d/v32e_camera_depth_canonical.log
+
+      - name: Prove pixels, projections, centres and depth invariants
+        run: |
+          set -euxo pipefail
+          find v32d/ims -type f -name '*.png' -print0 | sort -z | xargs -0 sha256sum > native_pixels_after.sha256
+          diff -u native_pixels_before.sha256 native_pixels_after.sha256
+          python - <<'PY'
+          import json
+          q=json.load(open('v32d/v32e_camera_depth_canonical_qa.json'))
+          assert q['status']=='PASS_V32E_4DGS_CAMERA_DEPTH_CANONICAL'
+          assert q['pixel_data_modified'] is False
+          assert q['intrinsics_modified'] is False
+          assert q['point_cloud_modified'] is False
+          assert q['projective_geometry_modified'] is False
+          assert q['cameras']['0']['projective_sign_flipped'] is False
+          assert q['cameras']['1']['projective_sign_flipped'] is False
+          assert q['cameras']['2']['projective_sign_flipped'] is True
+          for cid,c in q['cameras'].items():
+              assert c['reference_depth_after_m'] > 0.2, (cid,c)
+              assert c['seed_positive_depth_fraction_after'] >= 0.995, (cid,c)
+              assert c['max_seed_projection_change_px'] <= 1e-8, (cid,c)
+              assert c['camera_center_shift_m'] <= 1e-9, (cid,c)
+          b=json.load(open('v32d/v32d_backend.json'))
+          assert b['version']=='v32e_native_action_crops_focal_seeded_depth_canonical'
+          print('PASS_V32E_CAMERA_DEPTH_CANONICAL_GATE')
+          print(json.dumps(q,indent=2))
+          PY
+
+      - name: Package corrected GPU-ready dataset
+        run: |
+          set -euxo pipefail
+          cp freeze_spin/canonicalize_v32e_4dgs_camera_sign.py v32d/
+          mkdir -p delivery
+          cp -a v32d/. delivery/
+          cp native_pixels_before.sha256 delivery/
+          cp native_pixels_after.sha256 delivery/
+          (cd delivery && zip -0 -r v32e_depth_canonical_4dgs.zip . -x 'v32e_depth_canonical_4dgs.zip')
+
+      - name: Upload v32e GPU-ready package
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32e-depth-canonical-4dgs-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
