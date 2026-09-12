@@ -29,7 +29,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      GH_TOKEN: ${{ github.token }}
       V32F_RUN: ${{ inputs.v32f_run_id || '34673825231' }}
       B32_RUN: ${{ inputs.b32_run_id || '34669584507' }}
 
@@ -43,23 +42,33 @@ jobs:
       - name: Install deterministic prep dependencies
         run: python -m pip install --disable-pip-version-check numpy pillow
 
-      - name: Download exact upstream v32f and B32 artifacts
+      - name: Download pinned v32f artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32f-freeze-only-gpu-ready-34673825231
+          path: inputs/v32f
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.V32F_RUN }}
+
+      - name: Download pinned B32 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs/b32
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.B32_RUN }}
+
+      - name: Assert pinned upstream layouts
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p inputs/v32f inputs/b32
-          gh run download "$V32F_RUN" \
-            --repo "$GITHUB_REPOSITORY" \
-            --name "adams-jazz-v32f-freeze-only-gpu-ready-$V32F_RUN" \
-            --dir inputs/v32f
-          gh run download "$B32_RUN" \
-            --repo "$GITHUB_REPOSITORY" \
-            --name "adams-jazz-v32-sharp-latent-quality-cluster-4dgs-$B32_RUN" \
-            --dir inputs/b32
           test -s inputs/v32f/v32f_backend.json
           test -s inputs/v32f/train_meta.json
-          test -s inputs/b32/stage_a/v32_chosen_Broadcast_frame0276.png || \
-            test "$(find inputs/b32/stage_a -maxdepth 1 -name 'v32_chosen_Broadcast_frame*.png' | wc -l)" -eq 1
+          test "$(find inputs/b32/stage_a -maxdepth 1 -name 'v32_chosen_Broadcast_frame*.png' | wc -l)" -eq 1
+          test "$(find inputs/b32/stage_a -maxdepth 1 -name 'v32_chosen_Left_Above_Rim_frame*.png' | wc -l)" -eq 1
+          test "$(find inputs/b32/stage_a -maxdepth 1 -name 'v32_chosen_Right_Above_Rim_frame*.png' | wc -l)" -eq 1
 
       - name: Build target-blind known-pose heldout package
         run: |
