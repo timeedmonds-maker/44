@@ -1,10 +1,10 @@
-name: Adams Jazz v32u adaptive epipolar-trimmed MHR solve
+name: Adams Jazz v32v coherent LAR-RAR MHR leave-one-out
 
 on:
   push:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
-      - 'freeze_spin/run_v32u_epipolar_trimmed_broadcast_mhr.py'
+      - 'freeze_spin/run_v32v_lar_rar_global_state_mhr.py'
       - '.github/workflows/adams-jazz-v32u-epipolar-trimmed-mhr.yml'
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 jobs:
-  epipolar-trimmed-mhr:
+  lar-rar-global-state:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -23,10 +23,12 @@ jobs:
       MKL_NUM_THREADS: '4'
     steps:
       - uses: actions/checkout@v4
+
       - name: Install observation and MHR runtime
         run: |
           set -euxo pipefail
           python -m pip install --quiet numpy scipy opencv-python-headless pillow 'rfdetr>=1.8.1' 'pymomentum-core>=0.1.111' 'git+https://github.com/facebookresearch/MHR.git'
+
       - name: Download exact B32 source package
         uses: actions/download-artifact@v4
         with:
@@ -35,51 +37,58 @@ jobs:
           github-token: ${{ github.token }}
           repository: timeedmonds-maker/44
           run-id: 34669584507
-      - name: Run v32u trimmed multiview solve
+
+      - name: Run v32v coherent LAR-RAR solve
         shell: bash
         run: |
           set +e
-          mkdir -p v32u work_v32u
-          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32u_epipolar_trimmed_broadcast_mhr \
-            --b32-root inputs_b32 --work work_v32u --out v32u --max-nfev 340 2>&1 | tee v32u/run.log
+          mkdir -p v32v work_v32v
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32v_lar_rar_global_state_mhr \
+            --b32-root inputs_b32 --work work_v32v --out v32v --max-nfev 360 2>&1 | tee v32v/run.log
           rc=${PIPESTATUS[0]}
-          echo "$rc" > v32u/solver_exit_code.txt
+          echo "$rc" > v32v/solver_exit_code.txt
           exit 0
-      - name: Print v32u diagnostic
+
+      - name: Print v32v diagnostic
         if: always()
         run: |
           python - <<'PY'
-          import json,pathlib
-          for n in ('v32u_epipolar_trimmed_audit.json','v32u_qa.json'):
-              p=pathlib.Path('v32u')/n
-              if not p.exists(): continue
-              q=json.load(open(p)); print(n)
-              if n.startswith('v32u_epipolar'):
-                  keys=['retained_body_joint_count','retained_body_joints','retained_epi_median_px','retained_epi_max_px','selected_source_counts','all_surviving_best_epi_px']
+          import json, pathlib
+          for n in ('v32v_state_audit.json','v32v_qa.json'):
+              p = pathlib.Path('v32v') / n
+              if not p.exists():
+                  continue
+              q = json.load(open(p))
+              print(n)
+              if n.startswith('v32v_state'):
+                  keys = ['selected_lar_source','selected_lar_anchor_rel','selected_lar_epipolar']
               else:
-                  keys=['status','per_camera_reprojection','left_best_validation','gate','v32u_base_exit_code']
-              print(json.dumps({k:q.get(k) for k in keys},indent=2))
+                  keys = ['status','selected_lar_source','raw_lar_rar_epipolar','per_camera_reprojection','optimizer','gate']
+              print(json.dumps({k:q.get(k) for k in keys}, indent=2))
           PY
-      - name: Package v32u evidence
+
+      - name: Package v32v evidence
         if: always()
         run: |
           set -euxo pipefail
           mkdir -p delivery
-          cp v32u/* delivery/ 2>/dev/null || true
+          cp v32v/* delivery/ 2>/dev/null || true
           rm -f delivery/*.zip
           test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
-          (cd delivery && zip -0 adams_jazz_v32u_epipolar_trimmed_mhr.zip ./*)
-      - name: Upload v32u evidence
+          (cd delivery && zip -0 adams_jazz_v32v_lar_rar_global_state_mhr.zip ./*)
+
+      - name: Upload v32v evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-v32u-epipolar-trimmed-mhr-${{ github.run_id }}
+          name: adams-jazz-v32v-lar-rar-global-state-mhr-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
           compression-level: 0
-      - name: Enforce fail-closed v32u gate
+
+      - name: Enforce fail-closed v32v gate
         if: always()
         run: |
           set -euxo pipefail
-          test "$(cat v32u/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
+          test "$(cat v32v/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
