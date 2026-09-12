@@ -1,0 +1,79 @@
+name: Adams Jazz v32j RF-DETR exact-freeze pose
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/solve_v32j_rfdetr_freeze_pose.py'
+      - '.github/workflows/adams-jazz-v32j-rfdetr-freeze-pose.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  rfdetr-freeze-pose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONFAULTHANDLER: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install RF-DETR observation runtime
+        run: |
+          set -euxo pipefail
+          python -m pip install --quiet numpy opencv-python-headless pillow scipy 'rfdetr>=1.8.1'
+      - name: Download exact B32 package
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs_b32
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34669584507
+      - name: Run RF-DETR articulated-position diagnostic
+        shell: bash
+        run: |
+          set +e
+          mkdir -p v32j
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.solve_v32j_rfdetr_freeze_pose \
+            --b32-root inputs_b32 --out v32j 2>&1 | tee v32j/run.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > v32j/solver_exit_code.txt
+          exit 0
+      - name: Print diagnostic
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('v32j/v32j_rfdetr_pose_qa.json')
+          if not p.exists(): print('NO_QA_JSON'); raise SystemExit(0)
+          q=json.load(open(p)); print(json.dumps({k:q[k] for k in ['status','selected','triangulated_joint_count','median_observation_reprojection_px','bone_plausible_fraction','measured_bone_count','left_measured_pose_found','left_best_median_px','left_best_p75_px','gate']},indent=2))
+          PY
+      - name: Package native evidence
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v32j/* delivery/ 2>/dev/null || true
+          rm -f delivery/*.zip
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_v32j_rfdetr_freeze_pose.zip ./*)
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32j-rfdetr-freeze-pose-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce fail-closed geometry gate
+        if: always()
+        run: |
+          set -euxo pipefail
+          test "$(cat v32j/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
