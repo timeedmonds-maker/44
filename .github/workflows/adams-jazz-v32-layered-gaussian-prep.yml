@@ -1,4 +1,4 @@
-name: Adams Jazz v32 sharp latent all-court prep
+name: Adams Jazz v32 sharp latent quality-cluster prep
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
     paths:
       - 'freeze_spin/prepare_v32_layered_scene.py'
       - 'freeze_spin/export_v32_4dgs_panoptic.py'
+      - 'freeze_spin/select_v32_quality_cluster.py'
+      - 'freeze_spin/export_v32_quality_4dgs_panoptic.py'
       - '.github/workflows/adams-jazz-v32-layered-gaussian-prep.yml'
   workflow_dispatch:
 
@@ -14,7 +16,7 @@ permissions:
   actions: read
 
 jobs:
-  v32-stage-a-native-prep:
+  v32-stage-a-quality-cluster-prep:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -35,9 +37,6 @@ jobs:
           import torch, torchvision
           print(torch.__version__, torchvision.__version__)
           PY
-          # Existing accepted camera-loader modules import MoGe at module load.
-          # Stage A itself does not run learned depth; this install only lets us
-          # reuse the already-accepted calibration utilities unchanged.
           python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
 
       - name: Retrieve native event camera clips
@@ -68,7 +67,7 @@ jobs:
             --dir inputs_v73
           test -s inputs_v73/right_above_rim_metric_camera_v73.json
 
-      - name: Retrieve v31 foreground and three-view ball QA
+      - name: Retrieve v31 focal identity and three-view ball QA
         env: {GH_TOKEN: '${{ github.token }}'}
         run: |
           set -euxo pipefail
@@ -78,7 +77,7 @@ jobs:
             --dir inputs_v31
           test -s inputs_v31/three_camera_mesh_v12_qa.json
 
-      - name: Build v32 sharp latent all-court package
+      - name: Build v32 sharp latent source package
         run: |
           set -euxo pipefail
           mkdir -p v32_stage_a
@@ -94,7 +93,7 @@ jobs:
             --candidate-radius 4 \
             --burst-radius 6 2>&1 | tee v32_stage_a/prep.log
 
-      - name: Assert v32 architecture and source invariants
+      - name: Assert v32 source invariants
         run: |
           set -euxo pipefail
           python - <<'PY'
@@ -108,25 +107,50 @@ jobs:
           assert len(m['cameras'])==3
           assert m['gpu_stage_contract']['held_out_camera_test_required'] is True
           assert m['all_on_court_people']['observation_count'] >= 8
-          assert m['all_on_court_people']['union_track_count'] >= 4
           assert m['ball']['carried_three_view_solution_from_v31']['status']=='BALL_TRIANGULATED_THREE_VIEW_ENHANCED'
           for cam, rows in m['burst'].items():
               assert len(rows)==13, (cam,len(rows))
-              for row in rows:
-                  assert (r/row['file']).is_file(), row
-          print('V32_STAGE_A_NATIVE_SCENE_PACKAGE_OK')
+              assert all((r/row['file']).is_file() for row in rows)
+          print('V32_SOURCE_PACKAGE_OK')
+          PY
+
+      - name: Select high-quality action cluster
+        run: |
+          set -euxo pipefail
+          python -u -m freeze_spin.select_v32_quality_cluster \
+            --stage-a v32_stage_a \
+            --v31-qa inputs_v31/three_camera_mesh_v12_qa.json \
+            --out v32_stage_a/v32_quality_cluster.json \
+            --radius-cm 600 \
+            --min-cameras 2 \
+            --min-median-mask-px 1400 | tee v32_stage_a/quality_cluster.log
+          test -s v32_stage_a/v32_quality_cluster.json
+
+      - name: Assert quality cluster contract
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import json
+          q=json.load(open('v32_stage_a/v32_quality_cluster.json'))
+          assert q['focal_player']['identity'].startswith('Steven Adams')
+          assert q['focal_player']['source_camera_count'] >= 2
+          assert 3 <= q['quality_required_person_count'] <= 7, q['quality_required_person_count']
+          assert q['excluded_person_track_count'] > 0
+          assert all(p['camera_count'] >= 2 for p in q['supporting_players'])
+          assert q['final_camera_contract']['peripheral_people_quality_required'] is False
+          print('V32_QUALITY_CLUSTER_OK')
           print(json.dumps({
-              'freeze':m['freeze'],
-              'people_per_camera':{k:len(v) for k,v in m['all_on_court_people']['per_camera'].items()},
-              'union_track_count':m['all_on_court_people']['union_track_count'],
-              'observation_count':m['all_on_court_people']['observation_count'],
+            'quality_required_person_count':q['quality_required_person_count'],
+            'supporting_track_ids':[p['track_id'] for p in q['supporting_players']],
+            'excluded_person_track_count':q['excluded_person_track_count'],
+            'final_camera_contract':q['final_camera_contract'],
           },indent=2))
           PY
 
-      - name: Export whole-scene 4DGaussians PanopticSports dataset
+      - name: Export quality-focused 4DGaussians PanopticSports dataset
         run: |
           set -euxo pipefail
-          python -u -m freeze_spin.export_v32_4dgs_panoptic \
+          python -u -m freeze_spin.export_v32_quality_4dgs_panoptic \
             --stage-a v32_stage_a \
             --out v32_4dgs_panoptic | tee v32_stage_a/4dgs_export.log
           test -s v32_4dgs_panoptic/train_meta.json
@@ -142,10 +166,12 @@ jobs:
           from pathlib import Path
           r=Path('v32_4dgs_panoptic')
           b=json.load(open(r/'v32_4dgs_backend.json'))
+          q=json.load(open('v32_stage_a/v32_quality_cluster.json'))
           tr=json.load(open(r/'train_meta.json'))
           assert b['native_resolution']==[960,540]
-          assert b['time_steps']==13
-          assert b['training_images']==39
+          assert b['time_steps']==13 and b['training_images']==39
+          assert b['quality_required_person_count']==q['quality_required_person_count']
+          assert b['person_quality_policy'].startswith('quality-qualified')
           assert len(tr['fn'])==13 and all(len(x)==3 for x in tr['fn'])
           assert all((r/'ims'/fn).is_file() for row in tr['fn'] for fn in row)
           d=np.load(r/'init_pt_cld.npz')['data']
@@ -154,11 +180,11 @@ jobs:
               a=json.load(open(r/h['train_meta'])); t=json.load(open(r/h['test_meta']))
               assert len(a['fn'])==13 and all(len(x)==2 for x in a['fn'])
               assert len(t['fn'])==13 and all(len(x)==1 for x in t['fn'])
-          print('V32_4DGS_WHOLE_SCENE_DATASET_OK')
+          print('V32_4DGS_QUALITY_CLUSTER_DATASET_OK')
           print(json.dumps(b,indent=2))
           PY
 
-      - name: Package v32 source-grounded scene and GPU-ready inputs
+      - name: Package v32 quality-cluster GPU-ready inputs
         if: always()
         run: |
           set -euxo pipefail
@@ -166,15 +192,16 @@ jobs:
           cp -a v32_stage_a delivery/stage_a 2>/dev/null || true
           cp -a v32_4dgs_panoptic delivery/4dgs_panoptic 2>/dev/null || true
           test -s delivery/stage_a/v32_scene_manifest.json
+          test -s delivery/stage_a/v32_quality_cluster.json
           test -s delivery/4dgs_panoptic/v32_4dgs_backend.json
-          (cd delivery && zip -0 -r v32_sharp_latent_all_court_4dgs_package.zip . \
-            -x 'v32_sharp_latent_all_court_4dgs_package.zip')
+          (cd delivery && zip -0 -r v32_sharp_latent_quality_cluster_4dgs_package.zip . \
+            -x 'v32_sharp_latent_quality_cluster_4dgs_package.zip')
 
-      - name: Upload v32 proof and GPU-ready dataset
+      - name: Upload v32 quality-cluster GPU-ready dataset
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-v32-sharp-latent-all-court-4dgs-${{ github.run_id }}
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
