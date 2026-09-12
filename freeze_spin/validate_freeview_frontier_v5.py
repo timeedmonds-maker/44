@@ -9,10 +9,12 @@ instead it delegates to the v6 fail-closed guardrail.
 """
 
 import json
+import runpy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 V6 = ROOT / "freeze_spin" / "adams_jazz_game_camera_registry_v6.json"
+V6_VALIDATOR = ROOT / "freeze_spin" / "validate_freeview_frontier_v6.py"
 V5 = ROOT / "freeze_spin" / "adams_jazz_game_camera_registry_v5.json"
 V4 = ROOT / "freeze_spin" / "adams_jazz_game_camera_registry_v4.json"
 FRONTIER = ROOT / "freeze_spin" / "CURRENT_FREEVIEW_FRONTIER.md"
@@ -63,10 +65,12 @@ def validate_historical_v5() -> None:
 
 def main() -> None:
     if V6.exists():
-        # v6 explicitly supersedes the v5 camera-4 frontier. Never let this
-        # compatibility workflow resurrect Right Slash as an active path.
-        from freeze_spin.validate_freeview_frontier_v6 import main as validate_v6
-        validate_v6()
+        # Use runpy rather than a package import so this works identically when
+        # invoked as `python freeze_spin/validate_freeview_frontier_v5.py`.
+        # This prevents the historical v5 workflow from resurrecting camera-4.
+        require(V6_VALIDATOR.exists(), "v6 registry exists but v6 validator is missing")
+        ns = runpy.run_path(str(V6_VALIDATOR), run_name="freeview_v6_guard")
+        ns["main"]()
         return
     validate_historical_v5()
 
