@@ -1,0 +1,80 @@
+name: Adams Jazz v32l isolated execution
+
+on:
+  push:
+    branches: [v32l-isolated-run]
+    paths:
+      - '.github/workflows/adams-jazz-v32l-isolated-run.yml'
+      - 'freeze_spin/solve_v32l_rar_temporal_ownership.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  v32l-isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONFAULTHANDLER: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          set -euxo pipefail
+          python -m pip install --quiet numpy opencv-python-headless pillow scipy 'rfdetr>=1.8.1'
+      - name: Download exact B32 package
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs_b32
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34669584507
+      - name: Run v32l temporal ownership solver
+        shell: bash
+        run: |
+          set +e
+          mkdir -p v32l
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.solve_v32l_rar_temporal_ownership \
+            --b32-root inputs_b32 --out v32l 2>&1 | tee v32l/run.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > v32l/solver_exit_code.txt
+          exit 0
+      - name: Print diagnostic
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('v32l/v32l_temporal_ownership_qa.json')
+          if not p.exists(): print('NO_QA_JSON'); raise SystemExit(0)
+          q=json.load(open(p)); keys=['status','consensus_joint_count','ownership_torso_joint_count','triangulated_joint_count','median_two_view_reprojection_px','measured_bone_count','bone_plausible_fraction','left_best_validation','gate']
+          print(json.dumps({k:q[k] for k in keys},indent=2))
+          PY
+      - name: Package evidence
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v32l/* delivery/ 2>/dev/null || true
+          rm -f delivery/*.zip
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_v32l_isolated.zip ./*)
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32l-isolated-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce fail-closed gate
+        if: always()
+        run: |
+          set -euxo pipefail
+          test "$(cat v32l/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
