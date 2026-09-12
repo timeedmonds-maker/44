@@ -1,0 +1,45 @@
+name: Adams Jazz v32n2 MHR landmark probe
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/probe_v32n2_mhr_landmarks.py'
+      - '.github/workflows/adams-jazz-v32n2-mhr-landmark-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mhr-landmarks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MHR CPU stack
+        run: |
+          set -euxo pipefail
+          python -m pip install --quiet 'pymomentum-core>=0.1.111' 'trimesh>=4.8.3,<5' 'git+https://github.com/facebookresearch/MHR.git'
+      - name: Download MHR assets
+        run: |
+          set -euxo pipefail
+          mhr-download-assets
+      - name: Probe neutral anatomical landmarks
+        run: |
+          set -euxo pipefail
+          mkdir -p v32n2 work
+          python -u -m freeze_spin.probe_v32n2_mhr_landmarks --work work --out v32n2
+          test -s v32n2/v32n2_mhr_landmark_probe.json
+      - name: Upload landmark audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32n2-mhr-landmark-probe-${{ github.run_id }}
+          path: v32n2/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
