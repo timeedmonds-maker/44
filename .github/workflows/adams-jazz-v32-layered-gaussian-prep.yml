@@ -5,6 +5,7 @@ on:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
       - 'freeze_spin/prepare_v32_layered_scene.py'
+      - 'freeze_spin/export_v32_4dgs_panoptic.py'
       - '.github/workflows/adams-jazz-v32-layered-gaussian-prep.yml'
   workflow_dispatch:
 
@@ -34,10 +35,9 @@ jobs:
           import torch, torchvision
           print(torch.__version__, torchvision.__version__)
           PY
-          # The existing accepted camera-loader modules import MoGe at module load
-          # time even though v32 Stage A does not run depth inference. Install it
-          # here to reuse those calibrated-camera utilities without changing any
-          # v32 image formation or introducing learned depth into this stage.
+          # Existing accepted camera-loader modules import MoGe at module load.
+          # Stage A itself does not run learned depth; this install only lets us
+          # reuse the already-accepted calibration utilities unchanged.
           python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
 
       - name: Retrieve native event camera clips
@@ -123,21 +123,58 @@ jobs:
           },indent=2))
           PY
 
-      - name: Package v32 source-grounded scene inputs
+      - name: Export whole-scene 4DGaussians PanopticSports dataset
+        run: |
+          set -euxo pipefail
+          python -u -m freeze_spin.export_v32_4dgs_panoptic \
+            --stage-a v32_stage_a \
+            --out v32_4dgs_panoptic | tee v32_stage_a/4dgs_export.log
+          test -s v32_4dgs_panoptic/train_meta.json
+          test -s v32_4dgs_panoptic/test_meta.json
+          test -s v32_4dgs_panoptic/init_pt_cld.npz
+          test -s v32_4dgs_panoptic/v32_4dgs_backend.json
+
+      - name: Assert 4DGS held-out-camera dataset contract
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import json,numpy as np
+          from pathlib import Path
+          r=Path('v32_4dgs_panoptic')
+          b=json.load(open(r/'v32_4dgs_backend.json'))
+          tr=json.load(open(r/'train_meta.json'))
+          assert b['native_resolution']==[960,540]
+          assert b['time_steps']==13
+          assert b['training_images']==39
+          assert len(tr['fn'])==13 and all(len(x)==3 for x in tr['fn'])
+          assert all((r/'ims'/fn).is_file() for row in tr['fn'] for fn in row)
+          d=np.load(r/'init_pt_cld.npz')['data']
+          assert d.ndim==2 and d.shape[1]>=6 and len(d)>1000
+          for cam,h in b['held_out_camera_manifests'].items():
+              a=json.load(open(r/h['train_meta'])); t=json.load(open(r/h['test_meta']))
+              assert len(a['fn'])==13 and all(len(x)==2 for x in a['fn'])
+              assert len(t['fn'])==13 and all(len(x)==1 for x in t['fn'])
+          print('V32_4DGS_WHOLE_SCENE_DATASET_OK')
+          print(json.dumps(b,indent=2))
+          PY
+
+      - name: Package v32 source-grounded scene and GPU-ready inputs
         if: always()
         run: |
           set -euxo pipefail
           mkdir -p delivery
-          cp -a v32_stage_a/. delivery/ 2>/dev/null || true
-          test -s delivery/v32_scene_manifest.json
-          (cd delivery && zip -0 -r v32_stage_a_sharp_latent_all_court_package.zip . \
-            -x 'v32_stage_a_sharp_latent_all_court_package.zip')
+          cp -a v32_stage_a delivery/stage_a 2>/dev/null || true
+          cp -a v32_4dgs_panoptic delivery/4dgs_panoptic 2>/dev/null || true
+          test -s delivery/stage_a/v32_scene_manifest.json
+          test -s delivery/4dgs_panoptic/v32_4dgs_backend.json
+          (cd delivery && zip -0 -r v32_sharp_latent_all_court_4dgs_package.zip . \
+            -x 'v32_sharp_latent_all_court_4dgs_package.zip')
 
-      - name: Upload v32 Stage-A proof package
+      - name: Upload v32 proof and GPU-ready dataset
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-v32-stage-a-sharp-latent-all-court-${{ github.run_id }}
+          name: adams-jazz-v32-sharp-latent-all-court-4dgs-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
