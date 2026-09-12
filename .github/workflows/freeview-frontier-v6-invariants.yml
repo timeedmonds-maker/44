@@ -1,0 +1,30 @@
+name: Freeview frontier v6 three-camera lock
+
+on:
+  push:
+    branches:
+      - codex/multi-angle-freeze-spin-poc
+    paths:
+      - 'freeze_spin/adams_jazz_game_camera_registry_v6.json'
+      - 'freeze_spin/CURRENT_FREEVIEW_FRONTIER.md'
+      - 'freeze_spin/validate_freeview_frontier_v6.py'
+      - 'freeze_spin/run_v33c_verified_adams_rar_sweep.py'
+      - 'freeze_spin/run_v33d_locked_three_camera_joint_state_search.py'
+      - '.github/workflows/freeview-frontier-v6-invariants.yml'
+  pull_request:
+    paths:
+      - 'freeze_spin/adams_jazz_game_camera_registry_v6.json'
+      - 'freeze_spin/CURRENT_FREEVIEW_FRONTIER.md'
+      - 'freeze_spin/validate_freeview_frontier_v6.py'
+      - 'freeze_spin/run_v33c_verified_adams_rar_sweep.py'
+      - 'freeze_spin/run_v33d_locked_three_camera_joint_state_search.py'
+      - '.github/workflows/freeview-frontier-v6-invariants.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-three-camera-lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate explicit three-camera freeview lock
+        run: python freeze_spin/validate_freeview_frontier_v6.py
