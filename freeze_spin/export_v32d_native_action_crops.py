@@ -3,18 +3,19 @@ from __future__ import annotations
 """V32d: source-native fixed-size action crops for learned 4D Gaussian foreground.
 
 V32c correctly narrows the scene, but black-masking most of a 960x540 frame would
-let background zeros dominate the photometric training loss.  V32d therefore
-crops, never resizes, each solved camera to a common 448x448 action window.  The
+let background zeros dominate the photometric training loss. V32d therefore
+crops, never resizes, each solved camera to a common 384x448 action window. The
 principal point is translated by the exact crop origin, so the calibrated rays are
 identical to the corresponding pixels in the original 960x540 source.
 
-Final replay output remains native 960x540.  These 448x448 images are *training
-crops*, not an output rescale or quality reduction.
+384x448 is deliberate: all three tight action ROIs fit without interpolation,
+while the narrower width removes single-view peripheral players that would waste
+model capacity. Final replay output remains native 960x540. These are training
+crops, not an output rescale or quality reduction.
 """
 
 import argparse
 import json
-import shutil
 from pathlib import Path
 
 import cv2
@@ -26,20 +27,20 @@ from freeze_spin.export_v32c_quality_cluster_tight import tight_projected_roi
 CAMERAS = v32b.CAMERAS
 CAM_IDS = v32b.CAM_IDS
 SOURCE_W, SOURCE_H = 960, 540
-CROP = 448
+CROP_W, CROP_H = 384, 448
 
 
 def common_crop_from_roi(roi):
     x1, y1, x2, y2 = map(float, roi)
-    if x2 - x1 + 1 > CROP or y2 - y1 + 1 > CROP:
-        raise RuntimeError(f"tight ROI does not fit native {CROP} crop: {roi}")
+    if x2 - x1 + 1 > CROP_W or y2 - y1 + 1 > CROP_H:
+        raise RuntimeError(f"tight ROI does not fit native {CROP_W}x{CROP_H} crop: {roi}")
     cx = 0.5 * (x1 + x2)
     cy = 0.5 * (y1 + y2)
-    xa = int(round(cx - CROP / 2))
-    ya = int(round(cy - CROP / 2))
-    xa = max(0, min(SOURCE_W - CROP, xa))
-    ya = max(0, min(SOURCE_H - CROP, ya))
-    return [xa, ya, xa + CROP - 1, ya + CROP - 1]
+    xa = int(round(cx - CROP_W / 2))
+    ya = int(round(cy - CROP_H / 2))
+    xa = max(0, min(SOURCE_W - CROP_W, xa))
+    ya = max(0, min(SOURCE_H - CROP_H, ya))
+    return [xa, ya, xa + CROP_W - 1, ya + CROP_H - 1]
 
 
 def adjusted_K(K, crop):
@@ -64,7 +65,7 @@ def copy_native_crops(manifest: dict, stage_a: Path, out: Path, crops: dict):
                 raise RuntimeError(f"bad native source {src}")
             x1, y1, x2, y2 = crops[lab]
             crop = im[y1:y2 + 1, x1:x2 + 1]
-            if crop.shape[:2] != (CROP, CROP):
+            if crop.shape[:2] != (CROP_H, CROP_W):
                 raise RuntimeError((lab, crop.shape, crops[lab]))
             fn = f"t{rel:+03d}_{v32b.safe(lab)}.png"
             cv2.imwrite(str(ims / fn), crop)
@@ -84,10 +85,10 @@ def meta_payload(times, keep_cam_ids=None):
         k.append([t["k"][i] for i in ii])
         w2c.append([t["w2c"][i] for i in ii])
         cam_id.append([t["cam_id"][i] for i in ii])
-    return {"w": CROP, "h": CROP, "fn": fn, "k": k, "w2c": w2c, "cam_id": cam_id}
+    return {"w": CROP_W, "h": CROP_H, "fn": fn, "k": k, "w2c": w2c, "cam_id": cam_id}
 
 
-def crop_montage(manifest, stage_a: Path, out: Path, crops: dict):
+def crop_montage(stage_a: Path, out: Path, crops: dict):
     panels = []
     for lab in CAMERAS:
         src = sorted(stage_a.glob(f"v32_chosen_{v32b.safe(lab)}_frame*.png"))[0]
@@ -133,11 +134,11 @@ def main():
         holdouts[lab] = {"train_meta": trp.name, "test_meta": tep.name, "test_camera_id": hid}
 
     cloud = v32b.make_init_cloud(m, args.stage_a, args.out, selected, world_box)
-    crop_montage(m, args.stage_a, args.out, crops)
+    crop_montage(args.stage_a, args.out, crops)
     backend = {
         "version": "v32d_native_action_crops",
         "source_resolution": [SOURCE_W, SOURCE_H],
-        "training_crop_resolution": [CROP, CROP],
+        "training_crop_resolution": [CROP_W, CROP_H],
         "resized": False,
         "native_pixels_preserved": True,
         "final_output_resolution": [SOURCE_W, SOURCE_H],
@@ -152,7 +153,7 @@ def main():
         "held_out_camera_manifests": holdouts,
         "initial_point_cloud": cloud,
         "sharp_latent_required": m["freeze"]["common_sharp_frame_gate"] == "TEMPORAL_LATENT_REQUIRED",
-        "reason": "remove peripheral players and zero-padded background from learned-foreground loss while preserving exact native source rays",
+        "reason": "quality-first action crops remove peripheral single-view players and zero-padded loss area while preserving exact native source rays",
         "upscale": False,
         "uhd": False,
     }
