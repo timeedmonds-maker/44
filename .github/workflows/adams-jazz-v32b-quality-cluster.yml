@@ -1,0 +1,101 @@
+name: Adams Jazz v32b quality-cluster Stage-B prep
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/export_v32b_quality_cluster_4dgs.py'
+      - '.github/workflows/adams-jazz-v32b-quality-cluster.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  v32b-quality-cluster-prep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gh zip
+          python -m pip install --quiet numpy opencv-python-headless
+
+      - name: Retrieve successful v32 Stage-A package
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p v32_stage_a
+          gh run download 34666457582 --repo timeedmonds-maker/44 \
+            --name adams-jazz-v32-stage-a-sharp-latent-all-court-34666457582 \
+            --dir v32_stage_a
+          test -s v32_stage_a/v32_scene_manifest.json
+          test -s v32_stage_a/v32_chosen_three_camera_montage.png
+
+      - name: Build quality-qualified action-cluster dataset
+        run: |
+          set -euxo pipefail
+          python -u -m freeze_spin.export_v32b_quality_cluster_4dgs \
+            --stage-a v32_stage_a \
+            --out v32b_quality_cluster \
+            --max-tracks 5 | tee v32b_build.log
+
+      - name: Assert quality-first Stage-B contract
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import json,numpy as np
+          from pathlib import Path
+          r=Path('v32b_quality_cluster')
+          b=json.load(open(r/'v32b_backend.json'))
+          s=json.load(open(r/'v32b_quality_selection.json'))
+          assert b['native_resolution']==[960,540]
+          assert b['time_steps']==13
+          assert b['training_images']==39
+          assert 1 <= b['selected_track_count'] <= 5
+          assert b['mandatory_anchor_track_id'] in b['selected_track_ids']
+          assert b['sharp_latent_required'] is True
+          assert b['upscale'] is False and b['uhd'] is False
+          for d in s['decisions']:
+              if d['selected'] and not d['mandatory_action_anchor']:
+                  assert d['camera_count'] >= 2
+                  assert d['distance_to_ball_xy_cm'] <= 525.0
+                  assert d['maximum_mask_pixels'] >= 1400
+                  assert d['mean_detector_score'] >= 0.88
+          tr=json.load(open(r/'train_meta.json'))
+          assert len(tr['fn'])==13 and all(len(x)==3 for x in tr['fn'])
+          assert all((r/'ims'/fn).is_file() for row in tr['fn'] for fn in row)
+          d=np.load(r/'init_pt_cld.npz')['data']
+          assert d.ndim==2 and d.shape[1]>=6 and len(d)>500
+          assert (r/'v32b_quality_selection_montage.png').is_file()
+          print('V32B_QUALITY_CLUSTER_OK')
+          print(json.dumps({
+              'selected_track_ids':b['selected_track_ids'],
+              'selected_track_count':b['selected_track_count'],
+              'anchor':b['mandatory_anchor_track_id'],
+              'rois':b['per_camera_action_roi_xyxy'],
+              'world_box':b['action_world_box_cm_xyzxyz'],
+          },indent=2))
+          PY
+
+      - name: Package Stage-B prep
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp -a v32b_quality_cluster/. delivery/
+          cp v32b_build.log delivery/
+          (cd delivery && zip -0 -r v32b_quality_cluster_4dgs_prep.zip . -x 'v32b_quality_cluster_4dgs_prep.zip')
+
+      - name: Upload Stage-B quality-cluster package
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32b-quality-cluster-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
