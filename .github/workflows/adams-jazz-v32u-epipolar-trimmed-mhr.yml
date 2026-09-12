@@ -38,6 +38,31 @@ jobs:
           repository: timeedmonds-maker/44
           run-id: 34669584507
 
+      - name: Attach source-grounded LAR Adams identity anchor
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          stage = pathlib.Path('inputs_b32/stage_a')
+          qp = stage / 'v32_quality_cluster.json'
+          sp = stage / 'v32_scene_manifest.json'
+          q = json.load(open(qp)); s = json.load(open(sp))
+          rows = s['all_on_court_people']['per_camera']['Left Above Rim']
+          # Visual QA of the packaged chosen LAR frame identifies detector person_0
+          # as Houston #12 Steven Adams. Reuse its real B32 bbox; do not invent pixels.
+          row = next(r for r in rows if int(r['camera_person_id']) == 0)
+          q['focal_player']['observations']['Left Above Rim'] = {
+              'camera_person_id': 0,
+              'bbox_xyxy': row['bbox_xyxy'],
+              'detector_score': row.get('score'),
+              'mask_pixels': row.get('mask_pixels'),
+              'foot_px': row.get('foot_px'),
+              'foot_world_cm': row.get('foot_world_cm'),
+              'identity_source': 'B32 scene all_on_court_people person_0; visually verified Houston #12',
+          }
+          qp.write_text(json.dumps(q, indent=2))
+          print('LAR identity anchor', row['bbox_xyxy'])
+          PY
+
       - name: Run v32v coherent LAR-RAR solve
         shell: bash
         run: |
