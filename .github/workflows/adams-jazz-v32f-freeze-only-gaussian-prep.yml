@@ -1,0 +1,92 @@
+name: Adams Jazz v32f freeze-only Gaussian prep
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/build_v32f_freeze_only_4dgs.py'
+      - '.github/workflows/adams-jazz-v32f-freeze-only-gaussian-prep.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  v32f-freeze-only-prep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic prep runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gh zip
+          python -m pip install --quiet numpy pillow
+
+      - name: Retrieve passed v32e camera-canonical package
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p v32e
+          gh run download 34673204250 --repo timeedmonds-maker/44 \
+            --name adams-jazz-v32e-depth-canonical-4dgs-34673204250 \
+            --dir v32e
+          test -s v32e/v32e_camera_depth_canonical_qa.json
+          test -s v32e/v32d_backend.json
+          test -s v32e/init_pt_cld.npz
+
+      - name: Build t+00-only reconstruction dataset and calibrated orbit
+        run: |
+          set -euxo pipefail
+          python -u freeze_spin/build_v32f_freeze_only_4dgs.py \
+            --input v32e --out v32f --freeze-index 6 | tee v32f_build.log
+
+      - name: Assert freeze-only and orbit invariants
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          r=Path('v32f')
+          q=json.load(open(r/'v32f_freeze_only_qa.json'))
+          tr=json.load(open(r/'train_meta.json'))
+          ho=json.load(open(r/'train_meta_holdout_right_above_rim.json'))
+          te=json.load(open(r/'test_meta_holdout_right_above_rim.json'))
+          orb=json.load(open(r/'test_meta_orbit_0_25.json'))
+          assert q['status']=='PASS_V32F_FREEZE_ONLY_DATASET_AND_ORBIT'
+          assert q['time_steps']==1 and q['real_training_images']==3
+          assert q['native_pixels_preserved'] and not q['generated_rgb']
+          assert not q['resized'] and not q['warped'] and not q['interpolated'] and not q['upscaled']
+          assert q['zero_degree_w2c_max_abs_error'] <= 1e-10
+          assert q['max_orbit_radius_error_m'] <= 1e-9
+          assert len(tr['fn'])==1 and tr['cam_id']==[[0,1,2]]
+          assert ho['cam_id']==[[0,1]] and te['cam_id']==[[2]]
+          assert len(orb['fn'])==1 and len(orb['fn'][0])==6
+          assert orb['cam_id']==[[100,101,102,103,104,105]]
+          assert all('t+00_' in x for x in tr['fn'][0])
+          print('PASS_V32F_FREEZE_ONLY_PREP')
+          print(json.dumps(q,indent=2))
+          PY
+
+      - name: Package GPU-ready freeze proof
+        run: |
+          set -euxo pipefail
+          cp freeze_spin/build_v32f_freeze_only_4dgs.py v32f/
+          cp freeze_spin/v32d_4dgs_quality_config.py v32f/
+          cp freeze_spin/evaluate_v32d_holdout.py v32f/
+          cp freeze_spin/run_v32d_rar_holdout_4dgs.sh v32f/
+          cp v32f_build.log v32f/
+          mkdir -p delivery
+          cp -a v32f/. delivery/
+          (cd delivery && zip -0 -r v32f_freeze_only_gpu_ready.zip . -x 'v32f_freeze_only_gpu_ready.zip')
+
+      - name: Upload v32f package
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32f-freeze-only-gaussian-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
