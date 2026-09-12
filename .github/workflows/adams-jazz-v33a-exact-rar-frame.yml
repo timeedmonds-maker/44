@@ -1,10 +1,10 @@
-name: Adams Jazz v33b RAR exact-state dual-reference sweep
+name: Adams Jazz v33c verified-Adams RAR exact-state sweep
 
 on:
   push:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
-      - 'freeze_spin/run_v33b_rar_exact_state_sweep.py'
+      - 'freeze_spin/run_v33c_verified_adams_rar_sweep.py'
       - '.github/workflows/adams-jazz-v33a-exact-rar-frame.yml'
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 jobs:
-  rar-exact-state-dual-reference-sweep:
+  verified-adams-rar-exact-state-sweep:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -47,54 +47,50 @@ jobs:
           repository: timeedmonds-maker/44
           run-id: 33911842169
 
-      - name: Run v33b dual-reference RAR exact-state sweep
+      - name: Run v33c verified-Adams RAR exact-state sweep
         shell: bash
         run: |
           set +e
-          mkdir -p v33b
-          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v33b_rar_exact_state_sweep \
+          mkdir -p v33c
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v33c_verified_adams_rar_sweep \
             --b32-root inputs_b32 \
             --v73-frame0257 inputs_v73/L_Right_Above_Rim_8.562013s_frame0257.png \
-            --out v33b 2>&1 | tee v33b/run.log
+            --out v33c 2>&1 | tee v33c/run.log
           rc=${PIPESTATUS[0]}
-          echo "$rc" > v33b/solver_exit_code.txt
+          echo "$rc" > v33c/solver_exit_code.txt
           exit 0
 
-      - name: Print v33b decisive diagnostic
+      - name: Print v33c decisive diagnostic
         if: always()
         run: |
           python - <<'PY'
           import json,pathlib
-          p=pathlib.Path('v33b/v33b_rar_exact_state_sweep.json')
+          p=pathlib.Path('v33c/v33c_verified_adams_rar_sweep.json')
           if not p.exists():
-              print('v33b JSON missing')
+              print('v33c JSON missing')
               raise SystemExit(0)
           q=json.load(open(p))
-          ref=q.get('lar_broadcast_reference') or {}
-          winner=q.get('winner')
           print(json.dumps({
             'status':q.get('status'),
-            'lar_broadcast_reference':{
-              'lar':ref.get('lar'), 'broadcast':ref.get('broadcast'),
-              'epipolar':ref.get('epipolar'), 'gate':ref.get('gate')},
-            'winner':winner,
+            'verified_references':q.get('verified_references'),
+            'winner':q.get('winner'),
             'gate':q.get('gate')},indent=2))
           PY
 
-      - name: Package v33b evidence
+      - name: Package v33c evidence
         if: always()
         run: |
           set -euxo pipefail
           mkdir -p delivery
-          cp v33b/* delivery/ 2>/dev/null || true
-          test -s delivery/v33b_rar_exact_state_sweep.json
-          (cd delivery && zip -0 adams_jazz_v33b_rar_exact_state_sweep.zip ./*)
+          cp v33c/* delivery/ 2>/dev/null || true
+          test -s delivery/v33c_verified_adams_rar_sweep.json
+          (cd delivery && zip -0 adams_jazz_v33c_verified_adams_rar_sweep.zip ./*)
 
-      - name: Upload v33b evidence
+      - name: Upload v33c evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-v33b-rar-exact-state-sweep-${{ github.run_id }}
+          name: adams-jazz-v33c-verified-adams-rar-sweep-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
@@ -104,4 +100,4 @@ jobs:
         if: always()
         run: |
           set -euxo pipefail
-          test "$(cat v33b/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
+          test "$(cat v33c/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
