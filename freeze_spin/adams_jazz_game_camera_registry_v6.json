@@ -1,0 +1,163 @@
+{
+  "schema_version": 6,
+  "game_id": "0022500301",
+  "date": "2025-11-30",
+  "active_calibration_lineage": "HOU @ UTA game 0022500301, Adams-Jazz event-489 / Frame-C lineage",
+  "supersedes": "freeze_spin/adams_jazz_game_camera_registry_v5.json",
+  "authoritative_as_of": "2026-09-13",
+  "authoritative_frontier": "THREE_CALIBRATED_CAMERAS_LOCKED_EXACT_STATE_SYNC_ACTIVE",
+  "accepted_camera_count": 3,
+  "accepted_camera_names": [
+    "Left Above Rim",
+    "Right Above Rim",
+    "Broadcast"
+  ],
+  "active_camera_lock": {
+    "mode": "THREE_CAMERA_LOCKED",
+    "locked_cameras": [
+      "Left Above Rim",
+      "Right Above Rim",
+      "Broadcast"
+    ],
+    "allow_camera_addition": false,
+    "allow_camera_substitution": false,
+    "allow_physical_center_recalibration": false,
+    "allow_camera_frontier_switch_on_sync_failure": false,
+    "unlock_requires_explicit_user_instruction": true,
+    "failure_policy": "EXPAND_OR_REFINE_TEMPORAL_STATE_SEARCH_WITHIN_LOCKED_CAMERAS_ONLY",
+    "reason": "Explicit user direction on 2026-09-13: we have three calibrated cameras; do not change cameras. Dynamic exact-state failure is a synchronization problem inside the locked camera set, not permission to seek camera #4."
+  },
+  "state_invariants": {
+    "accepted_camera_state_is_monotonic": true,
+    "accepted_camera_rule": "A locked calibrated camera remains accepted unless a later explicit revocation artifact names it and provides a concrete calibration falsification. A moving-player temporal mismatch is not a camera revocation.",
+    "active_target_rule": "Stay on game 0022500301 event-489 / Frame-C lineage unless the user explicitly changes target.",
+    "dynamic_failure_rule": "If exact visual state is not found, widen or refine the native-frame temporal search jointly across Left Above Rim, Right Above Rim and Broadcast. Do not add, replace or re-solve a physical camera.",
+    "identity_rule": "Steven Adams identity must be locked/tracked per camera before cross-view geometry is used. Geometry may not silently select another player.",
+    "temporal_rule": "No per-joint temporal mixing. Each camera observation in a tested triplet must come from one real native decoded frame.",
+    "geometry_rule": "Camera physical centres are calibration anchors and must not be optimized from player or ball residuals.",
+    "quality_rule": "Native source first; no upscaling; no generated RGB; no interpolation or blur/crossfade to hide a failed state match.",
+    "gate_rule": "Existing exact-state and reprojection thresholds may be retained or tightened but not weakened merely to obtain a pass.",
+    "render_rule": "No free-view render is unlocked by camera calibration alone. Exact three-view state and subsequent body/ball geometry QA must pass first."
+  },
+  "accepted_cameras": {
+    "Left Above Rim": {
+      "status": "ACCEPTED_METRIC_CAMERA_V41_V42",
+      "source_resolution_px": [960, 540],
+      "physical_camera_center_prior_cm": [1954.0944213029006, -20.657870280048282, 370.3129555117168],
+      "event_489": {
+        "freeze_frame": "K_Left_Above_Rim_8.653093s_frame0259.png",
+        "decoded_frame_index": 259,
+        "focal_px": 761.1736548500572,
+        "principal_point_px": [458.5682796328589, 467.3403567937311]
+      },
+      "permissions": {
+        "counts_as_distinct_metric_camera": true,
+        "physical_camera_center_recalibration_allowed": false,
+        "temporal_state_search_allowed": true,
+        "replay_render_allowed": false
+      },
+      "revoked": false
+    },
+    "Right Above Rim": {
+      "status": "PASS_RIGHT_ABOVE_RIM_FIXED_MOUNT_ANCHOR_V74",
+      "source_resolution_px": [960, 540],
+      "physical_camera_center_cm": [-10.706171965705735, -0.2250433572710421, 566.0472369503494],
+      "model": {
+        "hard_locked_across_same_rig_states": ["physical_camera_center_basket_local_cm"],
+        "per_frame_static_transfer_may_update": ["orientation_rvec", "focal_px", "principal_point_or_digital_crop_px"],
+        "condition": "Static image registration must preserve the accepted physical centre and pass the existing transfer gates."
+      },
+      "certification_evidence": {
+        "metric_camera_stage": "v73",
+        "fixed_mount_stage": "v74",
+        "fixed_mount_workflow_run_id": 33954197690,
+        "fixed_mount_artifact_id": 9965816993
+      },
+      "permissions": {
+        "counts_as_distinct_metric_camera": true,
+        "physical_camera_center_recalibration_allowed": false,
+        "static_state_transfer_with_fixed_center_allowed": true,
+        "temporal_state_search_allowed": true,
+        "replay_render_allowed": false
+      },
+      "revoked": false
+    },
+    "Broadcast": {
+      "status": "PASS_BROADCAST_SHARED_OPTICAL_CENTER_V90",
+      "source_resolution_px": [960, 540],
+      "shared_camera_center_ft": [39.513155402289954, 96.76737963404346, 33.09376291010151],
+      "certification_evidence": {
+        "stage": "v90",
+        "workflow_run_id": 33954197537,
+        "artifact_id": 9965814622
+      },
+      "hard_gate_results": {
+        "multistart_center_spread_cm": 0.0018624685563068558,
+        "support_reduction_max_center_shift_cm": 70.8772524762282,
+        "half_pixel_perturbation_max_center_shift_cm": 67.71762964662764,
+        "support_and_perturbation_center_gate_cm": 75.0,
+        "all_v90_gates_passed": true
+      },
+      "permissions": {
+        "counts_as_distinct_metric_camera": true,
+        "physical_camera_center_recalibration_allowed": false,
+        "temporal_state_search_allowed": true,
+        "replay_render_allowed": false
+      },
+      "revoked": false
+    }
+  },
+  "inactive_camera_history": {
+    "Right Slash": {
+      "status": "INACTIVE_BY_EXPLICIT_THREE_CAMERA_LOCK",
+      "note": "Historical camera-4 research remains in the repository but is not an active solve path."
+    },
+    "Left Slash": {
+      "status": "INACTIVE_BY_EXPLICIT_THREE_CAMERA_LOCK"
+    },
+    "Left HandHeld": {
+      "status": "INACTIVE_BY_EXPLICIT_THREE_CAMERA_LOCK"
+    },
+    "In Arena": {
+      "status": "INACTIVE_REJECTED_V55A"
+    }
+  },
+  "current_dynamic_state": {
+    "latest_stage": "v33c",
+    "latest_status": "FAIL_CLOSED_V33C_NO_RAR_EXACT_STATE",
+    "interpretation": "Static calibration remains valid for all three cameras. v33c fixed verified LAR and Broadcast states and swept only RAR +/-6, so it does not exhaust the joint three-camera temporal search.",
+    "verified_lar_broadcast_consistent": true,
+    "best_rar_rel": -3,
+    "rar_agrees_with_lar": true,
+    "rar_agrees_with_broadcast": false,
+    "exact_three_view_state_found": false,
+    "next_stage": "v33d_locked_three_camera_joint_state_search"
+  },
+  "exact_state_gates": {
+    "pair_min_joint_count": 6,
+    "pair_median_epipolar_px_max": 18.0,
+    "pair_p90_epipolar_px_max": 35.0,
+    "threshold_policy": "DO_NOT_WEAKEN",
+    "subsequent_requirement": "A passing temporal triplet must then pass three-view triangulation/reprojection QA before any novel-view render."
+  },
+  "global_permissions": {
+    "three_distinct_metric_cameras_validated": true,
+    "camera_set_locked": true,
+    "camera_addition_allowed": false,
+    "camera_substitution_allowed": false,
+    "physical_center_recalibration_allowed": false,
+    "native_resolution_only": true,
+    "exact_three_view_state_validated": false,
+    "replay_render_allowed": false
+  },
+  "next_action": "Jointly search native temporal states for the same Steven Adams physical instant across the locked Left Above Rim, Right Above Rim and Broadcast cameras. Keep all calibrated physical centres fixed. If no triplet passes, expand/refine the temporal window inside these same three cameras and fail closed.",
+  "future_agent_startup_check": [
+    "Read v6 before v5 or older registries.",
+    "State accepted camera count explicitly: 3.",
+    "State locked cameras explicitly: Left Above Rim, Right Above Rim, Broadcast.",
+    "Do not propose, solve or substitute a fourth camera unless the user explicitly unlocks the camera set.",
+    "Treat dynamic foreground mismatch as a temporal/state problem, not a calibration revocation.",
+    "Use native 960x540 source; no upscaling.",
+    "Continue v33d joint three-camera exact-state synchronization before any render."
+  ]
+}
