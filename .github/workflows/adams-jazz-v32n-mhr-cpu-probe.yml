@@ -1,0 +1,54 @@
+name: Adams Jazz v32n MHR anatomical CPU probe
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/probe_v32n_mhr_cpu.py'
+      - '.github/workflows/adams-jazz-v32n-mhr-cpu-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mhr-cpu-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install public MHR/PyMomentum CPU stack
+        run: |
+          set -euxo pipefail
+          python -m pip install --quiet 'pymomentum-core>=0.1.111' 'trimesh>=4.8.3,<5' 'git+https://github.com/facebookresearch/MHR.git'
+      - name: Load anatomical rig and export neutral proof
+        run: |
+          set -euxo pipefail
+          mkdir -p mhr_work v32n
+          /usr/bin/time -v python -u -m freeze_spin.probe_v32n_mhr_cpu --work mhr_work --out v32n 2>&1 | tee v32n/run.log
+          test -s v32n/v32n_mhr_cpu_probe.json
+          test -s v32n/mhr_lod1_neutral_probe.ply
+      - name: Assert anatomical surface probe
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v32n/v32n_mhr_cpu_probe.json'))
+          assert q['status']=='PASS_V32N_MHR_CPU_PROBE'
+          assert q['vertex_count'] > 1000 and q['face_count'] > 1000
+          assert q['pose_parameter_count'] > 20
+          assert q['generated_rgb'] is False
+          assert q['learned_image_to_mesh_checkpoint_used'] is False
+          print(json.dumps({k:q[k] for k in ['status','joint_count','model_parameter_count','vertex_count','face_count','pose_parameter_count','rigid_parameter_count','scaling_parameter_count']},indent=2))
+          PY
+      - name: Upload probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32n-mhr-cpu-probe-${{ github.run_id }}
+          path: v32n/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
