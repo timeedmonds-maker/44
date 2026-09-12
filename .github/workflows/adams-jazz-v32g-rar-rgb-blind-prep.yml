@@ -1,0 +1,131 @@
+name: Adams Jazz v32g RAR-RGB-blind Gaussian prep
+
+on:
+  workflow_dispatch:
+    inputs:
+      v32f_run_id:
+        description: Successful v32f GPU-ready prep run
+        required: false
+        default: '34673825231'
+      b32_run_id:
+        description: Successful B32/v32 full-frame source run
+        required: false
+        default: '34669584507'
+  push:
+    branches:
+      - codex/multi-angle-freeze-spin-poc
+    paths:
+      - 'freeze_spin/build_v32g_rar_rgb_blind.py'
+      - 'freeze_spin/run_v32g_rar_rgb_blind_4dgs.sh'
+      - 'freeze_spin/nba_geometry.py'
+      - '.github/workflows/adams-jazz-v32g-rar-rgb-blind-prep.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-rar-rgb-blind-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      V32F_RUN: ${{ inputs.v32f_run_id || '34673825231' }}
+      B32_RUN: ${{ inputs.b32_run_id || '34669584507' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deterministic prep dependencies
+        run: python -m pip install --disable-pip-version-check numpy pillow
+
+      - name: Download exact upstream v32f and B32 artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p inputs/v32f inputs/b32
+          gh run download "$V32F_RUN" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "adams-jazz-v32f-freeze-only-gpu-ready-$V32F_RUN" \
+            --dir inputs/v32f
+          gh run download "$B32_RUN" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "adams-jazz-v32-sharp-latent-quality-cluster-4dgs-$B32_RUN" \
+            --dir inputs/b32
+          test -s inputs/v32f/v32f_backend.json
+          test -s inputs/v32f/train_meta.json
+          test -s inputs/b32/stage_a/v32_chosen_Broadcast_frame0276.png || \
+            test "$(find inputs/b32/stage_a -maxdepth 1 -name 'v32_chosen_Broadcast_frame*.png' | wc -l)" -eq 1
+
+      - name: Build target-blind known-pose heldout package
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python freeze_spin/build_v32g_rar_rgb_blind.py \
+            --v32f inputs/v32f \
+            --full-frames inputs/b32/stage_a \
+            --out artifacts/v32g_rar_rgb_blind \
+            | tee artifacts/v32g_build.log
+          cp freeze_spin/run_v32g_rar_rgb_blind_4dgs.sh artifacts/v32g_rar_rgb_blind/
+          chmod +x artifacts/v32g_rar_rgb_blind/run_v32g_rar_rgb_blind_4dgs.sh
+
+      - name: Assert no target RGB or target geometry enters training initializer
+        run: |
+          python - <<'PY'
+          import json, pathlib, numpy as np
+          p=pathlib.Path('artifacts/v32g_rar_rgb_blind')
+          q=json.load(open(p/'v32g_provenance_qa.json'))
+          tr=json.load(open(p/'train_meta.json'))
+          te=json.load(open(p/'test_meta.json'))
+          cloud=np.load(p/'init_pt_cld.npz')['data']
+          assert q['status']=='PASS_V32G_RAR_RGB_BLIND_PACKAGE'
+          assert q['heldout_rgb_used_for_crop_selection'] is False
+          assert q['heldout_rgb_used_for_initializer'] is False
+          assert q['heldout_rgb_used_for_training'] is False
+          assert q['heldout_subject_geometry_used_for_initializer'] is False
+          assert q['heldout_ball_geometry_used_for_initializer'] is False
+          assert q['heldout_subject_colour_used_for_initializer'] is False
+          assert q['heldout_camera_pose_used_for_evaluation_only'] is True
+          assert tr['cam_id']==[[0,1]]
+          assert te['cam_id']==[[2]]
+          assert all('Right_Above_Rim' not in x for x in tr['fn'][0])
+          assert cloud.shape[1]==6 and len(cloud)>=5000 and np.isfinite(cloud).all()
+          assert np.max(cloud[:,3:])<=1.0 and np.min(cloud[:,3:])>=0.0
+          print('PASS_V32G_PROVENANCE_GATE', cloud.shape)
+          PY
+
+      - name: Record immutable upstream run provenance
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          p=pathlib.Path('artifacts/v32g_rar_rgb_blind/v32g_upstream_runs.json')
+          p.write_text(json.dumps({
+            'v32f_run_id': int(os.environ['V32F_RUN']),
+            'b32_run_id': int(os.environ['B32_RUN']),
+            'github_sha': os.environ['GITHUB_SHA'],
+            'status': 'PASS_PINNED_UPSTREAM_RUN_IDS'
+          }, indent=2))
+          PY
+
+      - name: Package GPU-ready v32g dataset
+        run: |
+          set -euo pipefail
+          (cd artifacts/v32g_rar_rgb_blind && zip -0 -r ../v32g_rar_rgb_blind_gpu_ready.zip . >/dev/null)
+          sha256sum artifacts/v32g_rar_rgb_blind_gpu_ready.zip | tee artifacts/v32g_rar_rgb_blind_gpu_ready.sha256
+          du -h artifacts/v32g_rar_rgb_blind_gpu_ready.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32g-rar-rgb-blind-gpu-ready-${{ github.run_id }}
+          path: |
+            artifacts/v32g_rar_rgb_blind/**
+            artifacts/v32g_rar_rgb_blind_gpu_ready.zip
+            artifacts/v32g_rar_rgb_blind_gpu_ready.sha256
+            artifacts/v32g_build.log
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
