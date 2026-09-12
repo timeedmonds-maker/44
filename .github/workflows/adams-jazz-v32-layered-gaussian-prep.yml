@@ -1,0 +1,139 @@
+name: Adams Jazz v32 sharp latent all-court prep
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/prepare_v32_layered_scene.py'
+      - '.github/workflows/adams-jazz-v32-layered-gaussian-prep.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  v32-stage-a-native-prep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONFAULTHANDLER: '1'
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install v32 preparation runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet requests pillow scipy opencv-python-headless scikit-image
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+
+      - name: Retrieve native event camera clips
+        run: |
+          set -euxo pipefail
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test -n "$(find target_source/clips -type f -name '*_489_*_SOURCE.mp4' -print -quit)"
+
+      - name: Retrieve accepted v11 exact-state evidence
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v11
+          gh run download 34535691949 --repo timeedmonds-maker/44 \
+            --name adams-jazz-three-camera-exact-sync-v11-34535691949 \
+            --dir inputs_v11
+          test -s inputs_v11/exact_visual_state_v11_qa.json
+
+      - name: Retrieve accepted Right Above Rim metric camera
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v73
+          gh run download 33911842169 --repo timeedmonds-maker/44 \
+            --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 \
+            --dir inputs_v73
+          test -s inputs_v73/right_above_rim_metric_camera_v73.json
+
+      - name: Retrieve v31 foreground and three-view ball QA
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v31
+          gh run download 34586071296 --repo timeedmonds-maker/44 \
+            --name adams-jazz-three-camera-focal-identity-v31-34586071296 \
+            --dir inputs_v31
+          test -s inputs_v31/three_camera_mesh_v12_qa.json
+
+      - name: Build v32 sharp latent all-court package
+        run: |
+          set -euxo pipefail
+          mkdir -p v32_stage_a
+          BCAST="$(find inputs_v11 -type f -name 'A_Broadcast_v11_*.png' | head -n 1)"
+          test -n "$BCAST"
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.prepare_v32_layered_scene \
+            --clips-dir target_source/clips \
+            --registry freeze_spin/adams_jazz_game_camera_registry_v5.json \
+            --rar-report inputs_v73/right_above_rim_metric_camera_v73.json \
+            --broadcast-event-frame "$BCAST" \
+            --v31-qa inputs_v31/three_camera_mesh_v12_qa.json \
+            --out v32_stage_a \
+            --candidate-radius 4 \
+            --burst-radius 6 2>&1 | tee v32_stage_a/prep.log
+
+      - name: Assert v32 architecture and source invariants
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=Path('v32_stage_a')
+          m=json.load(open(r/'v32_scene_manifest.json'))
+          assert m['resolution']==[960,540]
+          assert abs(m['freeze']['chosen_global_delta_frames']) <= 2
+          assert m['burst_frames_per_camera']==13
+          assert len(m['cameras'])==3
+          assert m['gpu_stage_contract']['held_out_camera_test_required'] is True
+          assert m['all_on_court_people']['observation_count'] >= 8
+          assert m['all_on_court_people']['union_track_count'] >= 4
+          assert m['ball']['carried_three_view_solution_from_v31']['status']=='BALL_TRIANGULATED_THREE_VIEW_ENHANCED'
+          for cam, rows in m['burst'].items():
+              assert len(rows)==13, (cam,len(rows))
+              for row in rows:
+                  assert (r/row['file']).is_file(), row
+          print('V32_STAGE_A_NATIVE_SCENE_PACKAGE_OK')
+          print(json.dumps({
+              'freeze':m['freeze'],
+              'people_per_camera':{k:len(v) for k,v in m['all_on_court_people']['per_camera'].items()},
+              'union_track_count':m['all_on_court_people']['union_track_count'],
+              'observation_count':m['all_on_court_people']['observation_count'],
+          },indent=2))
+          PY
+
+      - name: Package v32 source-grounded scene inputs
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp -a v32_stage_a/. delivery/ 2>/dev/null || true
+          test -s delivery/v32_scene_manifest.json
+          (cd delivery && zip -0 -r v32_stage_a_sharp_latent_all_court_package.zip . \
+            -x 'v32_stage_a_sharp_latent_all_court_package.zip')
+
+      - name: Upload v32 Stage-A proof package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32-stage-a-sharp-latent-all-court-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
