@@ -1,0 +1,21 @@
+name: Reed-Adams 2025-26 official xFG WOWY
+on:
+  push:
+    branches: [analysis/reed-adams-impact-2025-26]
+    paths:
+      - reed_adams_xfg_wowy_2025_26.py
+      - .github/workflows/reed-adams-official-xfg-wowy.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas numpy requests
+      - run: python reed_adams_xfg_wowy_2025_26.py
