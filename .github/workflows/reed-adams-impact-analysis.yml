@@ -1,0 +1,91 @@
+name: Reed-Adams 2025-26 impact analysis
+
+on:
+  push:
+    branches:
+      - analysis/reed-adams-impact-2025-26
+    paths:
+      - .github/workflows/reed-adams-impact-analysis.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas requests
+      - name: Calculate Reed with-vs-without Adams and inspect event layers
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, math, re, time
+          from pathlib import Path
+          import pandas as pd
+          import requests
+
+          SEASON='2025-26'; HOU='1610612745'; ADAMS=203500; REED=1642263
+          s=requests.Session()
+          s.headers.update({'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*'})
+
+          # 1) Exact native teammate WOWY endpoint used by the 104 builder.
+          url='https://api.pbpstats.com/get-on-off/nba/player'
+          params={'Season':SEASON,'SeasonType':'Regular Season','TeamId':HOU,'PlayerId':ADAMS}
+          r=s.get(url,params=params,timeout=60)
+          print('PBPSTATS_STATUS',r.status_code,flush=True)
+          r.raise_for_status()
+          j=r.json()
+          Path('adams_onoff_raw.json').write_text(json.dumps(j,indent=2))
+          txt=json.dumps(j)
+          print('PBPSTATS_TOP_KEYS', list(j.keys()) if isinstance(j,dict) else type(j).__name__,flush=True)
+          print('PBPSTATS_CONTAINS_REED', ('Reed Sheppard' in txt or str(REED) in txt),flush=True)
+
+          # Recursively print compact objects containing Reed id/name, avoiding giant payload.
+          matches=[]
+          def walk(x,path='root'):
+              if isinstance(x,dict):
+                  st=json.dumps(x,default=str)
+                  if ('Reed Sheppard' in st or str(REED) in st) and len(st)<50000:
+                      matches.append((path,x))
+                  for k,v in x.items(): walk(v,f'{path}.{k}')
+              elif isinstance(x,list):
+                  for i,v in enumerate(x): walk(v,f'{path}[{i}]')
+          walk(j)
+          # Keep deepest/smallest unique useful objects.
+          seen=set(); compact=[]
+          for p,o in sorted(matches,key=lambda z:len(json.dumps(z[1],default=str))):
+              st=json.dumps(o,sort_keys=True,default=str)
+              if st not in seen:
+                  compact.append((p,o)); seen.add(st)
+              if len(compact)>=8: break
+          for p,o in compact:
+              print('REED_NATIVE_MATCH',p,json.dumps(o,sort_keys=True,default=str),flush=True)
+
+          # 2) Inspect authoritative full-season PBP + lineup stints used by repo44/long-rebound methods.
+          pbp_url='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
+          lineup_url='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/lineup-final2026/data.csv'
+          print('READ_PBP_HEADER',flush=True)
+          hdr=pd.read_csv(pbp_url,nrows=3)
+          print('PBP_COLUMNS',json.dumps(hdr.columns.tolist()),flush=True)
+          print('PBP_SAMPLE',hdr.to_json(orient='records'),flush=True)
+          print('READ_LINEUP',flush=True)
+          lu=pd.read_csv(lineup_url,low_memory=False)
+          print('LINEUP_COLUMNS',json.dumps(lu.columns.tolist()),'ROWS',len(lu),flush=True)
+          hou=lu[(lu['team'].astype(str).str.upper()=='HOU') | (lu['opp'].astype(str).str.upper()=='HOU')].copy()
+          print('HOU_STINTS',len(hou),flush=True)
+          for c in ['lineup_team','lineup_opp']:
+              vals=hou[c].dropna().astype(str)
+              ad=vals[vals.str.contains(str(ADAMS),regex=False)]
+              rd=vals[vals.str.contains(str(REED),regex=False)]
+              print(c,'ADAMS_MATCHES',len(ad),'REED_MATCHES',len(rd),'SAMPLES',json.dumps(vals.head(3).tolist()),flush=True)
+
+          # Print lineup values containing either player, enough to learn encoding.
+          bothmask=hou['lineup_team'].astype(str).str.contains(str(ADAMS),regex=False) | hou['lineup_team'].astype(str).str.contains(str(REED),regex=False) | hou['lineup_opp'].astype(str).str.contains(str(ADAMS),regex=False) | hou['lineup_opp'].astype(str).str.contains(str(REED),regex=False)
+          print('PLAYER_LINEUP_SAMPLE',hou.loc[bothmask].head(10).to_json(orient='records'),flush=True)
+          PY
