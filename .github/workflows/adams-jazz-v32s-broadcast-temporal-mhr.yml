@@ -1,0 +1,93 @@
+name: Adams Jazz v32s Broadcast temporal identity MHR solve
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/run_v32s_broadcast_temporal_mhr.py'
+      - '.github/workflows/adams-jazz-v32s-broadcast-temporal-mhr.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  broadcast-temporal-mhr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONFAULTHANDLER: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install observation and MHR runtime
+        run: |
+          set -euxo pipefail
+          python -m pip install --quiet numpy scipy opencv-python-headless pillow 'rfdetr>=1.8.1' 'pymomentum-core>=0.1.111' 'git+https://github.com/facebookresearch/MHR.git'
+
+      - name: Download exact B32 source package
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs_b32
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34669584507
+
+      - name: Run v32s temporal Broadcast anatomical solve
+        shell: bash
+        run: |
+          set +e
+          mkdir -p v32s work_v32s
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32s_broadcast_temporal_mhr \
+            --b32-root inputs_b32 --work work_v32s --out v32s --max-nfev 300 2>&1 | tee v32s/run.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > v32s/solver_exit_code.txt
+          exit 0
+
+      - name: Print v32s diagnostic
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          for name in ('v32s_broadcast_temporal_audit.json','v32s_qa.json'):
+              p=pathlib.Path('v32s')/name
+              if p.exists():
+                  q=json.load(open(p))
+                  if name.startswith('v32s_broadcast'):
+                      keys=['selected_anchor_rel','selected_anchor_detection_index','selected_anchor_quality','retained_body_joint_count','direct_temporal_agree_count','disagreeing_direct_joints_replaced']
+                  else:
+                      keys=['status','per_camera_reprojection','left_best_validation','gate','v32s_base_exit_code']
+                  print(name)
+                  print(json.dumps({k:q.get(k) for k in keys},indent=2))
+          PY
+
+      - name: Package v32s evidence
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v32s/* delivery/ 2>/dev/null || true
+          rm -f delivery/*.zip
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_v32s_broadcast_temporal_mhr.zip ./*)
+
+      - name: Upload v32s evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32s-broadcast-temporal-mhr-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Enforce fail-closed v32s gate
+        if: always()
+        run: |
+          set -euxo pipefail
+          test "$(cat v32s/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
