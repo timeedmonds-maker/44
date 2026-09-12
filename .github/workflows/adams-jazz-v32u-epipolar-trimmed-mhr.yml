@@ -1,10 +1,10 @@
-name: Adams Jazz v32x full-MHR coherent LAR candidate sweep
+name: Adams Jazz v32y cross-view measurement repair
 
 on:
   push:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
-      - 'freeze_spin/run_v32x_lar_candidate_sweep.py'
+      - 'freeze_spin/run_v32y_crossview_measurement_repair.py'
       - '.github/workflows/adams-jazz-v32u-epipolar-trimmed-mhr.yml'
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 jobs:
-  lar-candidate-full-mhr-sweep:
+  crossview-measurement-repair:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -38,54 +38,56 @@ jobs:
           repository: timeedmonds-maker/44
           run-id: 34669584507
 
-      - name: Run v32x ranks 1 2 3 through unchanged full MHR solve
+      - name: Run v32y cross-view measurement repair
         shell: bash
         run: |
           set +e
-          mkdir -p v32x work_v32x
-          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32x_lar_candidate_sweep \
-            --b32-root inputs_b32 --work work_v32x --out v32x --ranks 1,2,3 --max-nfev 360 2>&1 | tee v32x/run.log
+          mkdir -p v32y work_v32y
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32y_crossview_measurement_repair \
+            --b32-root inputs_b32 --work work_v32y --out v32y --max-nfev 360 2>&1 | tee v32y/run.log
           rc=${PIPESTATUS[0]}
-          echo "$rc" > v32x/solver_exit_code.txt
+          echo "$rc" > v32y/solver_exit_code.txt
           exit 0
 
-      - name: Print v32x winner diagnostic
+      - name: Print v32y diagnostic
         if: always()
         run: |
           python - <<'PY'
           import json, pathlib
-          p=pathlib.Path('v32x/v32x_summary.json')
+          p=pathlib.Path('v32y/v32y_policy_and_residuals.json')
           if p.exists():
               q=json.load(open(p))
+              qa=q.get('qa') or {}
               print(json.dumps({
-                'winner_rank':q.get('winner_rank'),
-                'static_0_15_geometry_unlocked':q.get('static_0_15_geometry_unlocked'),
-                'winner':q.get('winner'),
-                'all_results':q.get('all_results')},indent=2))
+                'lar_rejected':q.get('lar_rejected'),
+                'broadcast_top3':(q.get('broadcast_rank') or [])[:3],
+                'status':qa.get('status'),
+                'per_camera_reprojection':qa.get('per_camera_reprojection'),
+                'gate':qa.get('gate')},indent=2))
           PY
 
-      - name: Package v32x evidence
+      - name: Package v32y evidence
         if: always()
         run: |
           set -euxo pipefail
           mkdir -p delivery
-          cp -r v32x/* delivery/ 2>/dev/null || true
+          cp v32y/* delivery/ 2>/dev/null || true
           rm -f delivery/*.zip
-          test -n "$(find delivery -type f -print -quit)"
-          (cd delivery && zip -0 -r adams_jazz_v32x_lar_candidate_full_mhr_sweep.zip ./*)
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_v32y_crossview_measurement_repair.zip ./*)
 
-      - name: Upload v32x evidence
+      - name: Upload v32y evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-v32x-lar-candidate-full-mhr-sweep-${{ github.run_id }}
+          name: adams-jazz-v32y-crossview-measurement-repair-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
           compression-level: 0
 
-      - name: Enforce fail-closed v32x gate
+      - name: Enforce fail-closed v32y gate
         if: always()
         run: |
           set -euxo pipefail
-          test "$(cat v32x/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
+          test "$(cat v32y/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
