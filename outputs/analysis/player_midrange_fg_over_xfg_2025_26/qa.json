@@ -1,0 +1,257 @@
+{
+  "season": "2025-26",
+  "season_type": "Regular Season",
+  "source_resource": "NBA shotqualityvideologs joined to ramirobentes PBP by eventNum",
+  "eligibility": "Players with >=300 regular-season PBP FGA; no missing xFG imputed.",
+  "zone_definitions": {
+    "short_midrange": "PBP area_detail 8-16, restricted to 2PT shots",
+    "long_midrange": "PBP area_detail 16-24, restricted to 2PT shots",
+    "combined_midrange": "union of short and long midrange"
+  },
+  "players": 284,
+  "categories": {
+    "short_midrange_8_16": {
+      "players": 284,
+      "leaders": {
+        "min_10": {
+          "player_id": 1630551,
+          "player_name": "Justin Champagnie",
+          "attempts": 14,
+          "makes": 12,
+          "fg_pct": 85.71428571428571,
+          "xfg_pct": 63.13571428571429,
+          "fg_minus_xfg_pp": 22.578571428571415,
+          "pbp_fga_global": 462
+        },
+        "min_25": {
+          "player_id": 1628379,
+          "player_name": "Luke Kennard",
+          "attempts": 46,
+          "makes": 31,
+          "fg_pct": 67.3913043478261,
+          "xfg_pct": 49.56521739130435,
+          "fg_minus_xfg_pp": 17.826086956521742,
+          "pbp_fga_global": 443
+        },
+        "min_50": {
+          "player_id": 1628378,
+          "player_name": "Donovan Mitchell",
+          "attempts": 150,
+          "makes": 89,
+          "fg_pct": 59.333333333333336,
+          "xfg_pct": 42.791333333333334,
+          "fg_minus_xfg_pp": 16.542,
+          "pbp_fga_global": 1403
+        },
+        "min_75": {
+          "player_id": 1628378,
+          "player_name": "Donovan Mitchell",
+          "attempts": 150,
+          "makes": 89,
+          "fg_pct": 59.333333333333336,
+          "xfg_pct": 42.791333333333334,
+          "fg_minus_xfg_pp": 16.542,
+          "pbp_fga_global": 1403
+        },
+        "min_100": {
+          "player_id": 1628378,
+          "player_name": "Donovan Mitchell",
+          "attempts": 150,
+          "makes": 89,
+          "fg_pct": 59.333333333333336,
+          "xfg_pct": 42.791333333333334,
+          "fg_minus_xfg_pp": 16.542,
+          "pbp_fga_global": 1403
+        },
+        "min_150": {
+          "player_id": 1628378,
+          "player_name": "Donovan Mitchell",
+          "attempts": 150,
+          "makes": 89,
+          "fg_pct": 59.333333333333336,
+          "xfg_pct": 42.791333333333334,
+          "fg_minus_xfg_pp": 16.542,
+          "pbp_fga_global": 1403
+        },
+        "min_200": {
+          "player_id": 1629029,
+          "player_name": "Luka Don\u010di\u0107",
+          "attempts": 235,
+          "makes": 126,
+          "fg_pct": 53.61702127659574,
+          "xfg_pct": 40.55234042553191,
+          "fg_minus_xfg_pp": 13.064680851063834,
+          "pbp_fga_global": 1457
+        },
+        "min_300": {
+          "player_id": 201142,
+          "player_name": "Kevin Durant",
+          "attempts": 334,
+          "makes": 181,
+          "fg_pct": 54.191616766467064,
+          "xfg_pct": 45.29041916167664,
+          "fg_minus_xfg_pp": 8.901197604790426,
+          "pbp_fga_global": 1376
+        }
+      }
+    },
+    "long_midrange_16_24": {
+      "players": 269,
+      "leaders": {
+        "min_10": {
+          "player_id": 1628379,
+          "player_name": "Luke Kennard",
+          "attempts": 20,
+          "makes": 14,
+          "fg_pct": 70.0,
+          "xfg_pct": 43.52,
+          "fg_minus_xfg_pp": 26.479999999999997,
+          "pbp_fga_global": 443
+        },
+        "min_25": {
+          "player_id": 203999,
+          "player_name": "Nikola Joki\u0107",
+          "attempts": 30,
+          "makes": 18,
+          "fg_pct": 60.0,
+          "xfg_pct": 36.556666666666665,
+          "fg_minus_xfg_pp": 23.443333333333335,
+          "pbp_fga_global": 1132
+        },
+        "min_50": {
+          "player_id": 1630595,
+          "player_name": "Cade Cunningham",
+          "attempts": 63,
+          "makes": 36,
+          "fg_pct": 57.142857142857146,
+          "xfg_pct": 40.41111111111111,
+          "fg_minus_xfg_pp": 16.731746031746034,
+          "pbp_fga_global": 1189
+        },
+        "min_75": {
+          "player_id": 1628973,
+          "player_name": "Jalen Brunson",
+          "attempts": 85,
+          "makes": 46,
+          "fg_pct": 54.11764705882353,
+          "xfg_pct": 38.85176470588235,
+          "fg_minus_xfg_pp": 15.265882352941176,
+          "pbp_fga_global": 1475
+        },
+        "min_100": {
+          "player_id": 1626164,
+          "player_name": "Devin Booker",
+          "attempts": 115,
+          "makes": 57,
+          "fg_pct": 49.56521739130435,
+          "xfg_pct": 38.633043478260866,
+          "fg_minus_xfg_pp": 10.932173913043485,
+          "pbp_fga_global": 1198
+        },
+        "min_150": {
+          "player_id": 201142,
+          "player_name": "Kevin Durant",
+          "attempts": 150,
+          "makes": 74,
+          "fg_pct": 49.333333333333336,
+          "xfg_pct": 39.39333333333333,
+          "fg_minus_xfg_pp": 9.940000000000005,
+          "pbp_fga_global": 1376
+        }
+      }
+    },
+    "combined_midrange_8_24": {
+      "players": 284,
+      "leaders": {
+        "min_10": {
+          "player_id": 1630551,
+          "player_name": "Justin Champagnie",
+          "attempts": 14,
+          "makes": 12,
+          "fg_pct": 85.71428571428571,
+          "xfg_pct": 63.13571428571429,
+          "fg_minus_xfg_pp": 22.578571428571415,
+          "pbp_fga_global": 462
+        },
+        "min_25": {
+          "player_id": 1628379,
+          "player_name": "Luke Kennard",
+          "attempts": 66,
+          "makes": 45,
+          "fg_pct": 68.18181818181819,
+          "xfg_pct": 47.733333333333334,
+          "fg_minus_xfg_pp": 20.448484848484853,
+          "pbp_fga_global": 443
+        },
+        "min_50": {
+          "player_id": 1628379,
+          "player_name": "Luke Kennard",
+          "attempts": 66,
+          "makes": 45,
+          "fg_pct": 68.18181818181819,
+          "xfg_pct": 47.733333333333334,
+          "fg_minus_xfg_pp": 20.448484848484853,
+          "pbp_fga_global": 443
+        },
+        "min_75": {
+          "player_id": 203999,
+          "player_name": "Nikola Joki\u0107",
+          "attempts": 182,
+          "makes": 111,
+          "fg_pct": 60.989010989010985,
+          "xfg_pct": 44.815384615384616,
+          "fg_minus_xfg_pp": 16.17362637362637,
+          "pbp_fga_global": 1132
+        },
+        "min_100": {
+          "player_id": 203999,
+          "player_name": "Nikola Joki\u0107",
+          "attempts": 182,
+          "makes": 111,
+          "fg_pct": 60.989010989010985,
+          "xfg_pct": 44.815384615384616,
+          "fg_minus_xfg_pp": 16.17362637362637,
+          "pbp_fga_global": 1132
+        },
+        "min_150": {
+          "player_id": 203999,
+          "player_name": "Nikola Joki\u0107",
+          "attempts": 182,
+          "makes": 111,
+          "fg_pct": 60.989010989010985,
+          "xfg_pct": 44.815384615384616,
+          "fg_minus_xfg_pp": 16.17362637362637,
+          "pbp_fga_global": 1132
+        },
+        "min_200": {
+          "player_id": 1628378,
+          "player_name": "Donovan Mitchell",
+          "attempts": 219,
+          "makes": 118,
+          "fg_pct": 53.881278538812786,
+          "xfg_pct": 41.021004566210046,
+          "fg_minus_xfg_pp": 12.86027397260274,
+          "pbp_fga_global": 1403
+        },
+        "min_300": {
+          "player_id": 1628983,
+          "player_name": "Shai Gilgeous-Alexander",
+          "attempts": 378,
+          "makes": 218,
+          "fg_pct": 57.67195767195767,
+          "xfg_pct": 45.59126984126984,
+          "fg_minus_xfg_pp": 12.080687830687829,
+          "pbp_fga_global": 1321
+        }
+      }
+    }
+  },
+  "extraction": {
+    "shards": 40,
+    "request_pairs": 12907,
+    "midrange_pbp_events": 38116,
+    "matched_midrange_events": 24872,
+    "unmatched_midrange_events": 13244,
+    "request_errors": 3866
+  }
+}
