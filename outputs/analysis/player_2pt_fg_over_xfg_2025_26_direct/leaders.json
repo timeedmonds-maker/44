@@ -1,0 +1,112 @@
+{
+  "season": "2025-26",
+  "season_type": "Regular Season",
+  "source_resource": "NBA shotqualityvideologs",
+  "source_host": "stats.gleague.nba.com",
+  "pbp_source": "ramirobentes/nba_pbp_data pbp-final-2026",
+  "eligibility": "Players with >=300 PBP FGA; no missing xFG imputed.",
+  "definition": "On tracked 2PT attempts only: actual FG% minus mean per-shot shotQuality xFG%.",
+  "players": 285,
+  "top_eligible": {
+    "player_id": 203999,
+    "player_name": "Nikola Joki\u0107",
+    "tracked_2pa": 696,
+    "tracked_2pm": 459,
+    "two_fg_pct": 65.94827586206897,
+    "two_xfg_pct": 51.49209770114943,
+    "fg_minus_xfg_pp": 14.456178160919535,
+    "pbp_fga_global": 1132,
+    "tracked_fga": 954,
+    "xfg_coverage_pct_vs_pbp_fga": 84.2756183745583
+  },
+  "threshold_leaders": {
+    "min_50_tracked_2pa": {
+      "player_id": 203999,
+      "player_name": "Nikola Joki\u0107",
+      "tracked_2pa": 696,
+      "tracked_2pm": 459,
+      "two_fg_pct": 65.94827586206897,
+      "two_xfg_pct": 51.49209770114943,
+      "fg_minus_xfg_pp": 14.456178160919535,
+      "pbp_fga_global": 1132,
+      "tracked_fga": 954
+    },
+    "min_100_tracked_2pa": {
+      "player_id": 203999,
+      "player_name": "Nikola Joki\u0107",
+      "tracked_2pa": 696,
+      "tracked_2pm": 459,
+      "two_fg_pct": 65.94827586206897,
+      "two_xfg_pct": 51.49209770114943,
+      "fg_minus_xfg_pp": 14.456178160919535,
+      "pbp_fga_global": 1132,
+      "tracked_fga": 954
+    },
+    "min_150_tracked_2pa": {
+      "player_id": 203999,
+      "player_name": "Nikola Joki\u0107",
+      "tracked_2pa": 696,
+      "tracked_2pm": 459,
+      "two_fg_pct": 65.94827586206897,
+      "two_xfg_pct": 51.49209770114943,
+      "fg_minus_xfg_pp": 14.456178160919535,
+      "pbp_fga_global": 1132,
+      "tracked_fga": 954
+    },
+    "min_200_tracked_2pa": {
+      "player_id": 203999,
+      "player_name": "Nikola Joki\u0107",
+      "tracked_2pa": 696,
+      "tracked_2pm": 459,
+      "two_fg_pct": 65.94827586206897,
+      "two_xfg_pct": 51.49209770114943,
+      "fg_minus_xfg_pp": 14.456178160919535,
+      "pbp_fga_global": 1132,
+      "tracked_fga": 954
+    },
+    "min_250_tracked_2pa": {
+      "player_id": 203999,
+      "player_name": "Nikola Joki\u0107",
+      "tracked_2pa": 696,
+      "tracked_2pm": 459,
+      "two_fg_pct": 65.94827586206897,
+      "two_xfg_pct": 51.49209770114943,
+      "fg_minus_xfg_pp": 14.456178160919535,
+      "pbp_fga_global": 1132,
+      "tracked_fga": 954
+    },
+    "min_300_tracked_2pa": {
+      "player_id": 203999,
+      "player_name": "Nikola Joki\u0107",
+      "tracked_2pa": 696,
+      "tracked_2pm": 459,
+      "two_fg_pct": 65.94827586206897,
+      "two_xfg_pct": 51.49209770114943,
+      "fg_minus_xfg_pp": 14.456178160919535,
+      "pbp_fga_global": 1132,
+      "tracked_fga": 954
+    },
+    "min_400_tracked_2pa": {
+      "player_id": 203999,
+      "player_name": "Nikola Joki\u0107",
+      "tracked_2pa": 696,
+      "tracked_2pm": 459,
+      "two_fg_pct": 65.94827586206897,
+      "two_xfg_pct": 51.49209770114943,
+      "fg_minus_xfg_pp": 14.456178160919535,
+      "pbp_fga_global": 1132,
+      "tracked_fga": 954
+    },
+    "min_500_tracked_2pa": {
+      "player_id": 203999,
+      "player_name": "Nikola Joki\u0107",
+      "tracked_2pa": 696,
+      "tracked_2pm": 459,
+      "two_fg_pct": 65.94827586206897,
+      "two_xfg_pct": 51.49209770114943,
+      "fg_minus_xfg_pp": 14.456178160919535,
+      "pbp_fga_global": 1132,
+      "tracked_fga": 954
+    }
+  }
+}
