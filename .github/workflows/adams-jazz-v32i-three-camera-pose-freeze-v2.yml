@@ -1,0 +1,93 @@
+name: Adams Jazz v32i exact-freeze articulated position v2
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - '.github/workflows/adams-jazz-v32i-three-camera-pose-freeze-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  exact-freeze-position:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONFAULTHANDLER: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CPU pose runtime
+        run: |
+          set -euxo pipefail
+          python -m pip install --quiet numpy opencv-python-headless pillow
+          python - <<'PY' || python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__, torch.cuda.is_available())
+          PY
+      - name: Download exact B32 package
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs_b32
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34669584507
+      - name: Solve exact freeze only
+        shell: bash
+        run: |
+          set +e
+          mkdir -p v32i_freeze
+          /usr/bin/time -v python -u -m freeze_spin.solve_v32i_three_camera_pose_observations_v2 \
+            --b32-root inputs_b32 --out v32i_freeze --score-threshold 0.35 --freeze-only 2>&1 | tee v32i_freeze/run.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > v32i_freeze/solver_exit_code.txt
+          exit 0
+      - name: Print exact diagnostic
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('v32i_freeze/v32i_pose_observations_qa.json')
+          if not p.exists():
+              print('NO_QA_JSON'); raise SystemExit(0)
+          q=json.load(open(p))
+          print(json.dumps({
+            'status':q['status'],
+            'selected_detection_indices':q['selected_detection_indices'],
+            'triangulated_joint_count':q['triangulated_joint_count'],
+            'median_observation_reprojection_px':q['median_observation_reprojection_px'],
+            'left_measured_pose_found':q['left_measured_pose_found'],
+            'left_best_projected_pose_median_px':q['left_best_projected_pose_median_px'],
+            'left_best_projected_pose_p75_px':q['left_best_projected_pose_p75_px'],
+            'gate':q['gate'],
+          },indent=2))
+          PY
+      - name: Package exact-freeze evidence
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v32i_freeze/* delivery/ 2>/dev/null || true
+          rm -f delivery/*.zip
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_v32i_exact_freeze_position.zip ./*)
+      - name: Upload exact-freeze evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32i-exact-freeze-position-v2-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce gate
+        if: always()
+        run: |
+          set -euxo pipefail
+          test "$(cat v32i_freeze/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
