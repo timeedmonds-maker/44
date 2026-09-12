@@ -92,3 +92,5 @@ jobs:
         run: |
           set -euxo pipefail
           test "$(cat v32v/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
+
+# v32v workflow present before this push; this update intentionally triggers the path-scoped run.
