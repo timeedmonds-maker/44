@@ -35,14 +35,24 @@ jobs:
             --name adams-jazz-v32-stage-a-sharp-latent-all-court-34666457582 \
             --dir v32_stage_a
           test -s v32_stage_a/v32_scene_manifest.json
-      - name: Export native 384x448 action crops
+      - name: Retrieve validated v31 focal-player reconstruction evidence
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p v31_focal
+          gh run download 34586071296 --repo timeedmonds-maker/44 \
+            --name adams-jazz-three-camera-focal-identity-v31-34586071296 \
+            --dir v31_focal
+          test -s v31_focal/three_camera_mesh_v12_qa.json
+      - name: Export native 384x448 focal-seeded action crops
         run: |
           set -euxo pipefail
           python -u -m freeze_spin.export_v32d_native_action_crops \
             --stage-a v32_stage_a \
+            --v31-qa v31_focal/three_camera_mesh_v12_qa.json \
             --out v32d_action_crops \
             --max-tracks 5 | tee v32d_build.log
-      - name: Assert crop/ray invariants
+      - name: Assert crop/ray/focal invariants
         run: |
           set -euxo pipefail
           python - <<'PY'
@@ -54,23 +64,30 @@ jobs:
           assert b['training_crop_resolution']==[384,448]
           assert b['final_output_resolution']==[960,540]
           assert b['resized'] is False and b['native_pixels_preserved'] is True
-          assert b['selected_track_ids']==[3,4,11,10]
-          assert b['mandatory_anchor_track_id']==3
+          assert b['quality_support_track_ids']==[3,4,11,10]
+          assert b['loose_action_cluster_track_id']==3
+          assert b['focal_player_identity_source'].startswith('v31 validated focal subject')
+          fs=b['focal_player_seed']
+          assert fs['joint_count']>=8 and fs['seed_points_added']>=500
+          c=np.asarray(fs['center_world_cm'],float)
+          assert 70<c[0]<190 and 0<c[1]<130 and 130<c[2]<260, c
           assert b['sharp_latent_required'] is True
           assert b['upscale'] is False and b['uhd'] is False
           assert len(list((r/'ims').glob('*.png')))==39
           for p in (r/'ims').glob('*.png'):
               im=cv2.imread(str(p)); assert im is not None and im.shape[:2]==(448,384), (p, None if im is None else im.shape)
-          for lab,c in b['native_crop_xyxy_source'].items():
+          for lab,crop in b['native_crop_xyxy_source'].items():
               K=np.asarray(b['full_frame_K_px'][lab],float); Kc=np.asarray(b['crop_K_px'][lab],float)
-              assert abs((K[0,2]-c[0])-Kc[0,2])<1e-7
-              assert abs((K[1,2]-c[1])-Kc[1,2])<1e-7
+              assert abs((K[0,2]-crop[0])-Kc[0,2])<1e-7
+              assert abs((K[1,2]-crop[1])-Kc[1,2])<1e-7
               assert abs(K[0,0]-Kc[0,0])<1e-7 and abs(K[1,1]-Kc[1,1])<1e-7
           tr=json.load(open(r/'train_meta.json'))
           assert tr['w']==384 and tr['h']==448 and len(tr['fn'])==13 and all(len(x)==3 for x in tr['fn'])
+          d=np.load(r/'init_pt_cld.npz')['data']
+          assert len(d)==b['initial_point_cloud']['total_points_after_focal_seed']
           assert (r/'v32d_native_crop_montage.png').is_file()
-          print('V32D_NATIVE_ACTION_CROPS_OK')
-          print(json.dumps({'tracks':b['selected_track_ids'],'crops':b['native_crop_xyxy_source']},indent=2))
+          print('V32D_NATIVE_ACTION_CROPS_FOCAL_SEEDED_OK')
+          print(json.dumps({'support_tracks':b['quality_support_track_ids'],'focal_seed':fs,'crops':b['native_crop_xyxy_source']},indent=2))
           PY
       - name: Package GPU-ready crop dataset
         run: |
@@ -78,6 +95,9 @@ jobs:
           mkdir -p delivery
           cp -a v32d_action_crops/. delivery/
           cp v32d_build.log delivery/
+          cp freeze_spin/v32d_4dgs_quality_config.py delivery/ 2>/dev/null || true
+          cp freeze_spin/run_v32d_rar_holdout_4dgs.sh delivery/ 2>/dev/null || true
+          cp freeze_spin/evaluate_v32d_holdout.py delivery/ 2>/dev/null || true
           (cd delivery && zip -0 -r v32d_native_action_crop_4dgs.zip . -x 'v32d_native_action_crop_4dgs.zip')
       - name: Upload v32d package
         uses: actions/upload-artifact@v4
