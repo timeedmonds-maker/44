@@ -1,0 +1,48 @@
+name: Reed-Adams matched lineup impact 2025-26
+on:
+  push:
+    branches: [analysis/reed-adams-impact-2025-26]
+    paths: [.github/workflows/reed-adams-lineup-adjusted.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas numpy
+      - name: Exact other-three teammate matched lineup analysis
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,re,numpy as np,pandas as pd
+          URL='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/lineup-final2026/data.csv'; REED=1642263; ADAMS=203500
+          d=pd.read_csv(URL,low_memory=False);d=d[d.team.astype(str).str.upper().eq('HOU')].copy()
+          def ids(v): return {int(x) for x in re.findall(r'(?<!\d)(\d{6,7})(?!\d)',str(v))}
+          d['ids']=d.lineup_team.map(ids);d=d[d.ids.map(lambda x:REED in x and len(x)==5)].copy();d['adams_on']=d.ids.map(lambda x:ADAMS in x)
+          # Create exact other-three strata. ON has a single trio. OFF contributes to each trio formed by dropping one of its four non-Reed teammates.
+          rows=[]
+          for _,r in d.iterrows():
+              mates=set(r.ids)-{REED}
+              if ADAMS in mates:
+                  rr=r.copy();rr['trio']=tuple(sorted(mates-{ADAMS}));rows.append(rr)
+              else:
+                  for x in mates:
+                      rr=r.copy();rr['trio']=tuple(sorted(mates-{x}));rows.append(rr)
+          e=pd.DataFrame(rows);g=e.groupby('trio').adams_on.agg(['min','max']);valid=set(g[(g['min']==False)&(g['max']==True)].index);e=e[e.trio.isin(valid)].copy()
+          agg=e.groupby(['trio','adams_on'],as_index=False).agg(off_poss=('poss_team','sum'),pts_for=('pts_team','sum'),def_poss=('poss_opp','sum'),pts_against=('pts_opp','sum'),secs=('secs_played','sum'))
+          agg['ortg']=100*agg.pts_for/agg.off_poss;agg['drtg']=100*agg.pts_against/agg.def_poss;agg['net']=agg.ortg-agg.drtg
+          piv=agg.pivot(index='trio',columns='adams_on',values=['ortg','drtg','net','off_poss','def_poss']).dropna()
+          res={}
+          for metric in ['ortg','drtg','net']:
+              delta=piv[(metric,True)]-piv[(metric,False)]
+              # balance weights cap each side at the smaller offensive possession exposure in that trio
+              w=np.minimum(piv[('off_poss',True)],piv[('off_poss',False)])
+              res[metric+'_delta_balanced']=float(np.average(delta,weights=w))
+              res[metric+'_delta_unweighted']=float(delta.mean())
+          res.update({'matched_trios':len(piv),'balanced_weight_possessions':float(np.minimum(piv[('off_poss',True)],piv[('off_poss',False)]).sum()),'reed_adams_raw_minutes':float(d.loc[d.adams_on,'secs_played'].sum()/60),'reed_no_adams_raw_minutes':float(d.loc[~d.adams_on,'secs_played'].sum()/60)})
+          print('MATCHED_LINEUP_RESULT='+json.dumps(res,sort_keys=True),flush=True)
+          PY
