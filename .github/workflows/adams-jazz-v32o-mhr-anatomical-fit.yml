@@ -24,27 +24,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MHR CPU stack
+      - name: Install stable PyMomentum CPU solver and MHR asset CLI
         run: |
           set -euxo pipefail
-          python -m pip install --quiet numpy opencv-python-headless pillow scipy 'pymomentum-core>=0.1.111' 'trimesh>=4.8.3,<5' 'git+https://github.com/facebookresearch/MHR.git'
-
-      - name: Download and bind MHR assets
-        run: |
-          set -euxo pipefail
-          mhr-download-assets
+          python -m pip install --quiet numpy opencv-python-headless pillow scipy 'pymomentum-cpu>=0.1.111' 'trimesh>=4.8.3,<5'
+          python -m pip install --quiet --no-deps 'git+https://github.com/facebookresearch/MHR.git'
           python - <<'PY'
-          from pathlib import Path
-          import shutil
-          from mhr.io import get_default_asset_folder
-          src = Path.cwd() / 'assets'
-          dst = get_default_asset_folder()
-          assert (src / 'lod1.fbx').exists(), f'MHR assets not found at {src}'
-          dst.parent.mkdir(parents=True, exist_ok=True)
-          shutil.copytree(src, dst, dirs_exist_ok=True)
-          assert (dst / 'lod1.fbx').exists(), f'MHR asset binding failed at {dst}'
-          print('MHR_ASSET_BIND_OK', src, '->', dst)
+          import pymomentum.geometry as g
+          import pymomentum.solver as s
+          print('PYMOMENTUM_GEOMETRY_OK', g.__name__)
+          print('PYMOMENTUM_SOLVER_OK', s.__name__)
           PY
+
+      - name: Download public MHR assets into isolated work directory
+        run: |
+          set -euxo pipefail
+          mkdir -p v32o_work
+          mhr-download-assets --dest v32o_work
+          test -s v32o_work/assets/lod1.fbx
+          test -s v32o_work/assets/compact_v6_1.model
+          test -s v32o_work/assets/mhr_model.pt
 
       - name: Download accepted v32m pose
         uses: actions/download-artifact@v4
@@ -64,7 +63,7 @@ jobs:
           repository: timeedmonds-maker/44
           run-id: 34669584507
 
-      - name: Run v32o anatomical mesh fit
+      - name: Run direct PyMomentum MHR anatomical fit
         shell: bash
         run: |
           set +e
@@ -72,8 +71,8 @@ jobs:
           /usr/bin/time -v python -u -X faulthandler -m freeze_spin.fit_v32o_mhr_to_v32m_pose \
             --v32m-root inputs_v32m \
             --b32-root inputs_b32 \
-            --out v32o \
-            --iters 900 2>&1 | tee v32o/run.log
+            --work v32o_work \
+            --out v32o 2>&1 | tee v32o/run.log
           rc=${PIPESTATUS[0]}
           echo "$rc" > v32o/solver_exit_code.txt
           exit 0
@@ -88,7 +87,7 @@ jobs:
               print('NO_QA_JSON')
               raise SystemExit(0)
           q=json.load(open(p))
-          keys=['status','vertex_count','face_count','median_joint_error_cm','p90_joint_error_cm','max_joint_error_cm','external_similarity_scale','gate','camera_projection_qa']
+          keys=['status','surface_type','vertex_count','face_count','median_joint_error_cm','p90_joint_error_cm','max_joint_error_cm','gate','camera_projection_qa']
           print(json.dumps({k:q[k] for k in keys}, indent=2))
           PY
 
