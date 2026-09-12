@@ -2,7 +2,7 @@ name: Adams Jazz v32x full-MHR coherent LAR candidate sweep
 
 on:
   push:
-    branches: [codex/multi-angle-freeze-spin-poc]
+    branches: [codex/v32x-sweep-native]
     paths:
       - 'freeze_spin/run_v32x_lar_candidate_sweep.py'
       - '.github/workflows/adams-jazz-v32u-epipolar-trimmed-mhr.yml'
