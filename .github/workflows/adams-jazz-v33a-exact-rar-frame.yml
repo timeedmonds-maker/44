@@ -1,10 +1,10 @@
-name: Adams Jazz v33a exact-frame RAR static correction
+name: Adams Jazz v33b RAR exact-state dual-reference sweep
 
 on:
   push:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
-      - 'freeze_spin/prepare_v33a_exact_rar_frame_camera.py'
+      - 'freeze_spin/run_v33b_rar_exact_state_sweep.py'
       - '.github/workflows/adams-jazz-v33a-exact-rar-frame.yml'
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 jobs:
-  exact-rar-frame-and-body-holdout:
+  rar-exact-state-dual-reference-sweep:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -24,10 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install deterministic camera and body runtime
+      - name: Install deterministic observation runtime
         run: |
           set -euxo pipefail
-          python -m pip install --quiet numpy scipy opencv-python-headless pillow 'rfdetr>=1.8.1' 'pymomentum-core>=0.1.111' 'git+https://github.com/facebookresearch/MHR.git'
+          python -m pip install --quiet numpy scipy opencv-python-headless pillow 'rfdetr>=1.8.1'
 
       - name: Download exact B32 source package
         uses: actions/download-artifact@v4
@@ -47,72 +47,61 @@ jobs:
           repository: timeedmonds-maker/44
           run-id: 33911842169
 
-      - name: Transfer v73 camera to exact B32 RAR frame0256 using static structure only
-        run: |
-          set -euxo pipefail
-          mkdir -p v33a_static
-          python -u -X faulthandler -m freeze_spin.prepare_v33a_exact_rar_frame_camera \
-            --b32-root inputs_b32 \
-            --v73-frame0257 inputs_v73/L_Right_Above_Rim_8.562013s_frame0257.png \
-            --out v33a_static --apply | tee v33a_static/run.log
-          test -s v33a_static/v33a_exact_rar_camera_audit.json
-
-      - name: Run unchanged v32z body and held-out Broadcast gates with exact-frame RAR camera
+      - name: Run v33b dual-reference RAR exact-state sweep
         shell: bash
         run: |
           set +e
-          mkdir -p v33a_body work_v33a
-          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32z_identity_locked_broadcast_temporal \
-            --b32-root inputs_b32 --work work_v33a --out v33a_body --max-nfev 360 2>&1 | tee v33a_body/run.log
+          mkdir -p v33b
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v33b_rar_exact_state_sweep \
+            --b32-root inputs_b32 \
+            --v73-frame0257 inputs_v73/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --out v33b 2>&1 | tee v33b/run.log
           rc=${PIPESTATUS[0]}
-          echo "$rc" > v33a_body/solver_exit_code.txt
+          echo "$rc" > v33b/solver_exit_code.txt
           exit 0
 
-      - name: Print v33a decisive diagnostic
+      - name: Print v33b decisive diagnostic
         if: always()
         run: |
           python - <<'PY'
           import json,pathlib
-          s=pathlib.Path('v33a_static/v33a_exact_rar_camera_audit.json')
-          if s.exists():
-              q=json.load(open(s))
-              print('STATIC_CAMERA')
-              print(json.dumps({k:q.get(k) for k in ['status','static_registration','probe_257_to_256_shift_px','physical_center_delta_cm','projection_decomposition_max_px','gates']},indent=2))
-          p=pathlib.Path('v33a_body/v32z_policy_and_residuals.json')
-          if p.exists():
-              q=json.load(open(p)); qa=q.get('qa') or {}
-              print('BODY_HOLDOUT')
-              print(json.dumps({
-                'lar_rejected':q.get('lar_rejected'),
-                'broadcast_selected':q.get('broadcast_selected'),
-                'status':qa.get('status'),
-                'per_camera_reprojection':qa.get('per_camera_reprojection'),
-                'gate':qa.get('gate')},indent=2))
+          p=pathlib.Path('v33b/v33b_rar_exact_state_sweep.json')
+          if not p.exists():
+              print('v33b JSON missing')
+              raise SystemExit(0)
+          q=json.load(open(p))
+          ref=q.get('lar_broadcast_reference') or {}
+          winner=q.get('winner')
+          print(json.dumps({
+            'status':q.get('status'),
+            'lar_broadcast_reference':{
+              'lar':ref.get('lar'), 'broadcast':ref.get('broadcast'),
+              'epipolar':ref.get('epipolar'), 'gate':ref.get('gate')},
+            'winner':winner,
+            'gate':q.get('gate')},indent=2))
           PY
 
-      - name: Package v33a evidence
+      - name: Package v33b evidence
         if: always()
         run: |
           set -euxo pipefail
-          mkdir -p delivery/static delivery/body
-          cp v33a_static/* delivery/static/ 2>/dev/null || true
-          cp v33a_body/* delivery/body/ 2>/dev/null || true
-          cp inputs_b32/stage_a/v32_scene_manifest.json delivery/v32_scene_manifest_v33a_exact_rar.json
-          test -s delivery/static/v33a_exact_rar_camera_audit.json
-          (cd delivery && zip -0 -r adams_jazz_v33a_exact_rar_frame.zip ./*)
+          mkdir -p delivery
+          cp v33b/* delivery/ 2>/dev/null || true
+          test -s delivery/v33b_rar_exact_state_sweep.json
+          (cd delivery && zip -0 adams_jazz_v33b_rar_exact_state_sweep.zip ./*)
 
-      - name: Upload v33a evidence
+      - name: Upload v33b evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-v33a-exact-rar-frame-${{ github.run_id }}
+          name: adams-jazz-v33b-rar-exact-state-sweep-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
           compression-level: 0
 
-      - name: Enforce unchanged body and Broadcast gate
+      - name: Enforce fail-closed exact-state gate
         if: always()
         run: |
           set -euxo pipefail
-          test "$(cat v33a_body/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
+          test "$(cat v33b/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
