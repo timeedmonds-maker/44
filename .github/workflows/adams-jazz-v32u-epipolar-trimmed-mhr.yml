@@ -1,10 +1,10 @@
-name: Adams Jazz v32w all-candidate LAR epipolar MHR
+name: Adams Jazz v32x full-MHR coherent LAR candidate sweep
 
 on:
   push:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
-      - 'freeze_spin/run_v32w_lar_all_candidate_epipolar_mhr.py'
+      - 'freeze_spin/run_v32x_lar_candidate_sweep.py'
       - '.github/workflows/adams-jazz-v32u-epipolar-trimmed-mhr.yml'
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 jobs:
-  lar-rar-all-candidate:
+  lar-candidate-full-mhr-sweep:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -38,63 +38,54 @@ jobs:
           repository: timeedmonds-maker/44
           run-id: 34669584507
 
-      - name: Run v32w geometry-selected coherent LAR-RAR solve
+      - name: Run v32x ranks 1 2 3 through unchanged full MHR solve
         shell: bash
         run: |
           set +e
-          mkdir -p v32w work_v32w
-          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32w_lar_all_candidate_epipolar_mhr \
-            --b32-root inputs_b32 --work work_v32w --out v32w --max-nfev 360 2>&1 | tee v32w/run.log
+          mkdir -p v32x work_v32x
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v32x_lar_candidate_sweep \
+            --b32-root inputs_b32 --work work_v32x --out v32x --ranks 1,2,3 --max-nfev 360 2>&1 | tee v32x/run.log
           rc=${PIPESTATUS[0]}
-          echo "$rc" > v32w/solver_exit_code.txt
+          echo "$rc" > v32x/solver_exit_code.txt
           exit 0
 
-      - name: Print v32w diagnostic
+      - name: Print v32x winner diagnostic
         if: always()
         run: |
           python - <<'PY'
           import json, pathlib
-          for n in ('v32v_state_audit.json','v32v_qa.json'):
-              p = pathlib.Path('v32w') / n
-              if not p.exists():
-                  continue
-              q = json.load(open(p))
-              print(n)
-              if n.startswith('v32v_state'):
-                  top=q.get('lar_candidates',[])[:8]
-                  print(json.dumps({
-                    'selected_lar_source':q.get('selected_lar_source'),
-                    'selected_lar_anchor_rel':q.get('selected_lar_anchor_rel'),
-                    'selected_lar_detection_index':q.get('selected_lar_detection_index'),
-                    'selected_lar_epipolar':q.get('selected_lar_epipolar'),
-                    'top_lar_candidates':top},indent=2))
-              else:
-                  keys=['status','selected_lar_source','raw_lar_rar_epipolar','per_camera_reprojection','optimizer','gate']
-                  print(json.dumps({k:q.get(k) for k in keys},indent=2))
+          p=pathlib.Path('v32x/v32x_summary.json')
+          if p.exists():
+              q=json.load(open(p))
+              print(json.dumps({
+                'winner_rank':q.get('winner_rank'),
+                'static_0_15_geometry_unlocked':q.get('static_0_15_geometry_unlocked'),
+                'winner':q.get('winner'),
+                'all_results':q.get('all_results')},indent=2))
           PY
 
-      - name: Package v32w evidence
+      - name: Package v32x evidence
         if: always()
         run: |
           set -euxo pipefail
           mkdir -p delivery
-          cp v32w/* delivery/ 2>/dev/null || true
+          cp -r v32x/* delivery/ 2>/dev/null || true
           rm -f delivery/*.zip
-          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
-          (cd delivery && zip -0 adams_jazz_v32w_lar_all_candidate_epipolar_mhr.zip ./*)
+          test -n "$(find delivery -type f -print -quit)"
+          (cd delivery && zip -0 -r adams_jazz_v32x_lar_candidate_full_mhr_sweep.zip ./*)
 
-      - name: Upload v32w evidence
+      - name: Upload v32x evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: adams-jazz-v32w-lar-all-candidate-epipolar-mhr-${{ github.run_id }}
+          name: adams-jazz-v32x-lar-candidate-full-mhr-sweep-${{ github.run_id }}
           path: delivery/
           retention-days: 14
           if-no-files-found: error
           compression-level: 0
 
-      - name: Enforce fail-closed v32w gate
+      - name: Enforce fail-closed v32x gate
         if: always()
         run: |
           set -euxo pipefail
-          test "$(cat v32w/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
+          test "$(cat v32x/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
