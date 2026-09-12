@@ -1,0 +1,80 @@
+name: Adams Jazz v32c tight quality-cluster prep
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/export_v32b_quality_cluster_4dgs.py'
+      - 'freeze_spin/export_v32c_quality_cluster_tight.py'
+      - '.github/workflows/adams-jazz-v32c-tight-quality-cluster.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  v32c-tight-quality-cluster:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gh zip
+          python -m pip install --quiet numpy opencv-python-headless
+      - name: Retrieve successful v32 Stage-A package
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p v32_stage_a
+          gh run download 34666457582 --repo timeedmonds-maker/44 \
+            --name adams-jazz-v32-stage-a-sharp-latent-all-court-34666457582 \
+            --dir v32_stage_a
+          test -s v32_stage_a/v32_scene_manifest.json
+      - name: Build tight quality-qualified action-cluster dataset
+        run: |
+          set -euxo pipefail
+          python -u -m freeze_spin.export_v32c_quality_cluster_tight \
+            --stage-a v32_stage_a \
+            --out v32c_quality_cluster \
+            --max-tracks 5 | tee v32c_build.log
+      - name: Assert tight foreground contract
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=Path('v32c_quality_cluster')
+          b=json.load(open(r/'v32b_backend.json'))
+          assert b['native_resolution']==[960,540]
+          assert b['selected_track_ids']==[3,4,11,10]
+          assert b['mandatory_anchor_track_id']==3
+          assert b['sharp_latent_required'] is True
+          roi=b['per_camera_action_roi_xyxy']
+          # Tightened view should be materially smaller than v32b's broad ROI.
+          assert roi['Broadcast'][0] > 300 and roi['Broadcast'][2] < 760, roi['Broadcast']
+          assert roi['Left Above Rim'][0] > 330 and roi['Left Above Rim'][2] < 760, roi['Left Above Rim']
+          assert roi['Right Above Rim'][0] > 320 and roi['Right Above Rim'][2] < 760, roi['Right Above Rim']
+          assert (r/'v32b_quality_selection_montage.png').is_file()
+          assert len(list((r/'ims').glob('*.png')))==39
+          print('V32C_TIGHT_QUALITY_CLUSTER_OK')
+          print(json.dumps({'selected_track_ids':b['selected_track_ids'],'rois':roi},indent=2))
+          PY
+      - name: Package v32c GPU-ready inputs
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp -a v32c_quality_cluster/. delivery/
+          cp v32c_build.log delivery/
+          (cd delivery && zip -0 -r v32c_tight_quality_cluster_4dgs_prep.zip . -x 'v32c_tight_quality_cluster_4dgs_prep.zip')
+      - name: Upload v32c package
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32c-tight-quality-cluster-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
