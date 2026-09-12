@@ -5,6 +5,7 @@ on:
     branches: [codex/multi-angle-freeze-spin-poc]
     paths:
       - 'freeze_spin/build_v32f_freeze_only_4dgs.py'
+      - 'freeze_spin/add_v32f_dense_orbit.py'
       - '.github/workflows/adams-jazz-v32f-freeze-only-gaussian-prep.yml'
   workflow_dispatch:
 
@@ -37,47 +38,63 @@ jobs:
           test -s v32e/v32d_backend.json
           test -s v32e/init_pt_cld.npz
 
-      - name: Build t+00-only reconstruction dataset and calibrated orbit
+      - name: Build t+00-only reconstruction dataset and calibrated key orbit
         run: |
           set -euxo pipefail
           python -u freeze_spin/build_v32f_freeze_only_4dgs.py \
             --input v32e --out v32f --freeze-index 6 | tee v32f_build.log
 
+      - name: Add dense 61-view 0-to-25-degree swivel orbit
+        run: |
+          set -euxo pipefail
+          python -u freeze_spin/add_v32f_dense_orbit.py \
+            --dataset v32f --frames 61 | tee v32f_dense_orbit.log
+
       - name: Assert freeze-only and orbit invariants
         run: |
           set -euxo pipefail
           python - <<'PY'
-          import hashlib,json
+          import json
           from pathlib import Path
           r=Path('v32f')
           q=json.load(open(r/'v32f_freeze_only_qa.json'))
+          dq=json.load(open(r/'v32f_dense_orbit_qa.json'))
           tr=json.load(open(r/'train_meta.json'))
           ho=json.load(open(r/'train_meta_holdout_right_above_rim.json'))
           te=json.load(open(r/'test_meta_holdout_right_above_rim.json'))
-          orb=json.load(open(r/'test_meta_orbit_0_25.json'))
+          key=json.load(open(r/'test_meta_orbit_0_25.json'))
+          dense=json.load(open(r/'test_meta_orbit_dense_0_25.json'))
           assert q['status']=='PASS_V32F_FREEZE_ONLY_DATASET_AND_ORBIT'
           assert q['time_steps']==1 and q['real_training_images']==3
           assert q['native_pixels_preserved'] and not q['generated_rgb']
           assert not q['resized'] and not q['warped'] and not q['interpolated'] and not q['upscaled']
           assert q['zero_degree_w2c_max_abs_error'] <= 1e-10
           assert q['max_orbit_radius_error_m'] <= 1e-9
+          assert dq['status']=='PASS_V32F_DENSE_61_VIEW_ORBIT' and dq['frames']==61
+          assert dq['zero_degree_w2c_max_abs_error'] <= 1e-10
+          assert dq['max_orbit_radius_error_m'] <= 1e-9
+          assert dq['generated_rgb'] is False and dq['optical_flow'] is False and dq['crossfade'] is False
           assert len(tr['fn'])==1 and tr['cam_id']==[[0,1,2]]
           assert ho['cam_id']==[[0,1]] and te['cam_id']==[[2]]
-          assert len(orb['fn'])==1 and len(orb['fn'][0])==6
-          assert orb['cam_id']==[[100,101,102,103,104,105]]
+          assert len(key['fn'])==1 and len(key['fn'][0])==6
+          assert key['cam_id']==[[100,101,102,103,104,105]]
+          assert len(dense['fn'])==1 and len(dense['fn'][0])==61
+          assert dense['cam_id'][0]==list(range(1000,1061))
           assert all('t+00_' in x for x in tr['fn'][0])
-          print('PASS_V32F_FREEZE_ONLY_PREP')
-          print(json.dumps(q,indent=2))
+          print('PASS_V32F_FREEZE_ONLY_AND_DENSE_ORBIT_PREP')
+          print(json.dumps({'freeze':q,'dense':dq},indent=2))
           PY
 
       - name: Package GPU-ready freeze proof
         run: |
           set -euxo pipefail
           cp freeze_spin/build_v32f_freeze_only_4dgs.py v32f/
+          cp freeze_spin/add_v32f_dense_orbit.py v32f/
           cp freeze_spin/v32d_4dgs_quality_config.py v32f/
           cp freeze_spin/evaluate_v32d_holdout.py v32f/
           cp freeze_spin/run_v32d_rar_holdout_4dgs.sh v32f/
           cp v32f_build.log v32f/
+          cp v32f_dense_orbit.log v32f/
           mkdir -p delivery
           cp -a v32f/. delivery/
           (cd delivery && zip -0 -r v32f_freeze_only_gpu_ready.zip . -x 'v32f_freeze_only_gpu_ready.zip')
