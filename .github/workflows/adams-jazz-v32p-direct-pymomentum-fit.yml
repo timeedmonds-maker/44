@@ -1,0 +1,103 @@
+name: Adams Jazz v32p direct PyMomentum anatomical fit
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/fit_v32p_pymomentum_geometry_to_v32m_pose.py'
+      - '.github/workflows/adams-jazz-v32p-direct-pymomentum-fit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  direct-pymomentum-fit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONFAULTHANDLER: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable low-level PyMomentum stack
+        run: |
+          set -euxo pipefail
+          python -m pip install --quiet numpy scipy opencv-python-headless pillow 'pymomentum-core>=0.1.111' 'git+https://github.com/facebookresearch/MHR.git'
+
+      - name: Download accepted v32m pose
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32m-rar-single-anchor-34682680955
+          path: inputs_v32m
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34682680955
+
+      - name: Download exact B32 source package
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs_b32
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34669584507
+
+      - name: Run v32p direct anatomical fit
+        shell: bash
+        run: |
+          set +e
+          mkdir -p v32p work_v32p
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.fit_v32p_pymomentum_geometry_to_v32m_pose \
+            --v32m-root inputs_v32m \
+            --b32-root inputs_b32 \
+            --work work_v32p \
+            --out v32p \
+            --max-nfev 180 2>&1 | tee v32p/run.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > v32p/solver_exit_code.txt
+          exit 0
+
+      - name: Print v32p diagnostic
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('v32p/v32p_fit_qa.json')
+          if not p.exists():
+              print('NO_QA_JSON')
+              raise SystemExit(0)
+          q=json.load(open(p))
+          keys=['status','vertex_count','face_count','fit_joint_names','active_model_parameter_count','median_joint_error_cm','p90_joint_error_cm','max_joint_error_cm','external_scale','optimizer_result','gate','camera_projection_qa']
+          print(json.dumps({k:q[k] for k in keys}, indent=2))
+          PY
+
+      - name: Package anatomical evidence
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v32p/* delivery/ 2>/dev/null || true
+          rm -f delivery/*.zip
+          test -n "$(find delivery -maxdepth 1 -type f -print -quit)"
+          (cd delivery && zip -0 adams_jazz_v32p_direct_pymomentum_fit.zip ./*)
+
+      - name: Upload v32p fit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v32p-direct-pymomentum-fit-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Enforce fail-closed v32p gate
+        if: always()
+        run: |
+          set -euxo pipefail
+          test "$(cat v32p/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
