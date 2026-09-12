@@ -25,10 +25,22 @@ jobs:
         run: |
           set -euxo pipefail
           python -m pip install --quiet 'pymomentum-core>=0.1.111' 'trimesh>=4.8.3,<5' 'git+https://github.com/facebookresearch/MHR.git'
-      - name: Download MHR assets
+      - name: Download and bind MHR assets
         run: |
           set -euxo pipefail
           mhr-download-assets
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+          from mhr.io import get_default_asset_folder
+          src = Path.cwd() / 'assets'
+          dst = get_default_asset_folder()
+          assert (src / 'lod1.fbx').exists(), f'MHR assets not found at {src}'
+          dst.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copytree(src, dst, dirs_exist_ok=True)
+          assert (dst / 'lod1.fbx').exists(), f'MHR asset binding failed at {dst}'
+          print('MHR_ASSET_BIND_OK', src, '->', dst)
+          PY
       - name: Probe neutral anatomical landmarks
         run: |
           set -euxo pipefail
