@@ -1,0 +1,107 @@
+name: Capture event352 official NBA player network
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/capture-event352-official-player-network.yml'
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Capture production player requests in headless Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          google-chrome --version || chromium-browser --version || chromium --version || true
+          chromedriver --version || true
+          python -m pip install -q selenium
+          python - <<'PY'
+          import json,time,re,os
+          from pathlib import Path
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.common.by import By
+
+          O=Path('event352_player_network'); O.mkdir(exist_ok=True)
+          opts=Options()
+          opts.add_argument('--headless=new'); opts.add_argument('--no-sandbox'); opts.add_argument('--disable-dev-shm-usage')
+          opts.add_argument('--autoplay-policy=no-user-gesture-required'); opts.add_argument('--window-size=1440,1200')
+          opts.add_argument('--disable-background-networking'); opts.add_argument('--disable-features=Translate,MediaRouter')
+          opts.set_capability('goog:loggingPrefs', {'performance':'ALL','browser':'ALL'})
+          d=webdriver.Chrome(options=opts)
+          try:
+            d.execute_cdp_cmd('Network.enable', {})
+            url='https://www.nba.com/watch/video/steven-adams-with-one-of-the-days-best-assists'
+            print('OPEN',url,flush=True); d.get(url); time.sleep(8)
+            print('TITLE',d.title,flush=True)
+            O.joinpath('page_source.html').write_text(d.page_source,encoding='utf-8')
+            try: d.save_screenshot(str(O/'before_click.png'))
+            except Exception: pass
+            # Close cookie/privacy overlays if present, then click likely play controls.
+            for label in ['Accept All','Accept','I Agree','Continue','Close']:
+              try:
+                for el in d.find_elements(By.XPATH,f"//*[self::button or @role='button'][contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'{label.lower()}')]")[:3]:
+                  if el.is_displayed():
+                    try: d.execute_script('arguments[0].click()',el); time.sleep(.5)
+                    except Exception: pass
+              except Exception: pass
+            clicked=[]
+            candidates=[]
+            for sel in ["button", "[role='button']", "video"]:
+              try: candidates += d.find_elements(By.CSS_SELECTOR,sel)
+              except Exception: pass
+            seen=set()
+            for el in candidates:
+              try:
+                key=(el.tag_name,el.get_attribute('aria-label'),el.get_attribute('title'),el.text[:80])
+                if key in seen: continue
+                seen.add(key)
+                txt=' '.join(str(x or '') for x in key).lower()
+                if 'play' in txt or el.tag_name=='video':
+                  if el.is_displayed():
+                    d.execute_script('arguments[0].click()',el); clicked.append(key); time.sleep(1)
+              except Exception: pass
+            print('CLICKED',clicked[:20],flush=True)
+            # Force any video elements to play as well.
+            try:
+              print('VIDEO_COUNT',d.execute_script('return document.querySelectorAll("video").length'),flush=True)
+              print('VIDEO_PLAY',d.execute_script('return Promise.all(Array.from(document.querySelectorAll("video")).map(v=>v.play().then(()=>"ok").catch(e=>String(e))))'))
+            except Exception as e: print('VIDEO_PLAY_ERR',repr(e),flush=True)
+            time.sleep(15)
+            try: d.save_screenshot(str(O/'after_play.png'))
+            except Exception: pass
+            logs=d.get_log('performance')
+            browsers=d.get_log('browser')
+            O.joinpath('performance.json').write_text(json.dumps(logs,indent=2),encoding='utf-8')
+            O.joinpath('browser.json').write_text(json.dumps(browsers,indent=2),encoding='utf-8')
+            requests=[]
+            for x in logs:
+              try:
+                m=json.loads(x['message'])['message']
+                if m['method']!='Network.requestWillBeSent': continue
+                req=m['params']['request']; u=req['url']
+                low=u.lower()
+                if any(k in low for k in ['m3u8','mpd','manifest','playback','stream','ottapp','cloudapp','akamai','nba_eae0','eae0a37c','signkey','token','license']):
+                  requests.append({'url':u,'method':req.get('method'),'headers':req.get('headers',{})})
+              except Exception: pass
+            # de-duplicate URLs preserving order
+            out=[]; seen=set()
+            for r in requests:
+              if r['url'] in seen: continue
+              seen.add(r['url']); out.append(r)
+            O.joinpath('interesting_requests.json').write_text(json.dumps(out,indent=2),encoding='utf-8')
+            print('INTERESTING',len(out),flush=True)
+            for r in out: print('REQ',r['method'],r['url'][:5000],flush=True)
+            print('BROWSER_LOGS',json.dumps(browsers)[:15000],flush=True)
+          finally:
+            d.quit()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event352-official-player-network
+          path: event352_player_network/
+          retention-days: 7
