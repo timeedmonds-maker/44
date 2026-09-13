@@ -23,6 +23,7 @@ from trackers import BoTSORTTracker
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from fetch_official_nba_event_clip import parse as resolve_clip, UA
+from render_deterministic_master import render as render_presentation
 
 PLAYER_CLASSES = {3, 4, 5, 6, 7}
 BALL_CLASSES = {0, 1}
@@ -476,12 +477,12 @@ def main():
     final=a.out/'adams_screen_overlay_h264.mp4'
     run(['ffmpeg','-y','-v','error','-i',str(out_native),'-i',str(clip),'-map','0:v:0','-map','1:a?','-c:v','libx264','-crf','18','-preset','medium','-pix_fmt','yuv420p','-c:a','aac','-shortest',str(final)],timeout=240)
     uhd=a.out/'adams_screen_overlay_2160p.mp4'
-    run(['ffmpeg','-y','-v','error','-i',str(final),'-vf','scale=3840:2160:flags=lanczos','-c:v','libx264','-crf','18','-preset','slow','-pix_fmt','yuv420p','-c:a','copy',str(uhd)],timeout=300)
+    render_presentation(final, uhd, 'uhd')
     qa={'game_id':a.game,'event_num':a.event,'source':meta,'width':W,'height':H,'fps':fps,'frames':n,
         'analysis_every_frames':every,'court_every_frames':court_every,'tracks':len(by_tid),'team_map':team_map,
         'roles':roles,'number_crops':len(number_rows),'court_calibrated_samples':len(court_by_frame),
         'native_output':str(final),'uhd_output':str(uhd),
-        'note':'2160p is deterministic Lanczos presentation upscale; source imagery remains official native NBA clip.'}
+        'note':'2160p uses the repository-standard deterministic presentation render; official NBA source detail is not altered or invented.'}
     (a.out/'qa.json').write_text(json.dumps(qa,indent=2,default=str)); print(json.dumps(qa,indent=2,default=str))
 
 if __name__=='__main__':
