@@ -1,0 +1,32 @@
+name: Audit video render policy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/render_deterministic_master.py'
+      - 'tools/audit_video_render_policy.py'
+      - 'docs/VIDEO_PRESENTATION_RENDER_POLICY.md'
+      - '**/*.py'
+      - '.github/workflows/*.yml'
+      - '.github/workflows/*.yaml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Audit repository render paths
+        run: python tools/audit_video_render_policy.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-render-policy-audit
+          path: video_render_policy_audit.json
+          if-no-files-found: warn
+          retention-days: 30
