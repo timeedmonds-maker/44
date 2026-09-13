@@ -1,0 +1,80 @@
+name: Recover missing Memphis closer angle for event352
+on:
+  push:
+    paths:
+      - '.github/workflows/recover-event352-missing-closer.yml'
+  workflow_dispatch:
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Probe Twitter syndication, oEmbed, mirrors and web archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p closer_probe
+          python - <<'PY'
+          import requests,json,math,re,string
+          from pathlib import Path
+          tid='1498480988179030019'; handle='memgrizz'
+          H={'User-Agent':'Mozilla/5.0'}
+          # JS-like base36 token used by Twitter syndication.
+          chars='0123456789abcdefghijklmnopqrstuvwxyz'
+          def base36_float(x):
+              n=int(x); frac=x-n
+              out='0' if n==0 else ''
+              while n:
+                  n,r=divmod(n,36); out=chars[r]+out
+              if frac:
+                  out+='.'
+                  for _ in range(20):
+                      frac*=36; d=int(frac); out+=chars[d]; frac-=d
+              return out
+          token=re.sub(r'(0+|\.)','',base36_float((int(tid)/1e15)*math.pi))
+          urls={
+            'oembed':f'https://publish.twitter.com/oembed?url=https://twitter.com/{handle}/status/{tid}&omit_script=1',
+            'synd_no_token':f'https://cdn.syndication.twimg.com/tweet-result?id={tid}&lang=en',
+            'synd_token':f'https://cdn.syndication.twimg.com/tweet-result?id={tid}&lang=en&token={token}',
+            'fx':f'https://api.fxtwitter.com/{handle}/status/{tid}',
+            'vx':f'https://api.vxtwitter.com/{handle}/status/{tid}',
+            'fixupx':f'https://api.fixupx.com/{handle}/status/{tid}',
+            'wayback_cdx':f'https://web.archive.org/cdx/search/cdx?url=twitter.com/{handle}/status/{tid}*&output=json&filter=statuscode:200&filter=mimetype:text/html&collapse=digest&fl=timestamp,original,statuscode,digest&limit=50',
+            'wayback_cdx_x':f'https://web.archive.org/cdx/search/cdx?url=x.com/{handle}/status/{tid}*&output=json&filter=statuscode:200&collapse=digest&fl=timestamp,original,statuscode,digest&limit=50',
+          }
+          print('TOKEN',token)
+          results={}
+          for k,u in urls.items():
+              try:
+                  r=requests.get(u,headers=H,timeout=25,allow_redirects=True)
+                  Path(f'closer_probe/{k}.txt').write_bytes(r.content)
+                  results[k]={'status':r.status_code,'final':r.url,'ct':r.headers.get('content-type'),'bytes':len(r.content),'text':r.text[:1500]}
+                  print('\n###',k,r.status_code,r.url,r.headers.get('content-type'),len(r.content)); print(r.text[:3000])
+              except Exception as e:
+                  results[k]={'error':repr(e)}; print(k,'ERR',repr(e))
+          # For any Wayback captures, retrieve archived HTML and mine video.twimg IDs / t.co links.
+          captures=[]
+          for k in ('wayback_cdx','wayback_cdx_x'):
+              try:
+                  arr=json.loads(Path(f'closer_probe/{k}.txt').read_text())
+                  for row in arr[1:]: captures.append((row[0],row[1]))
+              except: pass
+          mined=[]
+          for i,(ts,orig) in enumerate(captures[:20]):
+              u=f'https://web.archive.org/web/{ts}id_/{orig}'
+              try:
+                  r=requests.get(u,headers=H,timeout=25)
+                  Path(f'closer_probe/archive_{i:02d}_{ts}.html').write_bytes(r.content)
+                  txt=r.text.replace('\\/','/')
+                  hits=list(dict.fromkeys(re.findall(r'https?://[^"\'<>\\\s]+',txt)))
+                  keep=[x for x in hits if 'video.twimg.com' in x or 't.co/' in x or 'pbs.twimg.com' in x]
+                  mined.append({'timestamp':ts,'original':orig,'status':r.status_code,'media_hits':keep})
+                  print('ARCHIVE',ts,r.status_code,'HITS',keep[:30])
+              except Exception as e: mined.append({'timestamp':ts,'original':orig,'error':repr(e)})
+          Path('closer_probe/summary.json').write_text(json.dumps({'token':token,'results':results,'captures':captures,'mined':mined},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event352-missing-closer-probe
+          path: closer_probe/
+          retention-days: 7
