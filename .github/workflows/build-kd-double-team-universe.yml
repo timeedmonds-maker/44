@@ -1,0 +1,25 @@
+name: Build KD double-team possession universe
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/kd-double-team-probe]
+    paths:
+      - 'tools/build_kd_possession_universe_2025_26.py'
+      - '.github/workflows/build-kd-double-team-universe.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyreadr requests
+      - run: python tools/build_kd_possession_universe_2025_26.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kd-double-team-possession-universe-2025-26
+          path: artifacts/kd_double_team_universe
+          if-no-files-found: warn
