@@ -1,0 +1,27 @@
+name: Adams OKC event 240 multi-angle identity audit
+on:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - tools/adams_event240_multiangle_identity.py
+      - .github/workflows/adams-okc-event240-multiangle-identity.yml
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install requests opencv-python-headless numpy
+      - name: Build all-angle identity sheet
+        run: python tools/adams_event240_multiangle_identity.py --game 0022500001 --event 240 --out artifacts/adams_event240_multiangle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-event240-multiangle-identity
+          path: artifacts/adams_event240_multiangle
+          retention-days: 30
