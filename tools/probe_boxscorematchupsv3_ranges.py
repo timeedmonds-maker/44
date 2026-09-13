@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import json, time
+import json
 from pathlib import Path
 import requests
 
-URL='https://stats.nba.com/stats/boxscorematchupsv3'
+URLS=['https://stats.nba.com/stats/boxscorematchupsv3','https://stats.gleague.nba.com/stats/boxscorematchupsv3']
 GAME='0022500001'
 KD=201142
 OUT=Path('artifacts/kd_double_team_probe'); OUT.mkdir(parents=True,exist_ok=True)
@@ -14,16 +14,15 @@ HEAD={
 }
 
 def get(params):
- last=None
- for i in range(5):
+ errs=[]
+ for url in URLS:
   try:
-   r=requests.get(URL,params=params,headers=HEAD,timeout=(8,45))
-   meta={'status':r.status_code,'url':r.url,'prefix':r.text[:160]}
+   r=requests.get(url,params=params,headers=HEAD,timeout=(5,10))
+   meta={'host':url,'status':r.status_code,'url':r.url,'prefix':r.text[:160]}
    if r.status_code==200: return r.json(),meta
-   last=meta
-  except Exception as e: last={'error':repr(e)}
-  time.sleep(min(8,.7*2**i))
- return None,last
+   errs.append(meta)
+  except Exception as e: errs.append({'host':url,'error':repr(e)})
+ return None,{'attempts':errs}
 
 def kd_rows(j):
  out=[]
@@ -49,8 +48,6 @@ def sig(rows):
  keep=['def_personId','def_name','personIdDef','nameIDef','matchupMinutes','partialPossessions','switchesOn','playerPoints','teamPoints','matchupAssists','matchupPotentialAssists','matchupTurnovers','matchupFieldGoalsMade','matchupFieldGoalsAttempted','helpFieldGoalsAttempted','helpFieldGoalsMade','matchupFreeThrowsAttempted']
  return [{k:r.get(k) for k in keep if k in r} for r in rows]
 
-# V3 parameter support is undocumented in nba_api but exposed by hoopR and historical callers.
-# Test full game plus disjoint early/mid/late ranges. RangeType=2 is tenths-of-a-second range mode.
 calls=[
  ('full',dict(GameID=GAME,LeagueID='00',StartPeriod=0,EndPeriod=14,StartRange=0,EndRange=0,RangeType=0)),
  ('q1_first_min',dict(GameID=GAME,LeagueID='00',StartPeriod=1,EndPeriod=1,StartRange=0,EndRange=600,RangeType=2)),
@@ -65,7 +62,6 @@ for name,p in calls:
   rows=kd_rows(j); rec['kd_row_count']=len(rows); rec['kd_rows']=sig(rows)
   (OUT/f'{name}_raw.json').write_text(json.dumps(j,indent=2))
  report['calls'].append(rec)
- print(name,m,'rows',rec.get('kd_row_count'))
+ print(name,m,'rows',rec.get('kd_row_count'),flush=True)
 (OUT/'report.json').write_text(json.dumps(report,indent=2))
-# It is a useful probe even if the endpoint blocks; preserve evidence and only fail on no responses at all.
 if not any(c.get('kd_row_count') is not None for c in report['calls']): raise SystemExit('No successful BoxScoreMatchupsV3 response')
