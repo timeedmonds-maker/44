@@ -1,0 +1,38 @@
+name: Adams OKC multi-angle screen candidate sweep
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/adams-okc-multiangle-candidate-sweep.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        event: [93, 97, 247, 254, 263, 274, 282, 447, 460]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install requests opencv-python-headless numpy
+      - name: Build all-angle evidence sheet
+        run: |
+          python tools/adams_event240_multiangle_identity.py \
+            --game 0022500001 \
+            --event ${{ matrix.event }} \
+            --out artifacts/event_${{ matrix.event }}_multiangle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-event-${{ matrix.event }}-multiangle
+          path: artifacts/event_${{ matrix.event }}_multiangle
+          retention-days: 30
