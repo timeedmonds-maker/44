@@ -1,0 +1,45 @@
+name: Probe KD double-team geometry only
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/kd-double-team-probe]
+    paths:
+      - 'tools/run_kd_geometry_only.py'
+      - '.github/workflows/probe-kd-double-team-geometry.yml'
+jobs:
+  geometry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ffmpeg and fetch official clip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install requests
+          mkdir -p artifacts/kd_geometry
+          python tools/fetch_official_nba_event_clip.py --game 0022500001 --event 321 --out artifacts/kd_geometry/kd_event_321.mp4
+      - name: Install geometry backend
+        run: |
+          git clone --depth 1 https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          pip install -e /tmp/nbacv
+          mkdir -p /tmp/nbacv/models
+          curl -L --retry 3 -o /tmp/nbacv/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Run geometry-only proof
+        env:
+          PYTHONPATH: /tmp/nbacv/src
+        run: |
+          cd /tmp/nbacv
+          python "$GITHUB_WORKSPACE/tools/run_kd_geometry_only.py" --video "$GITHUB_WORKSPACE/artifacts/kd_geometry/kd_event_321.mp4" --out "$GITHUB_WORKSPACE/artifacts/kd_geometry/out" --stop 120 --imgsz 960
+      - name: Inventory
+        if: always()
+        run: find artifacts/kd_geometry -maxdepth 4 -type f -printf '%p %s bytes\n' | sort || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kd-double-team-geometry-proof-event-321
+          path: artifacts/kd_geometry
+          if-no-files-found: warn
