@@ -1,0 +1,63 @@
+name: Recover event352 official NBA award video
+on:
+  push:
+    paths:
+      - '.github/workflows/recover-event352-nba-award.yml'
+  workflow_dispatch:
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install -q -U requests yt-dlp
+      - name: Probe and download NBA official award page
+        shell: bash
+        run: |
+          set -u
+          mkdir -p nba_award
+          URL='https://www.nba.com/watch/video/assist-of-the-year-steven-adams?collection=fan-favorites-2022&plsrc=nba'
+          APIURL='https://api-hub.nba.com/watch/video/assist-of-the-year-steven-adams?collection=fan-favorites-2022&plsrc=nba'
+          yt-dlp --verbose -F "$URL" > nba_award/ytdlp_formats.txt 2>&1 || true
+          yt-dlp --no-playlist --write-info-json --merge-output-format mp4 -f 'bv*+ba/b' -o 'nba_award/official_nba_assist_of_year.%(ext)s' "$URL" > nba_award/ytdlp_download.txt 2>&1 || true
+          python - <<'PY'
+          import requests,re,json,html
+          from pathlib import Path
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36'}
+          urls=['https://www.nba.com/watch/video/assist-of-the-year-steven-adams?collection=fan-favorites-2022&plsrc=nba','https://api-hub.nba.com/watch/video/assist-of-the-year-steven-adams?collection=fan-favorites-2022&plsrc=nba']
+          hits=[]
+          for i,u in enumerate(urls):
+              try:
+                  r=requests.get(u,headers=H,timeout=30,allow_redirects=True)
+                  Path(f'nba_award/page_{i}.html').write_text(r.text,encoding='utf-8')
+                  print('PAGE',i,r.status_code,r.url,len(r.text),r.headers.get('content-type'))
+                  # collect absolute and JSON-escaped media-ish URLs plus useful IDs
+                  txt=html.unescape(r.text.replace('\\u0026','&').replace('\\/','/'))
+                  for x in re.findall(r'https?://[^"\'<>\\\s]+',txt):
+                      if any(k in x.lower() for k in ['.mp4','.m3u8','akamai','brightcove','mux','video','stream']): hits.append(x)
+                  for pat in ['contentId','videoId','mediaId','playbackId','brightcove','m3u8','mp4']:
+                      for m in re.finditer(r'.{0,150}'+pat+r'.{0,300}',txt,re.I|re.S):
+                          print('SNIP',pat,re.sub(r'\s+',' ',m.group(0))[:500])
+              except Exception as e: print('ERR',i,repr(e))
+          Path('nba_award/media_urls.txt').write_text('\n'.join(dict.fromkeys(hits)))
+          print('MEDIA_URL_HITS',len(set(hits)))
+          for x in list(dict.fromkeys(hits))[:100]: print('URLHIT',x)
+          PY
+          find nba_award -maxdepth 1 -type f -printf '%f %s bytes\n'
+      - name: QA downloaded media
+        shell: bash
+        run: |
+          for f in nba_award/*.mp4 nba_award/*.mkv nba_award/*.webm; do
+            [ -e "$f" ] || continue
+            echo "MEDIA $f"
+            ffprobe -v error -show_entries stream=codec_type,codec_name,width,height,avg_frame_rate:format=duration,bit_rate -of json "$f"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event352-official-nba-award-recovery
+          path: nba_award/
+          retention-days: 14
+          if-no-files-found: error
