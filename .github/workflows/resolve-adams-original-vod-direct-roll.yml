@@ -66,6 +66,7 @@ jobs:
           if vp.get('IsEncrypted') is not False: raise SystemExit('Asset unexpectedly encrypted')
 
           # Exact current SDK values decoded from NBA's bundled MediaKind player.
+          # The NBA app passes VideoProfile.Id as mediaId and the parent VOD Id as appId.
           azuki_imc='IMC7.5.0_AN_D3.0.0_S0'
           device_profile={
               'model':'Desktop',
@@ -80,14 +81,14 @@ jobs:
           headers={
               'AuthorizationToken':token,
               'AzukiIMC':azuki_imc,
-              'ApplicationToken':'',
+              'ApplicationToken':EXPECTED_VOD,
               'DeviceProfile':dp,
               'Content-Type':'application/json',
               'User-Agent':UA,
               'Origin':'https://www.nba.com',
               'Referer':'https://www.nba.com/',
           }
-          params={'ownerUid':'azuki','mediaId':EXPECTED_VOD,'sessionId':SESSION_ID,'oid':''}
+          params={'ownerUid':'azuki','mediaId':EXPECTED_PROFILE,'sessionId':SESSION_ID,'oid':''}
           body={'roll':{'inhome':False,'rightsMode':1}}
           rr=s.post(AMP+'/v1/client/roll',params=params,headers=headers,json=body,timeout=30)
           print('ROLL_STATUS',rr.status_code,'CT',rr.headers.get('content-type'),'LEN',len(rr.content),'URL',safe_url(rr.url))
@@ -99,7 +100,6 @@ jobs:
               raise SystemExit('Roll request failed')
           data=rr.json()
 
-          # MediaKind response can wrap data under response.
           root=data.get('response',data)
           manifest_uri=root.get('manifest_uri') or root.get('manifestUri')
           cdns=root.get('cdns') or {}
@@ -118,7 +118,6 @@ jobs:
                   mu=str(manifest_uri)
               else:
                   mu=urljoin(base_uri.rstrip('/')+'/',str(manifest_uri).lstrip('/'))
-              # Current manifests may require the same MediaKind session id.
               sep='&' if '?' in mu else '?'
               if 'sessionId=' not in mu: mu += sep+'sessionId='+quote(SESSION_ID)
               try:
@@ -134,7 +133,6 @@ jobs:
               raise SystemExit('No playable manifest found')
 
           print('PLAYABLE_MANIFEST',safe_url(chosen))
-          # Asset is explicitly unencrypted. Remux native stream without upscaling/re-encoding.
           cmd=['ffmpeg','-y','-loglevel','warning','-headers',f'Referer: https://www.nba.com/\r\nOrigin: https://www.nba.com\r\nUser-Agent: {UA}\r\n','-i',chosen,'-c','copy','out/adams_morant_original_native.mp4']
           p=subprocess.run(cmd,text=True,capture_output=True,timeout=120)
           print('FFMPEG_RC',p.returncode)
