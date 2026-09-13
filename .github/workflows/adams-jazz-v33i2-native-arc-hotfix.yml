@@ -1,0 +1,176 @@
+name: Adams Jazz v33i2 native static arc hotfix
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/run_v33i2_native_arc_fixed.py'
+      - '.github/workflows/adams-jazz-v33i2-native-arc-hotfix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  native-static-arc-hotfix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      PYTHONFAULTHANDLER: '1'
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      V33H_RUN_ID: '34732041170'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install reconstruction runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gh zip
+          python -m pip install --quiet requests pillow scipy opencv-python-headless scikit-image
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision; print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet 'rfdetr>=1.8.1'
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Download accepted v33h evidence
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_v33h
+          gh run download "$V33H_RUN_ID" --repo timeedmonds-maker/44 \
+            --name "adams-jazz-v33h-full-exact-ball-qa-${V33H_RUN_ID}" --dir inputs_v33h
+          test -s inputs_v33h/v33h_body_ball_qa.json
+          python - <<'PY'
+          import json
+          q=json.load(open('inputs_v33h/v33h_body_ball_qa.json'))
+          assert q['status']=='PASS_V33H_NUMERICAL_AWAITING_VISUAL_QA', q['status']
+          assert q['numerical_body_ball_gate_passed'] is True
+          assert q['v33e_integrity']['count_match'] is True
+          assert q['camera_lock']==['Left Above Rim','Right Above Rim','Broadcast']
+          assert q['chosen_state']['rels']=={'Left Above Rim':3,'Right Above Rim':-11,'Broadcast':18}
+          b=q['chosen_state']['ball']
+          assert b['gate'] and b['support_count']>=2 and b['semantic_support_count']>=1
+          print('V33H_ACCEPTED_FOR_V33I2')
+          PY
+
+      - name: Retrieve native event source clips
+        run: |
+          set -euxo pipefail
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          test -n "$(find target_source/clips -type f -name '*_489_Left_Above_Rim_SOURCE.mp4' -print -quit)"
+          test -n "$(find target_source/clips -type f -name '*_489_Right_Above_Rim_SOURCE.mp4' -print -quit)"
+          test -n "$(find target_source/clips -type f -name '*_489_Broadcast_SOURCE.mp4' -print -quit)"
+
+      - name: Retrieve locked calibration evidence
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          set -euxo pipefail
+          mkdir -p inputs_b32 inputs_v73
+          gh run download 34669584507 --repo timeedmonds-maker/44 \
+            --name adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507 --dir inputs_b32
+          gh run download 33911842169 --repo timeedmonds-maker/44 \
+            --name adams-jazz-right-above-rim-metric-camera-v73-33911842169 --dir inputs_v73
+          test -s inputs_b32/stage_a/v32_scene_manifest.json
+          test -s inputs_v73/L_Right_Above_Rim_8.562013s_frame0257.png
+
+      - name: Render fixed native static arc
+        shell: bash
+        run: |
+          set +e
+          mkdir -p v33i2
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v33i2_native_arc_fixed \
+            --clips-dir target_source/clips \
+            --b32-root inputs_b32 \
+            --v73-frame0257 inputs_v73/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --v33h-json inputs_v33h/v33h_body_ball_qa.json \
+            --v33h-artifact-dir inputs_v33h \
+            --out v33i2 --tokens 760 --voxel-cm 2.8 2>&1 | tee v33i2/render.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > v33i2/render_exit_code.txt
+          exit 0
+
+      - name: Build native stepped proof MP4
+        if: always()
+        run: |
+          set -euxo pipefail
+          if [ "$(cat v33i2/render_exit_code.txt 2>/dev/null || echo 99)" = 0 ]; then
+            cat > v33i2/concat_v33i2.txt <<'EOF'
+          file 'v12_00deg.png'
+          duration 0.45
+          file 'v12_05deg.png'
+          duration 0.45
+          file 'v12_10deg.png'
+          duration 0.45
+          file 'v12_15deg.png'
+          duration 0.45
+          file 'v12_20deg.png'
+          duration 0.45
+          file 'v12_25deg.png'
+          duration 0.80
+          file 'v12_25deg.png'
+          EOF
+            (cd v33i2 && ffmpeg -y -v error -f concat -safe 0 -i concat_v33i2.txt \
+              -vf 'fps=30,format=yuv420p' -c:v libx264 -crf 16 -preset medium -movflags +faststart \
+              adams_jazz_v33i2_native_static_arc.mp4)
+          fi
+
+      - name: Assert hard invariants
+        if: always()
+        run: |
+          set -euxo pipefail
+          test "$(cat v33i2/render_exit_code.txt 2>/dev/null || echo 99)" = 0
+          python - <<'PY'
+          import json,cv2,numpy as np
+          from pathlib import Path
+          r=Path('v33i2'); q=json.load(open(r/'three_camera_mesh_v12_qa.json'))
+          x=q['v33i_locked_state_adapter']
+          assert x['camera_lock']==['Left Above Rim','Right Above Rim','Broadcast']
+          assert x['rels']=={'Left Above Rim':3,'Right Above Rim':-11,'Broadcast':18}
+          assert x['native_resolution']==[960,540]
+          assert not x['generated_rgb'] and not x['inpainting'] and not x['crossfade'] and not x['upscale'] and not x['uhd']
+          assert q['ball']['status']=='BALL_LOCKED_FROM_V33H_HARDENED_SOURCE_QA'
+          assert q['ball']['semantic_support_count'] >= 1
+          assert len(q['ball']['views']) >= 2
+          for a in (0,5,10,15,20,25):
+              im=cv2.imread(str(r/f'v12_{a:02d}deg.png')); assert im is not None and im.shape[:2]==(540,960)
+          src=cv2.imread(str(r/'v33i_selected_frames/v33h_source_Left_Above_Rim.png'))
+          a0=cv2.imread(str(r/'v12_00deg.png'))
+          assert src is not None and a0 is not None
+          assert np.array_equal(src,a0), '0-degree anchor is not exact source RGB'
+          print('V33I2_NUMERICAL_INVARIANTS_OK')
+          PY
+          test -s v33i2/adams_jazz_v33i2_native_static_arc.mp4
+
+      - name: Package proof
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v33i2/render.log delivery/ 2>/dev/null || true
+          cp v33i2/render_exit_code.txt delivery/ 2>/dev/null || true
+          cp v33i2/three_camera_mesh_v12_qa.json delivery/ 2>/dev/null || true
+          cp v33i2/v12_key_arc_montage.png delivery/ 2>/dev/null || true
+          cp v33i2/v12_*deg.png delivery/ 2>/dev/null || true
+          cp v33i2/v22_focal_*.png delivery/ 2>/dev/null || true
+          cp v33i2/v23_focal_*.png delivery/ 2>/dev/null || true
+          cp v33i2/v33i_selected_frames/*.png delivery/ 2>/dev/null || true
+          cp v33i2/adams_jazz_v33i2_native_static_arc.mp4 delivery/ 2>/dev/null || true
+          cp inputs_v33h/v33h_body_ball_qa.json delivery/ 2>/dev/null || true
+          cp inputs_v33h/v33h_three_camera_body_ball_montage.png delivery/ 2>/dev/null || true
+          (cd delivery && zip -0 adams_jazz_v33i2_native_static_arc_package.zip ./*)
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v33i2-native-static-arc-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
