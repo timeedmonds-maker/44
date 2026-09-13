@@ -1,0 +1,88 @@
+name: Adams OKC event 447 track identity solve
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/adams_event_track_identity_ocr.py'
+      - '.github/workflows/adams-okc-event447-track-identity.yml'
+      - 'tools/adams_screen_prod_v3.py'
+      - 'tools/adams_screen_prod_poc.py'
+      - 'data/rosters/0022500001.json'
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git
+      - name: Install tracking stack
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install pyreadr requests ultralytics scipy 'numpy<2'
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx \
+            https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
+            https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Build event 447 native tracks
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022500001 --event 447 \
+            --start-s 6.0 --end-s 10.1 \
+            --analysis-fps 12 --number-fps 4 --court-fps 0.5 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/event447_tracks
+      - name: Install jersey OCR dependencies
+        run: |
+          pip install timm pytorch-lightning pillow tqdm pyyaml gdown scikit-learn nltk
+          mkdir -p /tmp/nbacv/models
+          gdown -q 1uRln22tlhneVt3P6MePmVxBWSLMsL3bm -O /tmp/nbacv/models/parseq_soccernet.ckpt
+          gdown -q 18HAuZbge3z8TSfRiX_FzsnKgiBs-RRNw -O /tmp/nbacv/models/legibility_soccernet.pth
+      - name: Resolve track identities from multi-frame jersey evidence
+        run: |
+          python tools/adams_event_track_identity_ocr.py \
+            --tracks artifacts/event447_tracks/tracks.csv \
+            --source artifacts/event447_tracks/source_native.mp4 \
+            --context artifacts/event447_tracks/context.json \
+            --roster data/rosters/0022500001.json \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/event447_track_identity
+      - name: Report identity QA
+        if: always()
+        run: |
+          cat artifacts/event447_track_identity/qa.json || true
+          echo '--- track identity ---'
+          cat artifacts/event447_track_identity/track_identity.csv || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-event447-track-identity
+          path: |
+            artifacts/event447_track_identity
+            artifacts/event447_tracks/track_contact_sheet.jpg
+            artifacts/event447_tracks/tracks.csv
+            artifacts/event447_tracks/context.json
+            artifacts/event447_tracks/source_native.mp4
+          if-no-files-found: warn
+          retention-days: 30
