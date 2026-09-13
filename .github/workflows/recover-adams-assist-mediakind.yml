@@ -1,0 +1,90 @@
+name: Recover Adams assist through current NBA MediaKind API
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-adams-assist-mediakind.yml'
+  workflow_dispatch:
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Resolve NBA STS token and MediaKind play options
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, json, uuid, requests
+          from pathlib import Path
+
+          OUT=Path('mediakind_recovery'); OUT.mkdir(exist_ok=True)
+          identity='https://identity.nba.com/api/v1'
+          ott='https://ottapp-appgw-client.nba.com'
+          external='202206011217NBA_____VIDEOS__NBAE_2590852'
+          H={
+            'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36',
+            'content-type':'application/json',
+            'x-client-platform':'web',
+            'x-client-id':'Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs',
+            'Origin':'https://www.nba.com',
+            'Referer':'https://www.nba.com/'
+          }
+          s=requests.Session(); s.headers.update(H)
+          dev=str(uuid.uuid4())
+          r=s.get(identity+'/sts',params={'deviceId':dev},timeout=25)
+          print('STS_STATUS',r.status_code,'CT',r.headers.get('content-type'),'BYTES',len(r.content),flush=True)
+          OUT.joinpath('sts_response.json').write_text(r.text)
+          r.raise_for_status()
+          j=r.json()
+          data=j.get('data',j)
+          token=data.get('AccessToken') or data.get('accessToken') or data.get('token')
+          if not token:
+            print('STS_KEYS',list(data) if isinstance(data,dict) else type(data).__name__,flush=True)
+            raise SystemExit('No STS token in NBA identity response')
+          print('::add-mask::'+token)
+          print('STS_OK token_length',len(token),flush=True)
+
+          mh={'User-Agent':H['User-Agent'],'Authorization':f'OAUTH2 access_token="{token}"','content-type':'application/json','Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          loc=s.get(ott+'/S1/subscriber/location-lookup',headers=mh,timeout=25)
+          print('LOCATION_STATUS',loc.status_code,'BYTES',len(loc.content),flush=True)
+          OUT.joinpath('location_response.json').write_text(loc.text)
+          loc.raise_for_status(); lj=loc.json()
+          # NBA web encodes the camel-cased location object as base64 JSON.
+          def camel(k):
+            return k[:1].lower()+k[1:]
+          norm={camel(k):v for k,v in lj.items()} if isinstance(lj,dict) else {}
+          country=norm.get('countryCode') or norm.get('country') or 'US'
+          postal=norm.get('postalCode') or ''
+          detail=base64.b64encode(json.dumps({'PostalCode':postal,'CountryCode':country},separators=(',',':')).encode()).decode()
+          print('LOCATION',country,postal,flush=True)
+
+          url=ott+f'/S1/subscriber/v3/programs/{external}/play-options'
+          q={'IsexternalId':'true','locationDetail':detail}
+          p=s.get(url,params=q,headers=mh,timeout=30)
+          print('PLAY_STATUS',p.status_code,'CT',p.headers.get('content-type'),'BYTES',len(p.content),flush=True)
+          OUT.joinpath('play_options.json').write_text(p.text)
+          print('PLAY_SAMPLE',p.text[:12000],flush=True)
+          p.raise_for_status()
+          pj=p.json()
+          streams=[]
+          for v in pj.get('Vods',[]) or []:
+            for a in v.get('PlayActions',[]) or []:
+              vp=a.get('VideoProfile') or {}
+              streams.append({'ExternalId':v.get('ExternalId'),'VideoProfile':vp,'PlayAction':a})
+          for sch in pj.get('Schedules',[]) or []:
+            for prod in sch.get('Productions',[]) or []:
+              for a in prod.get('PlayActions',[]) or []:
+                streams.append({'VideoProfile':a.get('VideoProfile') or {},'PlayAction':a})
+          print('PLAY_ACTIONS',len(streams),flush=True)
+          for x in streams:
+            print('PROFILE',json.dumps(x,ensure_ascii=False)[:5000],flush=True)
+          OUT.joinpath('profiles.json').write_text(json.dumps(streams,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-assist-mediakind-recovery
+          path: mediakind_recovery/
+          retention-days: 7
