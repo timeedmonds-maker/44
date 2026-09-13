@@ -37,6 +37,11 @@ ANALYSIS_FPS = max(0.25, _arg_float('--analysis-fps', 10.0))
 class TimeConsistentBoTSORT(_BoTSORTTracker):
     """BoT-SORT configured for sampled detections, with explicit timestamps."""
 
+    # trackers.BaseTracker validates every inherited search-space key against
+    # the subclass __init__ signature. This wrapper intentionally owns no tuning
+    # space, so clear the inherited registry.
+    search_space = {}
+
     def __init__(self, *args, frame_rate=30.0, **kwargs):
         self._analysis_fps = ANALYSIS_FPS
         self._sample_index = 0
