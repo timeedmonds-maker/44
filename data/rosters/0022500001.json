@@ -1,0 +1,35 @@
+{
+  "game_id": "0022500001",
+  "teams": {
+    "HOU": {
+      "players": [
+        {"id": 1629006, "name": "Josh Okogie", "jersey": "20", "height_cm": 193},
+        {"id": 1630578, "name": "Alperen Sengun", "jersey": "28", "height_cm": 211},
+        {"id": 1631095, "name": "Jabari Smith Jr.", "jersey": "10", "height_cm": 211},
+        {"id": 1631106, "name": "Tari Eason", "jersey": "17", "height_cm": 203},
+        {"id": 1641708, "name": "Amen Thompson", "jersey": "1", "height_cm": 201},
+        {"id": 1642263, "name": "Reed Sheppard", "jersey": "15", "height_cm": 191},
+        {"id": 201142, "name": "Kevin Durant", "jersey": "7", "height_cm": 208},
+        {"id": 203500, "name": "Steven Adams", "jersey": "12", "height_cm": 211}
+      ]
+    },
+    "OKC": {
+      "players": [
+        {"id": 1627936, "name": "Alex Caruso", "jersey": "9", "height_cm": 196},
+        {"id": 1628392, "name": "Isaiah Hartenstein", "jersey": "55", "height_cm": 213},
+        {"id": 1628983, "name": "Shai Gilgeous-Alexander", "jersey": "2", "height_cm": 198},
+        {"id": 1629652, "name": "Luguentz Dort", "jersey": "5", "height_cm": 193},
+        {"id": 1630598, "name": "Aaron Wiggins", "jersey": "21", "height_cm": 198},
+        {"id": 1631096, "name": "Chet Holmgren", "jersey": "7", "height_cm": 216},
+        {"id": 1631119, "name": "Jaylin Williams", "jersey": "6", "height_cm": 208},
+        {"id": 1641717, "name": "Cason Wallace", "jersey": "22", "height_cm": 193},
+        {"id": 1642349, "name": "Ajay Mitchell", "jersey": "25", "height_cm": 193}
+      ]
+    }
+  },
+  "provenance": {
+    "jersey_numbers": "NBA.com HOU-OKC 0022500001 game charts",
+    "heights": "NBA 2025-26 team game notes/roster listings; rounded to nearest cm",
+    "player_ids": "ramirobentes nba_pbp_data lineup fields for 0022500001 Adams-on-court possessions"
+  }
+}
