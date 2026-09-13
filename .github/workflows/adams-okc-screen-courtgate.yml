@@ -1,0 +1,147 @@
+name: Adams OKC court-gated screen scan
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/adams_screen_temporal_courtgate.py'
+      - '.github/workflows/adams-okc-screen-courtgate.yml'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build exact opener universe
+        run: |
+          pip install pandas pyreadr requests
+          python tools/build_adams_okc_opener_possessions.py
+          mkdir -p artifacts/shards artifacts/models
+          python - <<'PY'
+          import pandas as pd
+          d=pd.read_csv('artifacts/adams_okc_opener/adams_okc_opener_possessions.csv',dtype={'game_id':str})
+          # 10 balanced possession shards; complete possession stays together.
+          for i in range(10):
+              d.iloc[i::10].to_csv(f'artifacts/shards/shard_{i}.csv',index=False)
+          print({'rows':len(d),'shards':10})
+          PY
+      - name: Export tiny person-ball detector once
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install ultralytics onnx onnxslim
+          python - <<'PY'
+          from ultralytics import YOLO
+          from pathlib import Path
+          p=Path(YOLO('yolo11n.pt').export(format='onnx',imgsz=640,opset=12,dynamic=False,simplify=True,nms=False))
+          Path('artifacts/models/yolo11n.onnx').write_bytes(p.read_bytes())
+          PY
+      - name: Download court pose checkpoint
+        run: |
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
+            https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-courtgate-bundle
+          path: |
+            artifacts/shards
+            artifacts/models/yolo11n.onnx
+            artifacts/models/court_yolo11m_pose.pt
+            artifacts/adams_okc_opener/adams_okc_opener_possessions.csv
+          if-no-files-found: error
+
+  scan:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install court/CV stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install pandas requests opencv-python-headless numpy ultralytics tqdm scipy
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - uses: actions/download-artifact@v4
+        with:
+          name: adams-okc-courtgate-bundle
+          path: artifacts/bundle
+      - name: Court-gated temporal screen scan
+        run: |
+          python tools/adams_screen_temporal_courtgate.py \
+            --input "artifacts/bundle/shards/shard_${{ matrix.shard }}.csv" \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --court-model artifacts/bundle/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out "artifacts/courtgate/shard_${{ matrix.shard }}" \
+            --sample-fps 6 --max-seconds 16 --target-hls-width 960
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-courtgate-${{ matrix.shard }}
+          path: artifacts/courtgate/shard_${{ matrix.shard }}
+          if-no-files-found: error
+
+  fan_in:
+    needs: scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: adams-okc-courtgate-*
+          path: artifacts/all
+      - name: Merge court-gated results
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          root=Path('artifacts/all')
+          cs=[]; ss=[]
+          for p in root.rglob('court_screen_candidates.csv'):
+              cs.append(pd.read_csv(p,dtype={'game_id':str}))
+          for p in root.rglob('court_screen_sequences.csv'):
+              try:
+                  x=pd.read_csv(p,dtype={'game_id':str})
+                  if len(x): ss.append(x)
+              except Exception: pass
+          c=pd.concat(cs,ignore_index=True).sort_values(['period','start_time'],ascending=[True,False])
+          s=pd.concat(ss,ignore_index=True) if ss else pd.DataFrame()
+          out=Path('artifacts/merged'); out.mkdir(parents=True,exist_ok=True)
+          c.to_csv(out/'adams_okc_court_screen_candidates.csv',index=False)
+          s.to_csv(out/'adams_okc_court_screen_sequences.csv',index=False)
+          qa={
+            'possessions':len(c),
+            'candidate_possessions':int(c.court_candidate.sum()),
+            'total_sequences':int(c.court_screen_sequences.sum()),
+            'candidate_rate':float(c.court_candidate.mean()),
+            'mean_calibration_coverage':float(c.mean_calibration_coverage.dropna().mean()) if c.mean_calibration_coverage.notna().any() else None,
+            'mean_tracks_removed':float((c.raw_track_count-c.kept_track_count).mean()),
+            'error_rows':int(c.errors.fillna('').astype(str).ne('').sum())
+          }
+          (out/'qa.json').write_text(json.dumps(qa,indent=2))
+          print(json.dumps(qa,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-courtgate-merged
+          path: artifacts/merged
+          if-no-files-found: error
