@@ -1,0 +1,36 @@
+name: Probe current clips HLS
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-current-clips-hls.yml'
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install ffmpeg and probe known 2025-26 event
+        shell: bash
+        run: |
+          sudo apt-get update >/dev/null
+          sudo apt-get install -y ffmpeg >/dev/null
+          python - <<'PY'
+          import html,re,requests,subprocess,json
+          game='0022500375'; event='608'
+          u=f'https://clips.nba.com/?gameNo={game}&eventNum={event}&source=grs'
+          h={'User-Agent':'Mozilla/5.0','Referer':'https://clips.nba.com/'}
+          r=requests.get(u,headers=h,timeout=30); print('PAGE',r.status_code,len(r.text),r.url)
+          opts=[]
+          for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',r.text,re.I|re.S):
+              url=html.unescape(m.group(1).strip()); label=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
+              if 'lrmedia.nba.com' in url and '.m3u8' in url: opts.append((label,url,'selected' in m.group(2).lower()))
+          print('ANGLES',[(x[0],x[2]) for x in opts])
+          if not opts: raise SystemExit('no HLS')
+          label,url,_=next((x for x in opts if x[2]),opts[0])
+          print('SELECTED',label,url.split('?')[0])
+          p=subprocess.run(['ffmpeg','-y','-v','error','-rw_timeout','30000000','-headers','User-Agent: Mozilla/5.0\r\nReferer: https://clips.nba.com/\r\n','-i',url,'-t','2','-c','copy','/tmp/probe.mp4'],capture_output=True,text=True)
+          print('FFMPEG_RC',p.returncode); print('FFMPEG_ERR',p.stderr[-3000:])
+          if p.returncode==0:
+              q=subprocess.run(['ffprobe','-v','error','-show_entries','stream=width,height,avg_frame_rate:format=duration','-of','json','/tmp/probe.mp4'],capture_output=True,text=True)
+              print('FFPROBE',q.stdout)
+          raise SystemExit(p.returncode)
+          PY
