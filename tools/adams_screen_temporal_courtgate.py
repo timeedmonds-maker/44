@@ -23,15 +23,7 @@ from adams_screen_temporal_onnx import associate, cluster_tracks, detect_sequenc
 
 
 def raw_court_polygons(frame_paths, court_model, device='cpu', conf=0.32, min_kp=5):
-    """Return per-frame convex hulls of visible court landmarks.
-
-    This is intentionally less strict than metric homography calibration.  We
-    only need an image-space participation gate here: player feet should lie
-    on or very near the visible playing floor.  A nearest-good polygon is
-    reused for short gaps because the sampled broadcast camera moves slowly.
-    """
     from nbacv.court import _court_infer
-
     hulls = [None] * len(frame_paths)
     good_size = 640
     sizes = [640, 960]
@@ -54,8 +46,6 @@ def raw_court_polygons(frame_paths, court_model, device='cpu', conf=0.32, min_kp
         if best is not None:
             hulls[i] = cv2.convexHull(best)
             detected += 1
-
-    # Bridge only short gaps. At 6 fps, +/-3 samples is about half a second.
     good = [i for i, h in enumerate(hulls) if h is not None]
     if good:
         for i, h in enumerate(hulls):
@@ -69,7 +59,6 @@ def raw_court_polygons(frame_paths, court_model, device='cpu', conf=0.32, min_kp
 
 
 def polygon_gate(people_pf, hulls, frame_paths, margin_frac=0.085):
-    """Remove detections whose footpoint is clearly outside the court hull."""
     out = []
     tested = kept = removed = 0
     for pth, people, hull in zip(frame_paths, people_pf, hulls):
@@ -93,13 +82,6 @@ def polygon_gate(people_pf, hulls, frame_paths, margin_frac=0.085):
 
 
 def keep_two_player_clusters(tracked, labels):
-    """Retain the two colour clusters with the most on-frame mass.
-
-    cluster_tracks uses k=3 when enough tracks exist; the third cluster is
-    normally officials/staff.  Counting detections rather than distinct
-    track ids makes the two five-player uniform groups dominate short track
-    fragmentation.
-    """
     mass = Counter()
     for dets in tracked:
         for d in dets:
@@ -146,7 +128,8 @@ def main():
             best = None
             sampled = bh_obs = 0
             raw_tracks = player_tracks = 0
-            raw_poly_cov = bridged_poly_cov = []
+            raw_poly_cov = []
+            bridged_poly_cov = []
             poly_removed = 0
             errors = []
 
@@ -168,7 +151,8 @@ def main():
                         balls_pf.append(model.detect_class(fr, 32, args.ball_conf, 0.35))
 
                     hulls, raw_cov, bridge_cov = raw_court_polygons(paths, court_model)
-                    raw_poly_cov.append(raw_cov); bridged_poly_cov.append(bridge_cov)
+                    raw_poly_cov.append(raw_cov)
+                    bridged_poly_cov.append(bridge_cov)
                     court_people, gate_stats = polygon_gate(people_pf, hulls, paths)
                     poly_removed += gate_stats['removed']
 
