@@ -14,9 +14,13 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 3
       matrix:
-        event: [308, 332, 545, 845]
+        # Exact HOU terminal anchors from the possession universe. 333 is the
+        # Durant make assisted by Adams; 545 is a useful non-Adams-screen
+        # control; 855 is the late-2OT Sengun make. Do not substitute the
+        # preceding OKC event numbers (e.g. 332/845).
+        event: [333, 545, 855]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -38,7 +42,7 @@ jobs:
           python tools/build_nba_event_audit_sheet.py \
             --input artifacts/event_${{ matrix.event }}/source.mp4 \
             --out artifacts/event_${{ matrix.event }}/contact.jpg \
-            --frames 12
+            --frames 16
       - uses: actions/upload-artifact@v4
         with:
           name: adams-okc-candidate-event-${{ matrix.event }}
