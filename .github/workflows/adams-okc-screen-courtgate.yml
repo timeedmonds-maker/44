@@ -25,7 +25,6 @@ jobs:
           python - <<'PY'
           import pandas as pd
           d=pd.read_csv('artifacts/adams_okc_opener/adams_okc_opener_possessions.csv',dtype={'game_id':str})
-          # 10 balanced possession shards; complete possession stays together.
           for i in range(10):
               d.iloc[i::10].to_csv(f'artifacts/shards/shard_{i}.csv',index=False)
           print({'rows':len(d),'shards':10})
@@ -80,7 +79,7 @@ jobs:
         with:
           name: adams-okc-courtgate-bundle
           path: artifacts/bundle
-      - name: Court-gated temporal screen scan
+      - name: Court-polygon temporal screen scan
         run: |
           python tools/adams_screen_temporal_courtgate.py \
             --input "artifacts/bundle/shards/shard_${{ matrix.shard }}.csv" \
@@ -133,8 +132,10 @@ jobs:
             'candidate_possessions':int(c.court_candidate.sum()),
             'total_sequences':int(c.court_screen_sequences.sum()),
             'candidate_rate':float(c.court_candidate.mean()),
-            'mean_calibration_coverage':float(c.mean_calibration_coverage.dropna().mean()) if c.mean_calibration_coverage.notna().any() else None,
-            'mean_tracks_removed':float((c.raw_track_count-c.kept_track_count).mean()),
+            'mean_raw_polygon_coverage':float(c.mean_raw_polygon_coverage.dropna().mean()) if c.mean_raw_polygon_coverage.notna().any() else None,
+            'mean_bridged_polygon_coverage':float(c.mean_bridged_polygon_coverage.dropna().mean()) if c.mean_bridged_polygon_coverage.notna().any() else None,
+            'polygon_removed_detections':int(c.polygon_removed_detections.sum()),
+            'mean_tracks_removed_by_cluster_gate':float((c.raw_track_count-c.player_track_count).mean()),
             'error_rows':int(c.errors.fillna('').astype(str).ne('').sum())
           }
           (out/'qa.json').write_text(json.dumps(qa,indent=2))
