@@ -1,0 +1,55 @@
+name: Probe Adams assist current official playback
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-adams-assist-current-official-playback.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe NBA guest playback flow
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, json, requests, re
+          from urllib.parse import quote
+
+          page='https://www.nba.com/watch/video/assist-of-the-year-steven-adams'
+          ext='fake_202206011217NBA_____VIDEOS__NBAE_2590852_NBA_movie'
+          base='https://ottapp-appgw-client.nba.com'
+          ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36'
+          s=requests.Session(); s.headers.update({'User-Agent':ua,'Accept':'*/*','Referer':'https://www.nba.com/'})
+          r=s.get(page,timeout=30)
+          print('PAGE',r.status_code,'cookies',[(c.name,len(c.value)) for c in s.cookies])
+          # page-derived identifiers only
+          for name in ['mediakindauth2token','tveStsToken','OPIN_STS_TOKEN_COOKIE']:
+              val=s.cookies.get(name)
+              print('COOKIE',name,'present',bool(val),'len',len(val) if val else 0)
+          tokens=[]
+          for c in s.cookies:
+              if c.name in ('mediakindauth2token','tveStsToken') and c.value:
+                  tokens.append((c.name,c.value))
+          # Also inspect raw Set-Cookie names, never print values
+          print('SET_COOKIE_NAMES',re.findall(r'(?:^|,|;)\s*([^=;,\s]+)=',r.headers.get('set-cookie','')))
+          locs=[
+            {'PostalCode':'','CountryCode':''},
+            {'PostalCode':'10001','CountryCode':'US'},
+            {'PostalCode':'1010','CountryCode':'NZ'},
+          ]
+          def enc(x): return base64.b64encode(json.dumps(x,separators=(',',':')).encode()).decode()
+          for loc in locs:
+              url=f"{base}/S1/subscriber/v3/programs/{quote(ext,safe='')}/play-options?IsexternalId=true&locationDetail={quote(enc(loc),safe='')}"
+              variants=[('none',None)]+tokens
+              for label,tok in variants:
+                  h={'Content-Type':'application/json','Origin':'https://www.nba.com','Referer':page,'User-Agent':ua}
+                  if tok: h['Authorization']=f'OAUTH2 access_token="{tok}"'
+                  try:
+                      q=s.get(url,headers=h,timeout=20,allow_redirects=True)
+                      body=q.text[:12000]
+                      print('PLAY_OPTIONS',loc,label,q.status_code,q.headers.get('content-type'),'len',len(q.content))
+                      print('BODY',body)
+                  except Exception as e:
+                      print('ERR',loc,label,type(e).__name__,str(e)[:300])
+          PY
