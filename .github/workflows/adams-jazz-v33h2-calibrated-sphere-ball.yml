@@ -12,6 +12,7 @@ permissions:
   contents: read
   actions: read
 
+# Dispatch marker: 2026-09-13 deadline render solve.
 jobs:
   calibrated-sphere-ball:
     runs-on: ubuntu-24.04
