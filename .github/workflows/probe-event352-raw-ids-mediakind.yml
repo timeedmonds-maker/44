@@ -1,0 +1,48 @@
+name: Probe event352 raw angle IDs in MediaKind
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-event352-raw-ids-mediakind.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Test MediaKind external-ID patterns for 12 raw camera objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,json,uuid,requests
+          from concurrent.futures import ThreadPoolExecutor,as_completed
+          UA='Mozilla/5.0'; identity='https://identity.nba.com/api/v1'; ott='https://ottapp-appgw-client.nba.com'
+          s=requests.Session(); H={'User-Agent':UA,'content-type':'application/json','x-client-platform':'web','x-client-id':'Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs','Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          r=s.get(identity+'/sts',params={'deviceId':str(uuid.uuid4())},headers=H,timeout=25); r.raise_for_status(); d=r.json().get('data',r.json()); token=d.get('AccessToken') or d.get('accessToken') or d.get('token'); print('::add-mask::'+token)
+          mh={'User-Agent':UA,'Authorization':f'OAUTH2 access_token="{token}"','content-type':'application/json','Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          loc=s.get(ott+'/S1/subscriber/location-lookup',headers=mh,timeout=20).json(); country=loc.get('CountryCode') or loc.get('countryCode') or 'US'; postal=loc.get('PostalCode') or loc.get('postalCode') or ''; detail=base64.b64encode(json.dumps({'PostalCode':postal,'CountryCode':country},separators=(',',':')).encode()).decode()
+          ids=['0001254774','0001254773','0001254776','0001254771','0001254768','0001254764','0001254766','0001254775','0001254770','0001254769','0001254765','0001254767']
+          pats=[]
+          for x in ids:
+            pats += [x,x+'_1509kbps',f'NBA_{x}',f'NBA_{x}_1509kbps',f'fake_{x}_NBA_movie',f'fake_{x}_1509kbps_NBA_movie',f'fake_NBA_{x}_NBA_movie']
+          def go(external):
+            try:
+              u=ott+f'/S1/subscriber/v3/programs/{external}/play-options'; p=s.get(u,params={'IsexternalId':'true','locationDetail':detail},headers=mh,timeout=12); j=p.json() if p.headers.get('content-type','').startswith('application/json') else {}; return external,p.status_code,len(j.get('Vods',[]) or []),len(j.get('Schedules',[]) or []),j
+            except Exception as e:return external,'ERR',0,0,{'error':repr(e)}
+          with ThreadPoolExecutor(max_workers=20) as pool:
+            rows=[f.result() for f in as_completed([pool.submit(go,x) for x in pats])]
+          hits=[]
+          for ext,status,vods,sched,j in sorted(rows):
+            if status!=200 or vods or sched:
+              print('RESULT',ext,status,'VODS',vods,'SCHED',sched,json.dumps(j)[:5000],flush=True)
+            if vods or sched: hits.append({'external':ext,'response':j})
+          print('TESTED',len(rows),'HITS',len(hits),flush=True)
+          open('raw_id_mediakind_hits.json','w').write(json.dumps(hits,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event352-raw-id-mediakind-probe
+          path: raw_id_mediakind_hits.json
+          retention-days: 7
