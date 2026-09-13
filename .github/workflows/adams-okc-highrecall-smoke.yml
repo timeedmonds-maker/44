@@ -1,0 +1,47 @@
+name: Adams OKC high-recall screen smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/adams-okc-highrecall-smoke.yml'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CV stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install pandas requests opencv-python-headless numpy ultralytics tqdm scipy
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - uses: actions/download-artifact@v4
+        with:
+          name: adams-okc-courtgate-bundle
+          path: artifacts/bundle
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 34746303798
+      - name: High-recall screen interactions on shard 6
+        run: |
+          python tools/adams_screen_highrecall_court.py \
+            --input artifacts/bundle/shards/shard_6.csv \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --court-model artifacts/bundle/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/highrecall \
+            --sample-fps 4 --max-seconds 16 --target-hls-width 960 --court-stride 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-highrecall-smoke
+          path: artifacts/highrecall
+          if-no-files-found: error
