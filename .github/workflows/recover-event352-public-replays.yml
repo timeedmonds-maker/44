@@ -1,0 +1,138 @@
+name: Recover Morant-Adams event352 surviving public replays
+on:
+  push:
+    paths:
+      - '.github/workflows/recover-event352-public-replays.yml'
+  workflow_dispatch:
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install download and media tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install -q -U yt-dlp
+          yt-dlp --version
+
+      - name: Download highest available source streams without re-encoding
+        shell: bash
+        run: |
+          set -u
+          mkdir -p recovered raw_meta
+          cat > /tmp/sources.tsv <<'EOF'
+          01_memgrizz_original	https://twitter.com/memgrizz/status/1498480363567554560
+          02_memgrizz_closer	https://twitter.com/memgrizz/status/1498480988179030019
+          03_funakistats_backside	https://twitter.com/funakistats/status/1504690076835794947
+          04_bleacher_report	https://twitter.com/BleacherReport/status/1498480940821008388
+          05_bally_grizzlies	https://t.co/TNxPBy1NcG
+          06_nba_assist_of_year	https://www.youtube.com/watch?v=EFXwjnnSCTk
+          07_youtube_exact_play	https://www.youtube.com/watch?v=6AdC4m_NK1w
+          EOF
+          : > download_status.tsv
+          while IFS=$'\t' read -r label url; do
+            echo "=== $label ==="
+            mkdir -p "raw_meta/$label"
+            if yt-dlp \
+              --no-playlist \
+              --no-overwrites \
+              --write-info-json \
+              --write-thumbnail \
+              --convert-thumbnails jpg \
+              --merge-output-format mp4 \
+              -f 'bv*+ba/b' \
+              -o "recovered/${label}.%(ext)s" \
+              "$url"; then
+              echo -e "$label\tok\t$url" >> download_status.tsv
+            else
+              echo -e "$label\tfailed\t$url" >> download_status.tsv
+            fi
+          done < /tmp/sources.tsv
+          cat download_status.tsv
+          ls -lh recovered || true
+
+      - name: QA, inventory, deduplicate exact bytes, and build review contact sheets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,subprocess,shutil
+          from pathlib import Path
+          vids=[]
+          for p in sorted(Path('recovered').glob('*')):
+              if p.suffix.lower() not in {'.mp4','.mkv','.webm','.mov'}: continue
+              q=subprocess.run(['ffprobe','-v','error','-show_entries','stream=index,codec_type,codec_name,width,height,avg_frame_rate:format=duration,bit_rate','-of','json',str(p)],capture_output=True,text=True)
+              if q.returncode: continue
+              j=json.loads(q.stdout); v=next((s for s in j.get('streams',[]) if s.get('codec_type')=='video'),{})
+              h=hashlib.sha256(p.read_bytes()).hexdigest()
+              rec={'file':p.name,'bytes':p.stat().st_size,'sha256':h,'duration':float((j.get('format') or {}).get('duration') or 0),'bit_rate':(j.get('format') or {}).get('bit_rate'),'width':v.get('width'),'height':v.get('height'),'fps':v.get('avg_frame_rate'),'video_codec':v.get('codec_name')}
+              vids.append(rec)
+          seen={}; kept=[]
+          for r in vids:
+              if r['sha256'] in seen:
+                  r['exact_duplicate_of']=seen[r['sha256']]
+              else:
+                  seen[r['sha256']]=r['file']; kept.append(r)
+          Path('recovered/inventory.json').write_text(json.dumps({'event':{'game_id':'0022100923','event_id':352,'description':"Morant 19' Fadeaway Jumper (Adams assist)"},'files':vids,'exact_unique_files':len(kept)},indent=2))
+          with Path('recovered/inventory.csv').open('w') as f:
+              f.write('file,width,height,fps,duration,bytes,bit_rate,video_codec,sha256,exact_duplicate_of\n')
+              for r in vids:
+                  f.write(','.join(str(r.get(k,'')) for k in ['file','width','height','fps','duration','bytes','bit_rate','video_codec','sha256','exact_duplicate_of'])+'\n')
+          # 4-frame contact strip per source for rapid visual viewpoint review. Diagnostic only; source videos untouched.
+          sheets=Path('recovered/contact_sheets'); sheets.mkdir(exist_ok=True)
+          for r in kept:
+              p=Path('recovered')/r['file']; d=r['duration']
+              if d <= 0: continue
+              times=[max(.1,d*x) for x in (.15,.35,.55,.75)]
+              frames=[]
+              for i,t in enumerate(times):
+                  o=sheets/f'{p.stem}_{i}.jpg'
+                  subprocess.run(['ffmpeg','-y','-v','error','-ss',str(t),'-i',str(p),'-frames:v','1','-vf','scale=480:-2',str(o)])
+                  if o.exists(): frames.append(o)
+              if frames:
+                  listfile=sheets/f'{p.stem}.txt'; listfile.write_text('\n'.join(f"file '{x.resolve()}'" for x in frames)+'\n')
+                  out=sheets/f'{p.stem}_contact.jpg'
+                  # use image2 inputs through hstack
+                  cmd=['ffmpeg','-y','-v','error']
+                  for x in frames: cmd += ['-i',str(x)]
+                  cmd += ['-filter_complex',f'hstack=inputs={len(frames)}','-frames:v','1',str(out)]
+                  subprocess.run(cmd)
+          print(json.dumps({'downloaded_media':len(vids),'exact_unique':len(kept),'files':kept},indent=2))
+          PY
+
+      - name: Package recovered source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          z=Path('event352_best_available_public_replays_source_quality.zip')
+          with zipfile.ZipFile(z,'w',compression=zipfile.ZIP_STORED) as a:
+              for p in sorted(Path('recovered').glob('*')):
+                  if p.is_file(): a.write(p,arcname='recovered/'+p.name)
+              for p in sorted(Path('recovered/contact_sheets').glob('*_contact.jpg')):
+                  a.write(p,arcname='contact_sheets/'+p.name)
+              a.write('download_status.tsv')
+          print(z,z.stat().st_size)
+          PY
+          ls -lh event352_best_available_public_replays_source_quality.zip
+
+      - name: Upload recovery package
+        uses: actions/upload-artifact@v4
+        with:
+          name: event352-best-available-public-replays-source-quality
+          path: |
+            event352_best_available_public_replays_source_quality.zip
+            recovered/inventory.json
+            recovered/inventory.csv
+            recovered/contact_sheets/*_contact.jpg
+            download_status.tsv
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
