@@ -1,0 +1,64 @@
+name: Audit 2022 game MediaKind productions
+on:
+  push:
+    paths:
+      - '.github/workflows/audit-2022-game-mediakind-productions.yml'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query official NBA game event metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import json, uuid, requests
+          GAME='0022100923'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+          CLIENT='Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs'
+          common={'User-Agent':UA,'Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          s=requests.Session()
+          r=s.get('https://identity.nba.com/api/v1/sts',params={'deviceId':uuid.uuid4().hex},headers={**common,'content-type':'application/json','x-client-platform':'web','x-client-id':CLIENT},timeout=25)
+          print('STS_STATUS',r.status_code); r.raise_for_status(); token=r.json()['data']['AccessToken']; print('::add-mask::'+token)
+          u=f'https://ottapp-appgw-client.nba.com/S1/subscriber/v2/events/{GAME}/play-options'
+          q=s.get(u,params={'IsexternalId':'true'},headers={**common,'Authorization':f'OAUTH2 access_token="{token}"'},timeout=30)
+          print('EVENT_OPTIONS_STATUS',q.status_code,'LEN',len(q.content)); q.raise_for_status(); data=q.json()
+          open('out/event_play_options.json','w').write(json.dumps(data,indent=2))
+          print('TOP_KEYS',sorted(data.keys()) if isinstance(data,dict) else type(data).__name__)
+          rows=[]
+          def walk(x,path='root'):
+              if isinstance(x,dict):
+                  if any(k in x for k in ('ProductionId','DisplayName','VideoProfile','Vod','ExternalId')):
+                      vp=x.get('VideoProfile') if isinstance(x.get('VideoProfile'),dict) else {}
+                      vod=x.get('Vod') if isinstance(x.get('Vod'),dict) else {}
+                      dn=x.get('DisplayName')
+                      rows.append({
+                          'path':path,'Id':x.get('Id'),'ExternalId':x.get('ExternalId'),'ProductionId':x.get('ProductionId'),
+                          'DisplayName':dn,'Role':x.get('Role'),'Labels':x.get('Labels'),'VodVideoId':vod.get('VideoId'),
+                          'VideoProfileId':vp.get('Id'),'PlaybackOrigin':vp.get('PlaybackOrigin'),'QualityLevel':vp.get('QualityLevel'),
+                          'IsEncrypted':vp.get('IsEncrypted'),'Restrictions':x.get('Restrictions'),'IsGeoRestricted':x.get('IsContentRestrictedForGeolocation')
+                      })
+                  for k,v in x.items(): walk(v,path+'.'+str(k))
+              elif isinstance(x,list):
+                  for i,v in enumerate(x): walk(v,f'{path}[{i}]')
+          walk(data)
+          open('out/production_rows.json','w').write(json.dumps(rows,indent=2))
+          print('ROWS',len(rows))
+          seen=set()
+          for row in rows:
+              key=(str(row.get('Id')),str(row.get('ExternalId')),str(row.get('ProductionId')),str(row.get('VideoProfileId')))
+              if key in seen: continue
+              seen.add(key)
+              print('ROW',json.dumps(row,separators=(',',':'))[:2500])
+          PY
+      - name: Upload metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-0022100923-mediakind-productions
+          path: out/
+          retention-days: 14
