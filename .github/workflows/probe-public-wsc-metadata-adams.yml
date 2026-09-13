@@ -1,0 +1,30 @@
+name: Probe public WSC metadata for Adams asset
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-public-wsc-metadata-adams.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe unauthenticated official WSC metadata route
+        shell: bash
+        run: |
+          set -euo pipefail
+          hash='EAE0A37C0784E086ECADF4DADEBCEB4433D773CA'
+          for cid in "wsc/teams/$hash" "$hash"; do
+            enc=$(python - <<PY
+          import urllib.parse
+          print(urllib.parse.quote('''$cid''',safe='/'))
+          PY
+            )
+            url="https://api.nba.net/2/grizzlies/video,imported_video,wsc/$enc?videoid=$enc"
+            code=$(curl -L -sS -o /tmp/wsc_body -w '%{http_code}' -A 'Mozilla/5.0' -H 'Origin: https://www.nba.com' -H 'Referer: https://www.nba.com/' "$url" || true)
+            bytes=$(wc -c </tmp/wsc_body 2>/dev/null || echo 0)
+            printf 'WSC_PROBE cid=%s status=%s bytes=%s\n' "$cid" "$code" "$bytes"
+            head -c 1200 /tmp/wsc_body | tr '\n' ' ' | sed -E 's/(accessToken|token)[^,}]*/\1:<redacted>/Ig' || true
+            printf '\n'
+          done
