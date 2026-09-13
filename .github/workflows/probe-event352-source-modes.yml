@@ -1,0 +1,38 @@
+name: Probe event352 clips source modes
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-event352-source-modes.yml'
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe clips source query variants
+        shell: bash
+        run: |
+          python - <<'PY'
+          import requests,re,html,urllib.parse
+          H={'User-Agent':'Mozilla/5.0','Referer':'https://clips.nba.com/'}
+          modes=[None,'','grs','stats','pbp','nba','video','clips','replay','broadcast','bcast','game','raw','archive','legacy','mobile']
+          for src in modes:
+              q='gameNo=0022100923&eventNum=352' + ('' if src is None else '&source='+urllib.parse.quote(src))
+              url='https://clips.nba.com/?'+q
+              try:
+                  r=requests.get(url,headers=H,timeout=12,allow_redirects=True)
+                  title=''; m=re.search(r'<title>(.*?)</title>',r.text,re.I|re.S)
+                  if m:title=html.unescape(m.group(1).strip())
+                  opts=[]
+                  for x in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',r.text,re.I|re.S):
+                      u=html.unescape(x.group(1).strip()); lab=re.sub(r'<[^>]+>','',html.unescape(x.group(3))).strip()
+                      if u.startswith('http'):opts.append((lab,u,'selected' in x.group(2).lower()))
+                  sel=next((x for x in opts if x[2]),opts[0] if opts else None)
+                  hosts=sorted(set(urllib.parse.urlsplit(x[1]).netloc for x in opts))
+                  print('MODE',repr(src),'STATUS',r.status_code,'LEN',len(r.text),'TITLE',repr(title),'OPTS',len(opts),'HOSTS',hosts,'SEL',sel[0] if sel else None,'URL',sel[1].split('?')[0] if sel else None,flush=True)
+                  if sel:
+                      try:
+                          z=requests.get(sel[1],headers={'User-Agent':'Mozilla/5.0','Referer':'https://clips.nba.com/','Accept':'*/*'},timeout=8,stream=True)
+                          print('MEDIA',repr(src),z.status_code,z.headers.get('content-type'),z.headers.get('content-length'),flush=True)
+                      except Exception as e: print('MEDIA_ERR',repr(src),type(e).__name__,flush=True)
+              except Exception as e: print('MODE_ERR',repr(src),repr(e),flush=True)
+          PY
