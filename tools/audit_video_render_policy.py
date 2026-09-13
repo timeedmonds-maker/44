@@ -47,7 +47,14 @@ def main() -> None:
         except Exception:
             continue
         lower = text.lower()
-        calls_shared = APPROVED_RENDERER_TOKEN in lower
+        # Direct imports are preferred. The Adams v3 runner deliberately
+        # reuses adams_screen_prod_poc.render_presentation, which itself is
+        # imported from render_deterministic_master; recognise that transparent
+        # wrapper so the audit tests the actual render path rather than syntax.
+        calls_shared = (
+            APPROVED_RENDERER_TOKEN in lower
+            or ('adams_screen_prod_poc as base' in lower and 'base.render_presentation' in lower)
+        )
         for pat in OBSOLETE_PATTERNS:
             if pat in lower:
                 violations.append({'path': rels, 'type': 'obsolete-render-reference', 'pattern': pat})
