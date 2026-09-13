@@ -17,7 +17,7 @@ import requests
 GAME_ID = "0022100923"
 EVENT_ID = 352
 OUT = Path("outputs/morant_adams_2022_event352_all_native_angles")
-UA = "event352-native-all-angle-audit"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36"
 PAGE_HEADERS = {
     "User-Agent": UA,
     "Referer": "https://clips.nba.com/",
@@ -62,7 +62,6 @@ def parse_clips_page() -> dict:
         seen_url.add(url)
         options.append({"url": url, "selected": "selected" in attrs, "label": label})
 
-    # Fallback: capture signed lrmedia URLs even if NBA markup changes away from <option>.
     if not options:
         urls = re.findall(r'https://lrmedia\.nba\.com/[^"\'<>\\\s]+?\.m3u8[^"\'<>\\\s]*', text, flags=re.I)
         for i, raw in enumerate(urls, 1):
@@ -78,7 +77,7 @@ def parse_clips_page() -> dict:
 
 
 def download_hls(url: str, out: Path) -> None:
-    headers = f"User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\n"
+    headers = f"User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\nOrigin: https://clips.nba.com\r\nAccept: */*\r\n"
     sh([
         "ffmpeg", "-y", "-v", "error", "-rw_timeout", "30000000", "-headers", headers,
         "-i", url, "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-movflags", "+faststart", str(out),
