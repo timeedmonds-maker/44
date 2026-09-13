@@ -1,0 +1,48 @@
+name: Probe NBA dynamic player chunks and Akamai resolver
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-nba-dynamic-player-chunks.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch dynamic player chunks and CDN token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import requests,re,json
+          from pathlib import Path
+          O=Path('nba_dynamic_player'); O.mkdir(exist_ok=True)
+          H={'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/'}
+          urls={
+            'chunk72516':'https://www.nba.com/_next/static/chunks/80898208.ba5e7a7f867e4814.js',
+            'chunk84965':'https://www.nba.com/_next/static/chunks/84965.499d81749ee475d1.js',
+          }
+          for name,u in urls.items():
+            r=requests.get(u,headers=H,timeout=30); print(name,r.status_code,len(r.content),r.headers.get('content-type'),flush=True)
+            if r.ok:
+              O.joinpath(name+'.js').write_bytes(r.content)
+              t=r.text
+              for pat in ['serverUrl','newServer','mediaId','authToken','cdnToken','playback','manifest','m3u8','secure','resolve','stream','token','/media','/vod','/play']:
+                poss=[m.start() for m in re.finditer(re.escape(pat),t,re.I)]
+                if poss: print('PAT',name,pat,'COUNT',len(poss),'POS',poss[:20],flush=True)
+              for m in re.finditer(r'https?://[^"\'\\\s]+',t):
+                print('URL',name,m.group(0)[:1000],flush=True)
+          core='https://core-api.nba.com/cp/api/v1.9/akamaitoken?platform=web'
+          ch={**H,'Accept':'application/json','content-type':'application/json','Ocp-Apim-Subscription-Key':'747fa6900c6c4e89a58b81b72f36eb96'}
+          a=requests.get(core,headers=ch,timeout=25)
+          print('AKAMAI',a.status_code,a.headers.get('content-type'),'BYTES',len(a.content),flush=True)
+          print('AKAMAI_BODY',a.text[:5000],flush=True)
+          O.joinpath('akamaitoken.json').write_text(a.text)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nba-dynamic-player-resolver
+          path: nba_dynamic_player/
+          retention-days: 7
