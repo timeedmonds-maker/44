@@ -1,0 +1,133 @@
+name: KD double-team rapid screen
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: benchmark or full season
+        required: true
+        default: benchmark
+        type: choice
+        options: [benchmark, full]
+      benchmark_games:
+        description: games in benchmark mode
+        required: false
+        default: '3'
+      benchmark_per_game:
+        description: possessions sampled per benchmark game
+        required: false
+        default: '4'
+  push:
+    branches: [codex/kd-double-team-probe]
+    paths:
+      - 'tools/plan_kd_double_team_rapid_screen.py'
+      - 'tools/kd_double_team_fast_screen.py'
+      - 'tools/merge_kd_double_team_fast_screen.py'
+      - '.github/workflows/kd-double-team-rapid-screen.yml'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyreadr requests
+      - name: Build exact KD possession universe
+        run: python tools/build_kd_possession_universe_2025_26.py
+      - name: Build game fanout plan
+        id: plan
+        env:
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'benchmark' }}
+          BENCH_GAMES: ${{ github.event_name == 'workflow_dispatch' && inputs.benchmark_games || '3' }}
+          BENCH_PER_GAME: ${{ github.event_name == 'workflow_dispatch' && inputs.benchmark_per_game || '4' }}
+        run: |
+          python tools/plan_kd_double_team_rapid_screen.py \
+            --input artifacts/kd_double_team_universe/kd_possession_universe_2025_26.csv.gz \
+            --out artifacts/kd_rapid_plan \
+            --mode "$MODE" \
+            --benchmark-games "$BENCH_GAMES" \
+            --benchmark-per-game "$BENCH_PER_GAME"
+          echo "matrix=$(cat artifacts/kd_rapid_plan/matrix.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-rapid-screen-plan
+          path: |
+            artifacts/kd_rapid_plan
+            artifacts/kd_double_team_universe/qa.json
+          if-no-files-found: error
+
+  screen_game:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install ffmpeg and CPU vision stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install pandas requests tqdm opencv-python-headless ultralytics
+      - name: Install only the geometry source and court model
+        run: |
+          git clone --depth 1 https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          mkdir -p /tmp/nbacv/models
+          curl -L --retry 3 -o /tmp/nbacv/models/court_yolo11m_pose.pt \
+            https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - uses: actions/download-artifact@v4
+        with:
+          name: kd-rapid-screen-plan
+          path: artifacts/plan
+      - name: Sparse conservative screen
+        env:
+          NBACV_SRC: /tmp/nbacv/src
+        run: |
+          python tools/kd_double_team_fast_screen.py \
+            --input "artifacts/plan/kd_rapid_plan/shards/${{ matrix.game_id }}.csv" \
+            --out "artifacts/screen/${{ matrix.game_id }}" \
+            --sample-fps 2.0 \
+            --max-seconds 12 \
+            --min-observable-frames 8 \
+            --min-observable-fraction 0.65
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kd-fast-screen-${{ matrix.game_id }}
+          path: artifacts/screen/${{ matrix.game_id }}
+          if-no-files-found: warn
+
+  fan_in:
+    needs: [prepare, screen_game]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: kd-fast-screen-*
+          path: artifacts/all_shards
+          merge-multiple: false
+      - name: Merge game shards
+        run: python tools/merge_kd_double_team_fast_screen.py --root artifacts/all_shards --out artifacts/merged
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-double-team-rapid-screen-merged
+          path: artifacts/merged
+          if-no-files-found: error
