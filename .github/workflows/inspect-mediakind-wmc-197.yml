@@ -1,0 +1,67 @@
+name: Inspect MediaKind WMC 1.97
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-mediakind-wmc-197.yml'
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect package and exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/wmc
+          npm init -y >/dev/null 2>&1
+          npm install @mediakind/wmc@1.97.0 >/dev/null 2>&1
+          node - <<'JS' > out/exports.txt 2>&1 || true
+          try {
+            const w=require('@mediakind/wmc');
+            console.log('EXPORT_KEYS',Object.keys(w).sort());
+            for (const k of Object.keys(w).sort()) {
+              const v=w[k];
+              console.log(k, typeof v, v && typeof v==='object' ? Object.keys(v).slice(0,80) : '');
+            }
+          } catch(e) { console.error(e && e.stack || e); }
+          JS
+          pkgdir=node_modules/@mediakind/wmc
+          cp "$pkgdir/package.json" out/wmc/package.json
+          find "$pkgdir" -maxdepth 3 -type f -printf '%p %s\n' | sed "s#$pkgdir/##" | sort > out/wmc/files.txt
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('node_modules/@mediakind/wmc')
+          terms=['/v1/client/roll','ApplicationToken','generateDpHdr','generateAppHdr','generateImcHdr','DeviceProfile','doRollCall','createPlayer']
+          with open('out/wmc/snippets.txt','w') as o:
+              for f in root.rglob('*'):
+                  if not f.is_file() or f.stat().st_size>15_000_000: continue
+                  try: s=f.read_text(errors='ignore')
+                  except: continue
+                  hits=[]
+                  for term in terms:
+                      pos=0
+                      while True:
+                          i=s.find(term,pos)
+                          if i<0: break
+                          hits.append((i,term)); pos=i+len(term)
+                  if hits:
+                      o.write(f'\n### {f.relative_to(root)} size={len(s)}\n')
+                      for i,term in sorted(hits)[:40]:
+                          o.write(f'\n--- {term} @{i} ---\n')
+                          o.write(s[max(0,i-1200):i+3000])
+                          o.write('\n')
+          PY
+          cat out/exports.txt
+          grep -n -E 'v1/client/roll|ApplicationToken|generateDpHdr|generateAppHdr|createPlayer' out/wmc/snippets.txt | head -n 100 || true
+      - name: Upload inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediakind-wmc-197-inspection
+          path: out/
+          retention-days: 14
