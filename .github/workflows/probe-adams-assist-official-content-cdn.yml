@@ -1,0 +1,66 @@
+name: Probe Adams assist official NBA content CDN
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-adams-assist-official-content-cdn.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe NBA content API and official CDN candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, requests, urllib.parse
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36','Referer':'https://www.nba.com/'}
+          base='https://content-api-prod.nba.com/public/1/leagues/nba'
+          api_tests=[
+            (base+'/content/video',{'id':'786873'}),
+            (base+'/content/video',{'slug':'assist-of-the-year-steven-adams'}),
+            (base+'/content/video',{'count':'50','search':'Steven Adams'}),
+            (base+'/search/video',{'q':'Steven Adams','count':'50'}),
+            (base+'/search/video',{'q':'Assist of the Year Steven Adams','count':'50'}),
+            (base+'/content',{'types':'video','id':'786873'}),
+            (base+'/content',{'types':'video','slug':'assist-of-the-year-steven-adams'}),
+          ]
+          for u,p in api_tests:
+            try:
+              r=requests.get(u,params=p,headers=H,timeout=20)
+              print('API',r.status_code,r.url,'CT',r.headers.get('content-type'),'BYTES',len(r.content),flush=True)
+              if r.status_code==200:
+                print('BODY',r.text[:25000],flush=True)
+            except Exception as e: print('API_ERR',u,repr(e),flush=True)
+
+          name='060122_mm1_adams_assist_16x9.mp4'
+          asset='202206011217NBA_____VIDEOS__NBAE_2590852'
+          paths=[
+            f'https://cdn.nba.com/manage/2022/06/{name}',
+            f'https://cdn.nba.com/manage/2022/06/{asset}.mp4',
+            f'https://cdn.nba.com/videos/{name}',
+            f'https://cdn.nba.com/videos/2022/06/{name}',
+            f'https://cdn.nba.com/videos/manage/2022/06/{name}',
+            f'https://cdn.nba.com/videos/nba/{name}',
+            f'https://cdn.nba.com/videos/nba/2022/06/{name}',
+            f'https://cdn.nba.com/videos/teams/{name}',
+            f'https://cdn.nba.com/videos/teams/wordpress/media/sites/nba/{name}',
+            f'https://cdn.nba.com/videos/teams/wordpress/media/sites/nba/2022/06/{name}',
+            f'https://manage.nba.com/{name}',
+            f'https://manage.nba.com/wp-content/uploads/2022/06/{name}',
+            f'https://www.nba.com/wp-content/uploads/2022/06/{name}',
+          ]
+          def probe(u):
+            try:
+              r=requests.get(u,headers={**H,'Range':'bytes=0-2047','Accept':'*/*'},timeout=12,stream=True,allow_redirects=True)
+              b=next(r.iter_content(2048),b'')
+              return u,r.status_code,r.url,r.headers.get('content-type'),r.headers.get('content-length'),r.headers.get('content-range'),b[:32].hex()
+            except Exception as e:return u,'ERR','',type(e).__name__,str(e)[:120],'',''
+          with ThreadPoolExecutor(max_workers=10) as ex:
+            rows=[f.result() for f in as_completed([ex.submit(probe,u) for u in paths])]
+          for row in sorted(rows): print('CDN',repr(row),flush=True)
+          PY
