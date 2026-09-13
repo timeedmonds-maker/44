@@ -28,8 +28,9 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          sudo apt-get install -y -qq ffmpeg git
           python -m pip install --quiet numpy scipy opencv-python-headless pillow 'rfdetr>=1.8.1'
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
 
       - name: Reacquire native event-489 camera clips
         run: |
