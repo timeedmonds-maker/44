@@ -1,0 +1,54 @@
+name: Discover event352 official NBA content records
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/discover-event352-nba-content-records.yml'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Search NBA content API for exact game and play
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,requests
+          from pathlib import Path
+          OUT=Path('event352_content_records'); OUT.mkdir(exist_ok=True)
+          base='https://content-api-prod.nba.com/public/1/leagues/nba/search/video'
+          H={'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/'}
+          queries=[
+            '0022100923','SAS MEM 0022100923','Ja Morant Spurs 02/28/2022',
+            'Ja Morant Steven Adams Spurs','Steven Adams one of the day best assists',
+            'Morant fadeaway Spurs','Morant 19 foot fadeaway','Morant buzzer beater Spurs',
+            'Steven Adams 02/28/2022','Ja Morant 02/28/2022'
+          ]
+          allitems={}
+          for q in queries:
+            r=requests.get(base,params={'q':q,'count':100},headers=H,timeout=30)
+            print('QUERY',q,'STATUS',r.status_code,'BYTES',len(r.content),flush=True)
+            if not r.ok: continue
+            j=r.json(); items=((j.get('results') or {}).get('items') or [])
+            for x in items:
+              gid=((x.get('taxonomy') or {}).get('games') or {})
+              text=' '.join(str(x.get(k) or '') for k in ('title','excerpt','name','slug','videoName'))
+              exact=('0022100923' in gid) or ('0022100923' in text)
+              relevant=exact or (('Morant' in text or 'Adams' in text) and ('2022-02-28' in str(x.get('date')) or '2022-03-01' in str(x.get('date'))))
+              if relevant:
+                allitems[str(x.get('id'))]=x
+          vals=sorted(allitems.values(),key=lambda x:(x.get('date') or '',x.get('id') or 0))
+          OUT.joinpath('records.json').write_text(json.dumps(vals,indent=2))
+          print('MATCHES',len(vals),flush=True)
+          for x in vals:
+            games=((x.get('taxonomy') or {}).get('games') or {})
+            print('RECORD',json.dumps({k:x.get(k) for k in ('id','title','date','videoCreationSource','videoName','videoDuration','mediaKindAssetId','mediakindExternalProgramId','videoIviCaid','videoIviCType')},ensure_ascii=False),'GAMES',games,flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event352-official-NBA-content-records
+          path: event352_content_records/
+          retention-days: 7
