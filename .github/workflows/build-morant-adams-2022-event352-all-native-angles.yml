@@ -1,0 +1,42 @@
+name: Build Morant-Adams 2022 event 352 all native angles
+
+on:
+  push:
+    paths:
+      - 'event_video/build_morant_adams_2022_event352_all_native_angles.py'
+      - '.github/workflows/build-morant-adams-2022-event352-all-native-angles.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install -U pip
+          pip install requests
+      - name: Download and QA every distinct native NBA angle
+        shell: bash
+        run: python event_video/build_morant_adams_2022_event352_all_native_angles.py
+      - name: Upload package and individual native MP4s
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morant-adams-2022-event352-all-native-angles
+          path: |
+            outputs/morant_adams_2022_event352_all_native_angles/morant_adams_2022_event352_all_native_angles.zip
+            outputs/morant_adams_2022_event352_all_native_angles/native_all_angles/*.mp4
+            outputs/morant_adams_2022_event352_all_native_angles/event_manifest.json
+            outputs/morant_adams_2022_event352_all_native_angles/video_qa.json
+            outputs/morant_adams_2022_event352_all_native_angles/video_inventory.csv
+            outputs/morant_adams_2022_event352_all_native_angles/clips_page.html
+          if-no-files-found: warn
+          retention-days: 7
