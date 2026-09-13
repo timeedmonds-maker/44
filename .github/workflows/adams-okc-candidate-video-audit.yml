@@ -1,0 +1,47 @@
+name: Adams OKC candidate video audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/build_nba_event_audit_sheet.py'
+      - '.github/workflows/adams-okc-candidate-video-audit.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        event: [308, 332, 545, 845]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install lightweight dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install requests
+      - name: Fetch exact official Broadcast event clip
+        run: |
+          mkdir -p artifacts/event_${{ matrix.event }}
+          python tools/fetch_official_nba_event_clip.py \
+            --game 0022500001 --event ${{ matrix.event }} \
+            --out artifacts/event_${{ matrix.event }}/source.mp4
+      - name: Build full-play audit contact sheet
+        run: |
+          python tools/build_nba_event_audit_sheet.py \
+            --input artifacts/event_${{ matrix.event }}/source.mp4 \
+            --out artifacts/event_${{ matrix.event }}/contact.jpg \
+            --frames 12
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-candidate-event-${{ matrix.event }}
+          path: artifacts/event_${{ matrix.event }}
+          if-no-files-found: error
+          retention-days: 30
