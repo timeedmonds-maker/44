@@ -1,0 +1,106 @@
+name: Capture NBA MediaKind roll
+on:
+  push:
+    paths:
+      - '.github/workflows/capture-nba-mediakind-roll.yml'
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+      - name: Capture NBA player resolver and download official clip
+        shell: bash
+        run: |
+          cat > /tmp/capture.js <<'JS'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const cp = require('child_process');
+
+          const PAGE = 'https://www.nba.com/watch/video/assist-of-the-year-steven-adams';
+          const interesting = [];
+          const redactUrl = u => u.replace(/([?&](?:hdnts|token|auth|sig|signature|Policy|Key-Pair-Id|Expires)=[^&]+)/ig, '$1'.replace(/=.*/, '=<REDACTED>'));
+
+          (async()=>{
+            const browser = await chromium.launch({headless:true});
+            const context = await browser.newContext({
+              userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+              viewport:{width:1440,height:1000}
+            });
+            const page = await context.newPage();
+
+            page.on('request', req => {
+              const u=req.url();
+              if (/ottapp|\/v1\/client\/roll|\.m3u8|akamaitoken/i.test(u)) {
+                const hs=req.headers();
+                interesting.push({type:'request',method:req.method(),url:redactUrl(u),headerNames:Object.keys(hs).sort(),postData:req.postData()||null});
+                console.log('REQ',req.method(),redactUrl(u),'headers',Object.keys(hs).sort().join(','));
+              }
+            });
+
+            page.on('response', async resp => {
+              const u=resp.url();
+              if (/ottapp|\/v1\/client\/roll|\.m3u8|akamaitoken/i.test(u)) {
+                const h=await resp.allHeaders().catch(()=>({}));
+                const rec={type:'response',status:resp.status(),url:redactUrl(u),contentType:h['content-type']||''};
+                if (/\/v1\/client\/roll|play-options/i.test(u)) {
+                  try { rec.body=(await resp.text()).slice(0,30000); } catch(e) { rec.body=''; }
+                }
+                interesting.push(rec);
+                console.log('RESP',resp.status(),redactUrl(u),h['content-type']||'');
+              }
+            });
+
+            await page.goto(PAGE,{waitUntil:'domcontentloaded',timeout:90000});
+            await page.waitForTimeout(6000);
+            for (const sel of [
+              'button[aria-label*="play" i]','button:has-text("Play")','[data-testid*="play" i]','video'
+            ]) {
+              try {
+                const loc=page.locator(sel).first();
+                if (await loc.count()) { await loc.click({force:true,timeout:3000}); await page.waitForTimeout(5000); }
+              } catch(e) {}
+            }
+            try { await page.keyboard.press('Space'); } catch(e) {}
+            await page.waitForTimeout(12000);
+
+            const cookies=await context.cookies();
+            console.log('COOKIE_NAMES',cookies.map(c=>c.name+':'+c.value.length).join(','));
+            fs.mkdirSync('capture',{recursive:true});
+            fs.writeFileSync('capture/network_sanitized.json',JSON.stringify(interesting,null,2));
+
+            const rolls=interesting.filter(x=>x.type==='response' && /\/v1\/client\/roll/i.test(x.url) && x.body);
+            console.log('ROLL_RESPONSES',rolls.length);
+            for (let i=0;i<rolls.length;i++) {
+              let body=rolls[i].body;
+              console.log('ROLL_BODY_'+i,body.slice(0,12000));
+              let js=null; try { js=JSON.parse(body); } catch(e) {}
+              const text=JSON.stringify(js||body);
+              const urls=[...text.matchAll(/https?:\\?\/\\?\/[^"\\\s]+(?:m3u8|mpd)[^"\\\s]*/ig)].map(m=>m[0].replace(/\\\//g,'/'));
+              for (const u of urls) console.log('MANIFEST_CANDIDATE',redactUrl(u));
+            }
+
+            // Also record video element source after player initialization.
+            const vids=await page.locator('video').evaluateAll(vs=>vs.map(v=>({src:v.src,currentSrc:v.currentSrc,readyState:v.readyState,duration:v.duration}))).catch(()=>[]);
+            fs.writeFileSync('capture/video_elements.json',JSON.stringify(vids,null,2));
+            console.log('VIDEO_ELEMENTS',JSON.stringify(vids).slice(0,12000));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/capture.js
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: nba-mediakind-roll-capture
+          path: capture/
+          retention-days: 7
