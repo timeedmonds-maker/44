@@ -1,0 +1,25 @@
+name: Probe Morant event 352 NBA assets
+on:
+  push:
+    paths:
+      - 'event_video/probe_morant_event352_nba_assets.py'
+      - '.github/workflows/probe-morant-event352-nba-assets.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Probe NBA event asset endpoints
+        run: python event_video/probe_morant_event352_nba_assets.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: morant-event352-nba-asset-probe
+          path: outputs/morant_event352_asset_probe/asset_probe.json
+          retention-days: 7
