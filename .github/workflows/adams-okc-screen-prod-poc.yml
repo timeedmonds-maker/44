@@ -1,0 +1,71 @@
+name: Adams OKC production screen overlay POC
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/adams_screen_prod_poc.py'
+      - '.github/workflows/adams-okc-screen-prod-poc.yml'
+
+jobs:
+  event646:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git
+
+      - name: Install production CV stack
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install pyreadr requests ultralytics scipy 'numpy<2'
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+
+      - name: Download basketball-specific RF-DETR and court models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx \
+            https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
+            https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+
+      - name: Run first Adams screen production candidate
+        run: |
+          python tools/adams_screen_prod_poc.py \
+            --game 0022500001 \
+            --event 646 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --analysis-fps 10 \
+            --court-fps 2 \
+            --out artifacts/adams_screen_prod_event646
+
+      - name: List QA outputs
+        if: always()
+        run: |
+          find artifacts/adams_screen_prod_event646 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort || true
+          cat artifacts/adams_screen_prod_event646/qa.json || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-okc-prod-event646
+          path: artifacts/adams_screen_prod_event646
+          if-no-files-found: warn
+          retention-days: 30
