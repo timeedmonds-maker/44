@@ -14,12 +14,12 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 10
       matrix:
-        # High-recall candidate events from the corrected temporal screen sieve.
-        # These are audit targets only; no event is promoted to an Adams screen
-        # until the exact video visually confirms Adams as the screener.
-        event: [18, 58, 411, 453, 553, 559, 802, 807]
+        # Every Adams-on-court Houston possession in the opener where Sengun
+        # is off the floor, except event 453 which has already been audited.
+        # This sharply raises the prior that any true big-man screen is Adams.
+        event: [93, 97, 240, 247, 254, 263, 274, 282, 447, 460]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
