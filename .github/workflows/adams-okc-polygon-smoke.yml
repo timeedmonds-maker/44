@@ -31,7 +31,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: timeedmonds-maker/44
           run-id: 34745480427
-      - name: Run polygon smoke on prior shard 6
+      - name: Run polygon smoke with propagated ballhandler tracks
         run: |
           python tools/adams_screen_temporal_courtgate.py \
             --input artifacts/bundle/shards/shard_6.csv \
@@ -39,9 +39,9 @@ jobs:
             --court-model artifacts/bundle/models/court_yolo11m_pose.pt \
             --nbacv-src /tmp/nbacv/src \
             --out artifacts/smoke \
-            --sample-fps 6 --max-seconds 16 --target-hls-width 960
+            --sample-fps 4 --max-seconds 16 --target-hls-width 960
       - uses: actions/upload-artifact@v4
         with:
-          name: adams-okc-polygon-smoke
+          name: adams-okc-polygon-smoke-propagated
           path: artifacts/smoke
           if-no-files-found: error
