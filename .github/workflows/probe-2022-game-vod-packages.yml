@@ -1,0 +1,72 @@
+name: Probe 2022 game VOD packages
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-2022-game-vod-packages.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe official NBA package play-options
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import base64, json, uuid, requests
+          from urllib.parse import quote
+          GAME='0022100923'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+          CLIENT='Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs'
+          common={'User-Agent':UA,'Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          s=requests.Session()
+          device=uuid.uuid4().hex
+          r=s.get('https://identity.nba.com/api/v1/sts',params={'deviceId':device},headers={**common,'content-type':'application/json','x-client-platform':'web','x-client-id':CLIENT},timeout=25)
+          print('STS',r.status_code); r.raise_for_status(); token=r.json()['data']['AccessToken']; print('::add-mask::'+token)
+          auth={**common,'Authorization':f'OAUTH2 access_token="{token}"'}
+          ev=s.get(f'https://ottapp-appgw-client.nba.com/S1/subscriber/v2/events/{GAME}/play-options',params={'IsexternalId':'true'},headers=auth,timeout=30)
+          print('EVENT',ev.status_code,len(ev.content)); ev.raise_for_status(); data=ev.json()
+          loc=base64.b64encode(json.dumps({'PostalCode':'','CountryCode':''},separators=(',',':')).encode()).decode()
+          summary=[]
+          for v in data.get('Vods',[]):
+              vid=v.get('Id')
+              name=' / '.join(x.get('Value','') for x in (v.get('DisplayName') or []) if isinstance(x,dict))
+              u=f'https://ottapp-appgw-client.nba.com/S1/subscriber/v3/programs/{quote(str(vid),safe="")}/play-options'
+              q=s.get(u,params={'IsexternalId':'true','locationDetail':loc},headers=auth,timeout=30)
+              rec={'id':vid,'name':name,'status':q.status_code,'length':len(q.content)}
+              try:
+                  js=q.json()
+                  rec['top_keys']=sorted(js.keys()) if isinstance(js,dict) else []
+                  vods=js.get('Vods',[]) if isinstance(js,dict) else []
+                  outvod=[]
+                  for vv in vods:
+                      acts=[]
+                      for a in vv.get('PlayActions') or []:
+                          vp=a.get('VideoProfile') or {}
+                          acts.append({
+                              'profile_id':vp.get('Id'),'playback_origin':vp.get('PlaybackOrigin'),
+                              'playback_uri':vp.get('PlaybackUri'),'quality':vp.get('QualityLevel'),
+                              'encrypted':vp.get('IsEncrypted'),'owner':vp.get('Owner'),
+                              'encoding':vp.get('Encoding'),'client_type':vp.get('ClientType'),
+                              'restrictions':a.get('Restrictions'),'labels':a.get('Labels')
+                          })
+                      outvod.append({'id':vv.get('Id'),'display_name':vv.get('DisplayName'),'labels':vv.get('Labels'),'actions':acts})
+                  rec['vods']=outvod
+                  if q.status_code >= 400:
+                      rec['error_body']=js
+              except Exception:
+                  rec['body_prefix']=q.text[:1000]
+              summary.append(rec)
+              print('PACKAGE',json.dumps(rec,separators=(',',':'))[:8000])
+          open('out/package_play_options.json','w').write(json.dumps(summary,indent=2))
+          PY
+      - name: Upload package audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-0022100923-package-play-options
+          path: out/
+          retention-days: 14
