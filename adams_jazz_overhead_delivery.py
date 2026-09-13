@@ -4,11 +4,11 @@ import csv
 import html as htmlmod
 import json
 import re
-import subprocess
 import urllib.request
 from pathlib import Path
 
 from download_nba_angle_compare import download_hls, get, probe
+from tools.render_deterministic_master import render as render_presentation
 
 GAME_ID = '0022500301'
 ADAMS_ID = 203500
@@ -184,13 +184,7 @@ def above_rim_option(eid: int) -> tuple[str, str, list[str], tuple[int, int]]:
 
 
 def to_uhd(src: Path, dst: Path) -> None:
-    subprocess.run([
-        'ffmpeg', '-nostdin', '-y', '-v', 'error', '-i', str(src),
-        '-vf', 'scale=3840:2160:flags=lanczos,fps=30',
-        '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'high', '-crf', '20',
-        '-maxrate', '20M', '-bufsize', '40M',
-        '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', str(dst)
-    ], check=True)
+    render_presentation(src, dst, 'uhd')
 
 
 def main() -> None:
