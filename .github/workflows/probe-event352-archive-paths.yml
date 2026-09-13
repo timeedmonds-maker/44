@@ -1,0 +1,57 @@
+name: Probe event352 archive paths
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-event352-archive-paths.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe historical lrmedia object and current control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import requests,re,html,socket,urllib.parse
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36','Referer':'https://clips.nba.com/','Accept':'*/*'}
+          def event(game,event):
+              p=requests.get(f'https://clips.nba.com/?gameNo={game}&eventNum={event}&source=grs',headers=H,timeout=30)
+              print('PAGE',game,event,p.status_code,len(p.text))
+              opts=[]
+              for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',p.text,re.I|re.S):
+                  u=html.unescape(m.group(1).strip()); lab=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
+                  if 'lrmedia.nba.com' in u and '.m3u8' in u: opts.append((lab,u,'selected' in m.group(2).lower()))
+              return next((x for x in opts if x[2]),opts[0])
+          old=event('0022100923','352'); cur=event('0022500375','608')
+          print('OLD',old[0],old[1].split('?')[0]); print('CUR',cur[0],cur[1].split('?')[0])
+          print('DNS',socket.gethostbyname_ex('lrmedia.nba.com'))
+          def req(tag,url,headers=H):
+              try:
+                  r=requests.get(url,headers=headers,timeout=20,stream=True,allow_redirects=True)
+                  b=next(r.iter_content(512),b'')
+                  print(tag,'STATUS',r.status_code,'CT',r.headers.get('content-type'),'CL',r.headers.get('content-length'),'SERVER',r.headers.get('server'),'VIA',r.headers.get('via'),'FINAL',r.url,'BODY',b[:100].hex())
+              except Exception as e: print(tag,'ERR',repr(e))
+          req('OLD_SIGNED',old[1]); req('CUR_SIGNED',cur[1])
+          req('OLD_UNSIGNED',old[1].split('?')[0]); req('CUR_UNSIGNED',cur[1].split('?')[0])
+          # Common historical Wowza formulations. Unsigned responses are diagnostic; a live current control distinguishes path-level behavior.
+          asset='0001254773_1509kbps.mp4'
+          bases=[
+            f'https://lrmedia.nba.com/CFSec/_definst_/mp4:{asset}',
+            f'https://lrmedia.nba.com/CFSec/_definst_/{asset}',
+            f'https://lrmedia.nba.com/CFSec/mp4:{asset}',
+            f'https://lrmedia.nba.com/vod/_definst_/mp4:{asset}',
+            f'https://lrmedia.nba.com/vod/mp4:{asset}',
+            f'https://lrmedia.nba.com/ondemand/_definst_/mp4:{asset}',
+            f'https://lrmedia.nba.com/grs/_definst_/mp4:{asset}',
+          ]
+          for i,b in enumerate(bases,1):
+              req(f'VAR{i}_HLS',b+'/playlist.m3u8')
+              req(f'VAR{i}_BASE',b)
+          # Probe likely alternate transcode names on the exact CFSec application.
+          for rate in ['400','600','800','1200','1500','1600','2000','2500','3000','4500']:
+              f=f'0001254773_{rate}kbps.mp4'
+              req('RATE_'+rate,f'https://lrmedia.nba.com/CFSec/_definst_/mp4:{f}/playlist.m3u8')
+          req('MASTER_NO_RATE','https://lrmedia.nba.com/CFSec/_definst_/mp4:0001254773.mp4/playlist.m3u8')
+          PY
