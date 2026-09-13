@@ -1,0 +1,25 @@
+name: Probe KD double-team API
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/kd-double-team-probe]
+    paths:
+      - 'tools/probe_boxscorematchupsv3_ranges.py'
+      - '.github/workflows/probe-kd-double-team-api.yml'
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: python tools/probe_boxscorematchupsv3_ranges.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kd-double-team-api-probe
+          path: artifacts/kd_double_team_probe
+          if-no-files-found: warn
