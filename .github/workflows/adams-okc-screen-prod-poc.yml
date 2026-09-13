@@ -8,6 +8,7 @@ on:
       - 'tools/adams_screen_prod_poc.py'
       - '.github/workflows/adams-okc-screen-prod-poc.yml'
 
+# Production candidate validation: event 646 first, then role-confirmed rerender.
 jobs:
   event646:
     runs-on: ubuntu-latest
