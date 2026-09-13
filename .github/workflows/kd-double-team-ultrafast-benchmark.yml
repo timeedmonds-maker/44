@@ -59,7 +59,7 @@ jobs:
       - name: Image-space upper-bound screen
         run: |
           python tools/kd_double_team_ultrafast_screen.py \
-            --input "artifacts/plan/kd_rapid_plan/shards/${{ matrix.game_id }}.csv" \
+            --input "artifacts/plan/shards/${{ matrix.game_id }}.csv" \
             --out "artifacts/screen/${{ matrix.game_id }}" \
             --sample-fps 2.0 --max-seconds 12 --radius-body-heights 2.5 \
             --min-visible-persons 7 --min-observable-frames 8 --min-observable-fraction 0.55 \
