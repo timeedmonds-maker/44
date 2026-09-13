@@ -29,7 +29,7 @@ jobs:
       - name: Install external broadcast-CV research backend
         run: |
           git clone --depth 1 https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
-          pip install -e /tmp/nbacv gdown
+          pip install -e /tmp/nbacv gdown sentencepiece
           mkdir -p /tmp/nbacv/models
           gdown 1nfECuSyJvPUmz3njZCdFERSQQbERt8FU -O /tmp/nbacv/models/wasb_basketball_best.pth.tar
           curl -L --retry 3 -o /tmp/nbacv/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
