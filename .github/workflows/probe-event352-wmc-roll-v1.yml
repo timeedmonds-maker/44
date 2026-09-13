@@ -1,0 +1,90 @@
+name: Probe event352 current WMC v1 roll
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-event352-wmc-roll-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Reproduce WMC POST v1 client roll
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,json,uuid,requests
+          from pathlib import Path
+
+          OUT=Path('event352_wmc_roll_v1'); OUT.mkdir(exist_ok=True)
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36'
+          identity='https://identity.nba.com/api/v1'
+          amp='https://ottapp-appgw-amp.nba.com'
+          media='NBA_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA_Jitp_Reach_HD'
+          owner='azuki'
+          imc='IMC7.5.0_AN_D3.0.0_S0'
+          base_headers={
+            'User-Agent':UA,
+            'Accept':'application/json, text/plain, */*',
+            'Origin':'https://www.nba.com',
+            'Referer':'https://www.nba.com/',
+            'x-client-platform':'web',
+            'x-client-id':'Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs',
+          }
+          s=requests.Session()
+          device_id=uuid.uuid4().hex
+          st=s.get(identity+'/sts',params={'deviceId':str(uuid.uuid4())},headers={**base_headers,'content-type':'application/json'},timeout=25)
+          print('STS',st.status_code,len(st.content),flush=True); st.raise_for_status()
+          sj=st.json(); sd=sj.get('data',sj); token=sd.get('AccessToken') or sd.get('accessToken') or sd.get('token')
+          if not token: raise SystemExit('no STS token')
+          print('::add-mask::'+token)
+          print('TOKEN_LENGTH',len(token),'DEVICE',device_id,flush=True)
+
+          profiles=[
+            {'name':'win_html5','obj':{'model':'Desktop','osVersion':'10','vendorName':'Microsoft','osName':'HTML5','supportsHevcDecode':False,'wvLevel':'L3','deviceUUID':device_id}},
+            {'name':'win_html5_10_0','obj':{'model':'Desktop','osVersion':'10.0','vendorName':'Microsoft','osName':'HTML5','supportsHevcDecode':False,'wvLevel':'L3','deviceUUID':device_id}},
+            {'name':'minimal','obj':{'model':'Desktop','osVersion':'10','vendorName':'Microsoft','osName':'HTML5','wvLevel':'L3','deviceUUID':device_id}},
+          ]
+          attempts=[]
+          for prof in profiles:
+            dp=base64.b64encode(json.dumps(prof['obj'],separators=(',',':')).encode()).decode()
+            for inhome in ['no',False]:
+              for apphdr in [True,False]:
+                session=str(uuid.uuid4())
+                params={'ownerUid':owner,'mediaId':media,'sessionId':session}
+                headers={**base_headers,'AuthorizationToken':token,'AzukiIMC':imc,'DeviceProfile':dp}
+                if apphdr: headers['ApplicationToken']=''
+                # XHR sends the JSON string body; explicitly identify it as JSON for requests.
+                headers['Content-Type']='application/json'
+                body={'roll':{'inhome':inhome,'rightsMode':1}}
+                try:
+                  r=s.post(amp+'/v1/client/roll',params=params,headers=headers,json=body,timeout=20,allow_redirects=True)
+                  text=r.text
+                  safe=text.replace(token,'<TOKEN>')
+                  rec={'profile':prof['name'],'inhome':inhome,'app_header':apphdr,'status':r.status_code,'url':r.url,'content_type':r.headers.get('content-type'),'body':safe[:30000]}
+                  attempts.append(rec)
+                  print('ROLL',prof['name'],repr(inhome),'APP',apphdr,'STATUS',r.status_code,'CT',r.headers.get('content-type'),'LEN',len(r.content),flush=True)
+                  print('BODY',safe[:8000],flush=True)
+                  if r.status_code==200:
+                    try:
+                      j=r.json()
+                      if j.get('manifest_uri') or j.get('cdns') or j.get('drm_token'):
+                        OUT.joinpath('SUCCESS.json').write_text(json.dumps({'attempt':rec,'response':j,'device_profile':prof['obj'],'azuki_imc':imc},indent=2))
+                        print('ROLL_SUCCESS_FOUND',flush=True)
+                    except Exception: pass
+                except Exception as e:
+                  attempts.append({'profile':prof['name'],'inhome':inhome,'app_header':apphdr,'error':repr(e)})
+                  print('ROLL_ERR',prof['name'],repr(inhome),'APP',apphdr,repr(e),flush=True)
+          OUT.joinpath('attempts.json').write_text(json.dumps(attempts,indent=2))
+          ok=[a for a in attempts if a.get('status')==200]
+          print('ATTEMPTS',len(attempts),'HTTP200',len(ok),'SUCCESS_FILE',OUT.joinpath('SUCCESS.json').exists(),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event352-wmc-roll-v1
+          path: event352_wmc_roll_v1/
+          retention-days: 7
