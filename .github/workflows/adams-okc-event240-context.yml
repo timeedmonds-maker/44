@@ -1,0 +1,43 @@
+name: Adams OKC event 240 exact possession context
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/adams-okc-event240-context.yml'
+      - 'tools/build_adams_okc_opener_possessions.py'
+
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyreadr requests
+      - name: Build exact Adams possession universe
+        run: python tools/build_adams_okc_opener_possessions.py
+      - name: Extract event 240 possession
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          from pathlib import Path
+          p=Path('artifacts/adams_okc_opener')
+          d=pd.read_csv(p/'adams_okc_opener_possessions.csv')
+          q=d[d.window_event_nums.fillna('').astype(str).str.split('|').map(lambda xs: '240' in xs)]
+          print(q.to_string(index=False))
+          rec=q.iloc[0].to_dict() if len(q) else {}
+          (p/'event240_context.json').write_text(json.dumps(rec,indent=2,default=str))
+          if not len(q): raise SystemExit('event 240 not found in Adams possession universe')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-event240-context
+          path: |
+            artifacts/adams_okc_opener/event240_context.json
+            artifacts/adams_okc_opener/pbp_windows.json
+          if-no-files-found: error
+          retention-days: 30
