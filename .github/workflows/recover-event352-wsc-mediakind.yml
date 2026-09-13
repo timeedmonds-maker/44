@@ -1,0 +1,67 @@
+name: Recover event352 direct WSC MediaKind asset
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-event352-wsc-mediakind.yml'
+  workflow_dispatch:
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Resolve NBA token and probe direct WSC program
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,json,uuid,requests
+          from pathlib import Path
+          OUT=Path('event352_wsc'); OUT.mkdir(exist_ok=True)
+          identity='https://identity.nba.com/api/v1'
+          ott='https://ottapp-appgw-client.nba.com'
+          external='fake_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA_NBA_movie'
+          H={
+            'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36',
+            'content-type':'application/json','x-client-platform':'web',
+            'x-client-id':'Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs',
+            'Origin':'https://www.nba.com','Referer':'https://www.nba.com/'
+          }
+          s=requests.Session(); s.headers.update(H)
+          r=s.get(identity+'/sts',params={'deviceId':str(uuid.uuid4())},timeout=25); r.raise_for_status()
+          j=r.json(); d=j.get('data',j); token=d.get('AccessToken') or d.get('accessToken') or d.get('token')
+          if not token: raise SystemExit('no STS token')
+          print('::add-mask::'+token); print('STS_OK',len(token),flush=True)
+          mh={'User-Agent':H['User-Agent'],'Authorization':f'OAUTH2 access_token="{token}"','content-type':'application/json','Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          loc=s.get(ott+'/S1/subscriber/location-lookup',headers=mh,timeout=25); loc.raise_for_status(); lj=loc.json()
+          # Preserve NBA location data exactly enough for play-options.
+          country=lj.get('CountryCode') or lj.get('countryCode') or lj.get('Country') or lj.get('country') or 'US'
+          postal=lj.get('PostalCode') or lj.get('postalCode') or ''
+          detail=base64.b64encode(json.dumps({'PostalCode':postal,'CountryCode':country},separators=(',',':')).encode()).decode()
+          url=ott+f'/S1/subscriber/v3/programs/{external}/play-options'
+          p=s.get(url,params={'IsexternalId':'true','locationDetail':detail},headers=mh,timeout=30)
+          print('PLAY_STATUS',p.status_code,'BYTES',len(p.content),flush=True)
+          print('PLAY_BODY',p.text[:30000],flush=True)
+          OUT.joinpath('play_options.json').write_text(p.text)
+          OUT.joinpath('location.json').write_text(json.dumps(lj,indent=2))
+          p.raise_for_status(); pj=p.json()
+          actions=[]
+          for v in pj.get('Vods',[]) or []:
+            for a in v.get('PlayActions',[]) or []:
+              actions.append({'source':'vod','externalId':v.get('ExternalId'),'videoProfile':a.get('VideoProfile'),'playAction':a})
+          for sch in pj.get('Schedules',[]) or []:
+            for prod in sch.get('Productions',[]) or []:
+              for a in prod.get('PlayActions',[]) or []:
+                actions.append({'source':'schedule','videoProfile':a.get('VideoProfile'),'playAction':a})
+          OUT.joinpath('actions.json').write_text(json.dumps(actions,indent=2))
+          print('PLAY_ACTION_COUNT',len(actions),flush=True)
+          for a in actions:
+            print('ACTION',json.dumps(a,ensure_ascii=False)[:10000],flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event352-wsc-mediakind
+          path: event352_wsc/
+          retention-days: 7
