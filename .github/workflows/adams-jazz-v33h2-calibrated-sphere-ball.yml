@@ -1,0 +1,114 @@
+name: Adams Jazz v33h2 calibrated-sphere ball QA
+
+on:
+  push:
+    branches: [codex/multi-angle-freeze-spin-poc]
+    paths:
+      - 'freeze_spin/run_v33h2_calibrated_sphere_ball_qa.py'
+      - '.github/workflows/adams-jazz-v33h2-calibrated-sphere-ball.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  calibrated-sphere-ball:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONFAULTHANDLER: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install observation runtime
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git zip
+          python -m pip install --quiet numpy scipy opencv-python-headless pillow 'rfdetr>=1.8.1'
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+      - name: Reacquire native event-489 locked camera clips
+        run: |
+          set -euxo pipefail
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py --request freeze_spin/adams_jazz_dunk_request.json --out target_source --workers 8
+          test -n "$(find target_source/clips -type f -name '*_489_Left_Above_Rim_SOURCE.mp4' -print -quit)"
+          test -n "$(find target_source/clips -type f -name '*_489_Right_Above_Rim_SOURCE.mp4' -print -quit)"
+          test -n "$(find target_source/clips -type f -name '*_489_Broadcast_SOURCE.mp4' -print -quit)"
+      - name: Download exact B32 metric scene package
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs_b32
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34669584507
+      - name: Download accepted v73 RAR metric camera evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-metric-camera-v73-33911842169
+          path: inputs_v73
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33911842169
+      - name: Download accepted v33e exact-state evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v33e-wide-locked-three-camera-34727285810
+          path: inputs_v33e
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34727285810
+      - name: Run v33h2 calibrated-sphere source ball QA
+        shell: bash
+        run: |
+          set +e
+          mkdir -p v33h2
+          /usr/bin/time -v python -u -X faulthandler -m freeze_spin.run_v33h2_calibrated_sphere_ball_qa \
+            --clips-dir target_source/clips \
+            --b32-root inputs_b32 \
+            --v73-frame0257 inputs_v73/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --v33e-json inputs_v33e/v33e_locked_three_camera_wide_flow_state_search.json \
+            --out v33h2 2>&1 | tee v33h2/run.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > v33h2/solver_exit_code.txt
+          exit 0
+      - name: Print decisive result
+        if: always()
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('v33h2/v33h2_calibrated_sphere_ball_qa.json')
+          if not p.exists(): print('v33h2 JSON missing'); raise SystemExit(0)
+          q=json.load(open(p)); print(json.dumps({k:q.get(k) for k in ['status','chosen_state','render_numerically_eligible','freeview_render_unlocked']},indent=2))
+          PY
+      - name: Package evidence
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp v33h2/run.log delivery/ 2>/dev/null || true
+          cp v33h2/solver_exit_code.txt delivery/ 2>/dev/null || true
+          cp v33h2/v33h2_calibrated_sphere_ball_qa.json delivery/ 2>/dev/null || true
+          cp v33h2/v33h2_render_state.json delivery/ 2>/dev/null || true
+          cp v33h2/v33h2_*_ball_qa.png delivery/ 2>/dev/null || true
+          cp v33h2/v33h2_three_camera_ball_montage.png delivery/ 2>/dev/null || true
+          cp v33h2/v33h2_source_*.png delivery/ 2>/dev/null || true
+          test -s delivery/v33h2_calibrated_sphere_ball_qa.json
+          (cd delivery && zip -0 adams_jazz_v33h2_calibrated_sphere_ball_qa.zip ./*)
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-v33h2-calibrated-sphere-ball-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+      - name: Enforce fail-closed numerical gate
+        if: always()
+        run: |
+          set -euxo pipefail
+          test "$(cat v33h2/solver_exit_code.txt 2>/dev/null || echo 99)" = "0"
