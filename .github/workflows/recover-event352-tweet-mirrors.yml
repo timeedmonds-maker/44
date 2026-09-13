@@ -1,0 +1,120 @@
+name: Recover event352 tweet media from public mirror APIs
+on:
+  push:
+    paths:
+      - '.github/workflows/recover-event352-tweet-mirrors.yml'
+  workflow_dispatch:
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install -q -U yt-dlp requests
+      - name: Resolve mirror media and download every surviving video URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p mirror_recovery/api_json mirror_recovery/videos
+          python - <<'PY'
+          import json,re,requests,subprocess,hashlib
+          from pathlib import Path
+          targets=[
+            ('01_memgrizz_original','memgrizz','1498480363567554560'),
+            ('02_memgrizz_closer','memgrizz','1498480988179030019'),
+            ('04_bleacher_report','BleacherReport','1498480940821008388'),
+            ('05_bally_grizzlies','GrizzOnBally','1498480394978701313'),
+            ('03_funakistats_backside','funakistats','1504690076835794947'),
+          ]
+          H={'User-Agent':'event352-recovery/1.0 contact=github.com/timeedmonds-maker/44'}
+          allrows=[]
+          def urls(obj):
+              out=[]
+              def walk(x):
+                  if isinstance(x,dict):
+                      for k,v in x.items():
+                          if isinstance(v,str) and ('video.twimg.com' in v or '.m3u8' in v): out.append(v)
+                          walk(v)
+                  elif isinstance(x,list):
+                      for v in x: walk(v)
+              walk(obj)
+              return list(dict.fromkeys(out))
+          for label,handle,tid in targets:
+              eps=[
+                ('fx',f'https://api.fxtwitter.com/{handle}/status/{tid}'),
+                ('vx',f'https://api.vxtwitter.com/{handle}/status/{tid}'),
+              ]
+              found=[]
+              for api,u in eps:
+                  try:
+                      r=requests.get(u,headers=H,timeout=20)
+                      print('API',label,api,r.status_code,r.headers.get('content-type'),len(r.content),flush=True)
+                      Path(f'mirror_recovery/api_json/{label}_{api}.txt').write_bytes(r.content)
+                      if r.ok and 'json' in (r.headers.get('content-type') or ''):
+                          j=r.json(); us=urls(j); found.extend(us)
+                          print('URLS',label,api,json.dumps(us),flush=True)
+                  except Exception as e: print('APIERR',label,api,repr(e),flush=True)
+              found=list(dict.fromkeys(found))
+              # Prefer direct MP4 URLs and highest-looking bitrate first, but attempt all surviving variants.
+              for i,u in enumerate(found,1):
+                  out=f'mirror_recovery/videos/{label}_{i:02d}.%(ext)s'
+                  cmd=['yt-dlp','--no-playlist','--merge-output-format','mp4','-f','bestvideo*+bestaudio/best', '-o',out,u]
+                  p=subprocess.run(cmd,text=True,capture_output=True)
+                  print('DL',label,i,p.returncode,u,flush=True)
+                  if p.returncode: print((p.stderr or p.stdout)[-600:],flush=True)
+              allrows.append({'label':label,'handle':handle,'tweet_id':tid,'mirror_video_urls':found})
+          Path('mirror_recovery/resolution.json').write_text(json.dumps(allrows,indent=2))
+          PY
+      - name: QA and retain best copy per tweet label
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,subprocess,hashlib,re,shutil
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('mirror_recovery/videos').glob('*')):
+              if p.suffix.lower() not in {'.mp4','.mkv','.webm','.mov'}: continue
+              q=subprocess.run(['ffprobe','-v','error','-show_entries','stream=codec_type,width,height,avg_frame_rate:format=duration,bit_rate','-of','json',str(p)],capture_output=True,text=True)
+              if q.returncode: continue
+              j=json.loads(q.stdout); v=next((s for s in j.get('streams',[]) if s.get('codec_type')=='video'),{})
+              label=re.sub(r'_\d\d$','',p.stem)
+              r={'file':p.name,'label':label,'width':v.get('width') or 0,'height':v.get('height') or 0,'fps':v.get('avg_frame_rate'),'duration':float((j.get('format') or {}).get('duration') or 0),'bit_rate':int((j.get('format') or {}).get('bit_rate') or 0),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}
+              rows.append(r)
+          best={}
+          for r in rows:
+              score=(r['height'],r['width'],r['bit_rate'],r['bytes'])
+              if r['label'] not in best or score>(best[r['label']][0]): best[r['label']]=(score,r)
+          out=Path('mirror_recovery/best'); out.mkdir(exist_ok=True)
+          for _,r in best.values(): shutil.copy2(Path('mirror_recovery/videos')/r['file'],out/r['file'])
+          Path('mirror_recovery/inventory.json').write_text(json.dumps({'all_downloads':rows,'best_per_label':[x[1] for x in best.values()]},indent=2))
+          print(json.dumps({'downloads':len(rows),'best_per_label':[x[1] for x in best.values()]},indent=2),flush=True)
+          PY
+      - name: Package
+        shell: bash
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          z=Path('event352_tweet_mirror_recovery.zip')
+          with zipfile.ZipFile(z,'w',compression=zipfile.ZIP_STORED) as a:
+              for p in Path('mirror_recovery/best').glob('*'): a.write(p,arcname='videos/'+p.name)
+              a.write('mirror_recovery/inventory.json',arcname='inventory.json')
+              a.write('mirror_recovery/resolution.json',arcname='resolution.json')
+              for p in Path('mirror_recovery/api_json').glob('*'): a.write(p,arcname='api_json/'+p.name)
+          print('ZIP',z,z.stat().st_size)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event352-tweet-mirror-recovery
+          path: |
+            event352_tweet_mirror_recovery.zip
+            mirror_recovery/inventory.json
+            mirror_recovery/resolution.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
