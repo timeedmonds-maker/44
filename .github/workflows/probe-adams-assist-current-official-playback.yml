@@ -9,84 +9,41 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Probe NBA identity STS bootstrap and official playback
+      - name: Resolve original free NBA Adams assist assets
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64, json, requests, re, uuid
+          import base64,json,requests,uuid
           from urllib.parse import quote
-
-          PAGE='https://www.nba.com/watch/video/assist-of-the-year-steven-adams'
-          EXT='fake_202206011217NBA_____VIDEOS__NBAE_2590852_NBA_movie'
-          MK='https://ottapp-appgw-client.nba.com'
-          ID='https://identity.nba.com/api/v1'
-          CLIENT='Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs'
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36'
-          DEVICE=str(uuid.uuid4())
+          ID='https://identity.nba.com/api/v1'
+          MK='https://ottapp-appgw-client.nba.com'
+          CLIENT='Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs'
+          programs=[
+            ('original_top_play','fake_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA_NBA_movie'),
+            ('fan_favorites','fake_202206011217NBA_____VIDEOS__NBAE_2590852_NBA_movie'),
+          ]
+          H={'User-Agent':UA,'content-type':'application/json','x-client-platform':'web','x-client-id':CLIENT,'Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
           s=requests.Session()
-          s.headers.update({'User-Agent':UA,'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/','Origin':'https://www.nba.com'})
-          r=s.get(PAGE,timeout=30)
-          print('PAGE',r.status_code,'cookies',[(c.name,c.domain,len(c.value)) for c in s.cookies])
-
-          ih={'content-type':'application/json','x-client-platform':'web','x-client-id':CLIENT,'User-Agent':UA,'Accept':'application/json, text/plain, */*','Origin':'https://www.nba.com','Referer':PAGE}
-          responses=[]
-          def call(label,method,path,body=None):
-              try:
-                  q=s.request(method,ID+path,headers=ih,json=body,timeout=25,allow_redirects=True)
-                  txt=q.text
-                  print('\nIDENTITY',label,method,path,'STATUS',q.status_code,'CT',q.headers.get('content-type'),'LEN',len(q.content))
-                  print('SET_COOKIE_NAMES',re.findall(r'(?:^|,|;)\\s*([^=;,\\s]+)=',q.headers.get('set-cookie','')))
-                  print('BODY',txt[:16000])
-                  try: data=q.json()
-                  except: data=None
-                  responses.append((label,data))
-                  return data
-              except Exception as e:
-                  print('IDENTITY_ERR',label,type(e).__name__,str(e)[:500]); return None
-
-          # Current nba.com identity functions, in increasingly stateful order.
-          call('cookie-token-initial','GET','/web/cookie/token')
-          call('web-token','POST','/web/token')
-          call('cookie-package','POST','/web/cookie/package',{})
-          call('cookie-token-after-package','GET','/web/cookie/token')
-          call('profile','GET','/profile?entitlements=true')
-          sts=call('sts','GET','/sts?deviceId='+quote(DEVICE))
-
-          # Collect token-looking strings without assuming response field casing.
-          cand=[]
-          def walk(x,path=''):
-              if isinstance(x,dict):
-                  for k,v in x.items():
-                      p=f'{path}.{k}' if path else k
-                      if isinstance(v,str) and len(v)>20 and any(z in k.lower() for z in ['token','jwt','access','sts']):
-                          cand.append((p,v))
-                      walk(v,p)
-              elif isinstance(x,list):
-                  for j,v in enumerate(x): walk(v,f'{path}[{j}]')
-          for label,data in responses:
-              if data is not None: walk(data,label)
-          for c in s.cookies:
-              if len(c.value)>20 and any(z in c.name.lower() for z in ['token','jwt','sts','auth']): cand.append(('cookie:'+c.name,c.value))
-          # dedupe by token value
-          seen=set(); toks=[]
-          for label,tok in cand:
-              if tok not in seen:
-                  seen.add(tok); toks.append((label,tok))
-          print('\nTOKEN_CANDIDATES',[(a,len(b),b[:12]+'...') for a,b in toks])
-
-          def enc(x): return base64.b64encode(json.dumps(x,separators=(',',':')).encode()).decode()
-          locs=[{'PostalCode':'','CountryCode':''},{'PostalCode':'10001','CountryCode':'US'},{'PostalCode':'1010','CountryCode':'NZ'}]
-          variants=[('none',None)]+toks
-          for loc in locs:
-              url=f"{MK}/S1/subscriber/v3/programs/{quote(EXT,safe='')}/play-options?IsexternalId=true&locationDetail={quote(enc(loc),safe='')}"
-              for label,tok in variants:
-                  h={'Content-Type':'application/json','Origin':'https://www.nba.com','Referer':PAGE,'User-Agent':UA}
-                  if tok: h['Authorization']=f'OAUTH2 access_token="{tok}"'
-                  try:
-                      q=s.get(url,headers=h,timeout=20,allow_redirects=True)
-                      print('\nPLAY_OPTIONS',loc,label,q.status_code,q.headers.get('content-type'),'len',len(q.content))
-                      print('BODY',q.text[:20000])
-                  except Exception as e:
-                      print('PLAY_ERR',loc,label,type(e).__name__,str(e)[:500])
+          r=s.get(ID+'/sts',params={'deviceId':str(uuid.uuid4())},headers=H,timeout=25); r.raise_for_status(); token=r.json()['data']['AccessToken']
+          print('::add-mask::'+token); print('STS_OK',len(token))
+          loc=base64.b64encode(json.dumps({'PostalCode':'','CountryCode':''},separators=(',',':')).encode()).decode()
+          for label,ext in programs:
+            url=f'{MK}/S1/subscriber/v3/programs/{quote(ext,safe="")}/play-options?IsexternalId=true&locationDetail={quote(loc,safe="")}'
+            h={'Authorization':f'OAUTH2 access_token="{token}"','User-Agent':UA,'Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+            q=s.get(url,headers=h,timeout=25); print('\nPROGRAM',label,'STATUS',q.status_code,'CT',q.headers.get('content-type'),'LEN',len(q.content)); print(q.text[:12000].replace(token,'<TOKEN>'))
+            if q.ok:
+              j=q.json()
+              for vod in j.get('Vods',[]):
+                for a in vod.get('PlayActions',[]):
+                  p=a.get('VideoProfile',{})
+                  uri=p.get('PlaybackUri')
+                  print('PROFILE',p.get('Id'),'QUALITY',p.get('QualityLevel'),'ENCRYPTED',p.get('IsEncrypted'),'URI',uri)
+                  if uri:
+                    for u in [uri, uri.replace('http://','https://')]:
+                      try:
+                        z=requests.get(u,headers={'User-Agent':UA,'Referer':'https://www.nba.com/'},timeout=12,allow_redirects=True)
+                        print('DIRECT',u[:180],'STATUS',z.status_code,'CT',z.headers.get('content-type'),'LEN',len(z.content),'FINAL',z.url[:220],'BODY',z.text[:500] if 'text' in (z.headers.get('content-type') or '') or 'mpegurl' in (z.headers.get('content-type') or '') else '<binary>')
+                      except Exception as e: print('DIRECT_ERR',u[:180],type(e).__name__,str(e)[:300])
           PY
