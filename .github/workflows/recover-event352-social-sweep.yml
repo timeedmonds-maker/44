@@ -1,0 +1,143 @@
+name: Recover event352 social replay sweep
+on:
+  push:
+    paths:
+      - '.github/workflows/recover-event352-social-sweep.yml'
+  workflow_dispatch:
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install -q -U requests yt-dlp
+      - name: Resolve t.co media shortlinks, query tweet mirrors, download best source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sweep/videos sweep/json
+          python - <<'PY'
+          import requests,re,json,subprocess,urllib.parse
+          from pathlib import Path
+          sources=[
+            ('barstool','499vl4Vk6i'),
+            ('espn','ngxXk8w5xM'),
+            ('nbatv','S754Z0iq2V'),
+            ('hoopcentral','wFTTne99jD'),
+            ('memgrizz_alt1','4Y00GFapYJ'),
+            ('memgrizz_alt2','BlV2feySoz'),
+            ('nba_replay','uM351FTaMp'),
+            ('yahoo_nbatv','EWXNnTuwI1'),
+            ('bill_simmons','uMlGEfTGyh'),
+            ('nba_paint','UGI88wmUcy'),
+            ('trashtalk','YlkjoFikcU'),
+            ('mike_camerlengo','brIGrxZ0iR'),
+            ('sportscenter_comp','y6mRvjTb0X'),
+            ('nba_history','zd9YsQ3DCQ'),
+            ('bleacher','JgdalqABjB'),
+            ('bally','TNxPBy1NcG'),
+          ]
+          H={'User-Agent':'Mozilla/5.0'}
+          def find_media(obj):
+              out=[]
+              def walk(x):
+                  if isinstance(x,dict):
+                      for v in x.values():
+                          if isinstance(v,str) and ('video.twimg.com' in v or '.m3u8' in v): out.append(v)
+                          walk(v)
+                  elif isinstance(x,list):
+                      for v in x: walk(v)
+              walk(obj); return list(dict.fromkeys(out))
+          summary=[]
+          for label,code in sources:
+              short='https://t.co/'+code
+              try:
+                  r=requests.get(short,headers=H,timeout=15,allow_redirects=True)
+                  final=r.url
+                  print('RESOLVE',label,short,'->',final,'status',r.status_code,flush=True)
+              except Exception as e:
+                  print('RESOLVE_ERR',label,repr(e),flush=True); summary.append({'label':label,'code':code,'error':repr(e)}); continue
+              m=re.search(r'(?:twitter|x)\.com/([^/?#]+)/status/(\d+)',final)
+              if not m:
+                  # sometimes t.co ends at a photo/media URL with status embedded elsewhere in returned html
+                  m=re.search(r'(?:twitter|x)\.com/([^/\\"\']+)/status/(\d+)',getattr(r,'text',''))
+              if not m:
+                  print('NO_TWEET_ID',label,final,flush=True); summary.append({'label':label,'code':code,'final':final,'error':'no_tweet_id'}); continue
+              handle,tid=m.group(1),m.group(2)
+              media=[]
+              for api,endpoint in [('fx',f'https://api.fxtwitter.com/{handle}/status/{tid}'),('vx',f'https://api.vxtwitter.com/{handle}/status/{tid}')]:
+                  try:
+                      q=requests.get(endpoint,headers={'User-Agent':'event352-recovery/1.0'},timeout=15)
+                      Path(f'sweep/json/{label}_{api}.txt').write_bytes(q.content)
+                      us=find_media(q.json()) if q.ok and 'json' in (q.headers.get('content-type') or '') else []
+                      media.extend(us)
+                      print('API',label,api,q.status_code,'urls',len(us),flush=True)
+                  except Exception as e: print('APIERR',label,api,repr(e),flush=True)
+              media=list(dict.fromkeys(media))
+              # pick best direct MP4 by dimensions encoded in URL; fallback m3u8.
+              def score(u):
+                  mm=re.search(r'/vid/(\d+)x(\d+)/',u)
+                  if mm:return (3,int(mm.group(2)),int(mm.group(1)))
+                  if '.m3u8' in u:return (2,0,0)
+                  return (1,0,0)
+              media=sorted(media,key=score,reverse=True)
+              okfile=None
+              for i,u in enumerate(media[:4],1):
+                  out=f'sweep/videos/{label}.%(ext)s'
+                  p=subprocess.run(['yt-dlp','--no-playlist','--no-overwrites','--merge-output-format','mp4','-f','bestvideo*+bestaudio/best','-o',out,u],capture_output=True,text=True)
+                  print('DL',label,i,p.returncode,u,flush=True)
+                  if p.returncode==0:
+                      cand=list(Path('sweep/videos').glob(label+'.*'))
+                      if cand: okfile=str(cand[0]); break
+              summary.append({'label':label,'code':code,'final':final,'handle':handle,'tweet_id':tid,'media_urls':media,'download':okfile})
+          Path('sweep/resolution.json').write_text(json.dumps(summary,indent=2))
+          PY
+      - name: QA and exact dedupe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,subprocess,hashlib,shutil
+          from pathlib import Path
+          rows=[]
+          for p in sorted(Path('sweep/videos').glob('*')):
+              if p.suffix.lower() not in {'.mp4','.mkv','.webm','.mov'}: continue
+              q=subprocess.run(['ffprobe','-v','error','-show_entries','stream=codec_type,width,height,avg_frame_rate:format=duration,bit_rate','-of','json',str(p)],capture_output=True,text=True)
+              if q.returncode: continue
+              j=json.loads(q.stdout); v=next((s for s in j.get('streams',[]) if s.get('codec_type')=='video'),{})
+              rows.append({'file':p.name,'width':v.get('width'),'height':v.get('height'),'fps':v.get('avg_frame_rate'),'duration':float((j.get('format') or {}).get('duration') or 0),'bit_rate':int((j.get('format') or {}).get('bit_rate') or 0),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          seen={}; unique=[]
+          for r in rows:
+              if r['sha256'] in seen:r['duplicate_of']=seen[r['sha256']]
+              else:seen[r['sha256']]=r['file'];unique.append(r)
+          Path('sweep/inventory.json').write_text(json.dumps({'files':rows,'exact_unique':unique},indent=2))
+          print(json.dumps({'downloads':len(rows),'exact_unique_count':len(unique),'exact_unique':unique},indent=2),flush=True)
+          PY
+      - name: Package
+        run: |
+          python - <<'PY'
+          import zipfile,json
+          from pathlib import Path
+          inv=json.loads(Path('sweep/inventory.json').read_text())
+          keep={x['file'] for x in inv['exact_unique']}
+          z=Path('event352_social_sweep_source_quality.zip')
+          with zipfile.ZipFile(z,'w',compression=zipfile.ZIP_STORED) as a:
+              for p in Path('sweep/videos').glob('*'):
+                  if p.name in keep:a.write(p,arcname='videos/'+p.name)
+              a.write('sweep/inventory.json',arcname='inventory.json')
+              a.write('sweep/resolution.json',arcname='resolution.json')
+          print('ZIP',z,z.stat().st_size)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event352-social-sweep-source-quality
+          path: |
+            event352_social_sweep_source_quality.zip
+            sweep/inventory.json
+            sweep/resolution.json
+          retention-days: 14
+          compression-level: 0
