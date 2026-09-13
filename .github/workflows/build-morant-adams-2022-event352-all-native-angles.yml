@@ -40,3 +40,5 @@ jobs:
             outputs/morant_adams_2022_event352_all_native_angles/clips_page.html
           if-no-files-found: warn
           retention-days: 7
+
+# Triggered from 44 runner for event 352 native-angle build.
