@@ -18,18 +18,16 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 from kd_double_team_ballhandler_onnx import YoloOnnx, extract_frames
-from adams_screen_temporal_onnx import (
-    associate, cluster_tracks, detect_sequences, by_tid
-)
+from adams_screen_candidate_onnx import screen_events
+from adams_screen_temporal_onnx import associate, cluster_tracks, detect_sequences
 
 
 def tracks_to_list(tracked):
     acc = defaultdict(lambda: {"frames": [], "boxes": []})
     for fi, dets in enumerate(tracked):
         for d in dets:
-            acc[int(d["tid"])] ["frames"].append(fi)
-            # nbacv court gate only uses first 4 values; keep confidence if present
-            acc[int(d["tid"])] ["boxes"].append(list(map(float, d["box"])))
+            acc[int(d["tid"])]["frames"].append(fi)
+            acc[int(d["tid"])]["boxes"].append(list(map(float, d["box"])))
     return [{"track_id": tid, "frames": rec["frames"], "boxes": rec["boxes"]}
             for tid, rec in acc.items()]
 
@@ -63,24 +61,19 @@ def court_calibrate(frame_paths, court_model, device="cpu"):
     return calib, cov
 
 
-def court_filter(frame_paths, tracked, calib, fps):
+def court_filter(tracked, calib, fps):
     from nbacv.court_gate import court_roi_roles
     tracks = tracks_to_list(tracked)
     if not tracks:
         return tracked, {}, {}, {}
     keep, near_frac, inside_frac = court_roi_roles(tracks, calib, fps=fps)
-
-    # Screen participants should be players on the floor, not coaches/crowd.
-    # Keep the upstream robust near-court gate, plus a light strict-inside cue.
-    # A track with no calibrated samples defaults upstream to 1.0 and remains.
     playable = {}
     for t in tracks:
         tid = t["track_id"]
-        playable[tid] = bool(keep.get(tid, True) and inside_frac.get(tid, 1.0) >= 0.20)
-
-    filtered = []
-    for dets in tracked:
-        filtered.append([d for d in dets if playable.get(int(d["tid"]), True)])
+        playable[tid] = bool(keep.get(tid, True) and
+                             inside_frac.get(tid, 1.0) >= 0.20)
+    filtered = [[d for d in dets if playable.get(int(d["tid"]), True)]
+                for dets in tracked]
     return filtered, playable, near_frac, inside_frac
 
 
@@ -112,19 +105,7 @@ def main():
         root = Path(td)
         for _, r in df.iterrows():
             t0 = time.perf_counter()
-            events = []
-            raw = str(r.get("screen_event_nums", ""))
-            for x in raw.split("|"):
-                if x.strip().isdigit() and int(x) not in events:
-                    events.append(int(x))
-            if not events:
-                # opener universe stores an exact anchor column in some builds
-                for col in ("video_event_num", "anchor_event_num", "event_num"):
-                    v = r.get(col)
-                    if pd.notna(v) and str(v).replace(".0", "").isdigit():
-                        events = [int(float(v))]
-                        break
-
+            events = screen_events(r)
             total_sequences = 0
             best = None
             sampled = bh_obs = 0
@@ -145,7 +126,8 @@ def main():
                         if fr is None:
                             people_pf.append([]); balls_pf.append([]); continue
                         people_pf.append(players_on_courtish(
-                            model.detect_class(fr, 0, a.person_conf), fr.shape[0], max_players=18))
+                            model.detect_class(fr, 0, a.person_conf), fr.shape[0],
+                            max_players=18))
                         balls_pf.append(model.detect_class(fr, 32, a.ball_conf, 0.35))
 
                     tracked = associate(people_pf)
@@ -154,16 +136,16 @@ def main():
                     calib, cov = court_calibrate(paths, court_model)
                     mean_calib.append(cov)
                     gated, playable, near_frac, inside_frac = court_filter(
-                        paths, tracked, calib, a.sample_fps)
+                        tracked, calib, a.sample_fps)
                     kept_ids = {d["tid"] for ds in gated for d in ds}
                     kept_tracks += len(kept_ids)
 
                     labels, centers = cluster_tracks(paths, gated)
-                    seqs, bhs = detect_sequences(paths, gated, balls_pf, labels, centers,
-                                                  a.sample_fps)
-                    # Require persistence across distinct samples; old first pass
-                    # could accidentally merge several defender hypotheses in one frame.
-                    seqs = [s for s in seqs if s["end_frame"] > s["start_frame"]]
+                    seqs, bhs = detect_sequences(paths, gated, balls_pf,
+                                                  labels, centers, a.sample_fps)
+                    seqs = [s for s in seqs
+                            if s["end_frame"] > s["start_frame"] and
+                            len({h["frame"] for h in s["hits"]}) >= 2]
                     sampled += len(paths)
                     bh_obs += sum(x is not None for x in bhs)
                     total_sequences += len(seqs)
@@ -171,9 +153,12 @@ def main():
                     for si, s in enumerate(seqs):
                         b = s["best"]
                         rec = {
-                            "game_id": str(r.game_id), "possession_uid": r.possession_uid,
-                            "event_num": ev, "sequence_index": si,
-                            "start_sample": s["start_frame"], "end_sample": s["end_frame"],
+                            "game_id": str(r.game_id),
+                            "possession_uid": r.possession_uid,
+                            "event_num": ev,
+                            "sequence_index": si,
+                            "start_sample": s["start_frame"],
+                            "end_sample": s["end_frame"],
                             "start_s": round(s["start_frame"] / a.sample_fps, 3),
                             "end_s": round(s["end_frame"] / a.sample_fps, 3),
                             "ballhandler_tid": s["ballhandler_tid"],
@@ -196,18 +181,27 @@ def main():
                     shutil.rmtree(evdir, ignore_errors=True)
 
             rows.append({
-                "game_id": str(r.game_id), "period": r.get("period"),
-                "possession_uid": r.possession_uid, "start_time": r.get("start_time"),
-                "end_time": r.get("end_time"), "pts_poss": r.get("pts_poss"),
-                "type_end": r.get("type_end"), "screen_event_nums": "|".join(map(str, events)),
+                "game_id": str(r.game_id),
+                "period": r.get("period"),
+                "possession_uid": r.possession_uid,
+                "start_time": r.get("start_time"),
+                "end_time": r.get("end_time"),
+                "duration_s": r.get("duration_s"),
+                "pts_poss": r.get("pts_poss"),
+                "type_end": r.get("type_end"),
+                "lineup_team": r.get("lineup_team"),
+                "lineup_opp": r.get("lineup_opp"),
+                "screen_event_nums": "|".join(map(str, events)),
                 "court_screen_sequences": total_sequences,
                 "court_candidate": total_sequences > 0,
                 "best_event_num": None if best is None else best["event_num"],
                 "best_start_s": None if best is None else best["start_s"],
                 "best_end_s": None if best is None else best["end_s"],
                 "best_screen_score": None if best is None else best["best_score"],
-                "sampled_frames": sampled, "ballhandler_observed_frames": bh_obs,
-                "raw_track_count": raw_tracks, "kept_track_count": kept_tracks,
+                "sampled_frames": sampled,
+                "ballhandler_observed_frames": bh_obs,
+                "raw_track_count": raw_tracks,
+                "kept_track_count": kept_tracks,
                 "mean_calibration_coverage": round(float(np.mean(mean_calib)), 3) if mean_calib else None,
                 "errors": " || ".join(errors),
                 "runtime_seconds": round(time.perf_counter() - t0, 2),
@@ -226,7 +220,7 @@ def main():
         "mean_runtime_seconds": float(out.runtime_seconds.mean()) if len(out) else None,
         "mean_calibration_coverage": float(out.mean_calibration_coverage.dropna().mean()) if len(out) and out.mean_calibration_coverage.notna().any() else None,
         "error_rows": int(out.errors.fillna("").astype(str).ne("").sum()) if len(out) else 0,
-        "note": "Screen geometry is evaluated only after robust court-ROI participation gating; candidate is not yet Adams-confirmed."
+        "note": "All 70 Adams-on-court HOU possessions scanned with early/late/mid anchors as duration requires. Screen geometry is evaluated only after robust court-ROI participation gating; candidate is not yet Adams-confirmed."
     }
     (a.out / "qa.json").write_text(json.dumps(qa, indent=2))
     print(json.dumps(qa, indent=2))
