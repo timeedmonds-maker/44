@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TEXT_SUFFIXES = {'.py', '.yml', '.yaml', '.sh', '.md', '.txt', '.json', '.ts', '.tsx', '.js'}
 SKIP_DIRS = {'.git', 'node_modules', 'vendor', 'outputs', 'deliveries', '__pycache__'}
 APPROVED_RENDERER = 'tools/render_deterministic_master.py'
+APPROVED_RENDERER_TOKEN = 'render_deterministic_master'
 THIS_FILE = 'tools/audit_video_render_policy.py'
 
 # Keep obsolete implementation names out of ordinary repository text while
@@ -47,6 +47,7 @@ def main() -> None:
         except Exception:
             continue
         lower = text.lower()
+        calls_shared = APPROVED_RENDERER_TOKEN in lower
         for pat in OBSOLETE_PATTERNS:
             if pat in lower:
                 violations.append({'path': rels, 'type': 'obsolete-render-reference', 'pattern': pat})
@@ -58,10 +59,9 @@ def main() -> None:
                 'cas=0.22',
                 'crf 16',
             ))
-            calls_shared = APPROVED_RENDERER in text
             if rels != APPROVED_RENDERER and not calls_shared and not approved_inline:
                 violations.append({'path': rels, 'type': 'nonstandard-inline-render'})
-        if '2160p' in lower and 'scale=3840:2160' not in lower and APPROVED_RENDERER not in text:
+        if '2160p' in lower and 'scale=3840:2160' not in lower and not calls_shared:
             # Documentation may describe 2160p without implementing a renderer.
             if rel.suffix.lower() in {'.py', '.yml', '.yaml', '.sh'}:
                 violations.append({'path': rels, 'type': '2160p-output-without-shared-renderer'})
