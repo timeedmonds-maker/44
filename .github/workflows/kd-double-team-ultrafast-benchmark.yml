@@ -1,0 +1,98 @@
+name: KD double-team ultrafast benchmark
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/kd-double-team-probe]
+    paths:
+      - 'tools/kd_double_team_ultrafast_screen.py'
+      - '.github/workflows/kd-double-team-ultrafast-benchmark.yml'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install pandas pyreadr requests
+      - run: python tools/build_kd_possession_universe_2025_26.py
+      - id: plan
+        run: |
+          python tools/plan_kd_double_team_rapid_screen.py \
+            --input artifacts/kd_double_team_universe/kd_possession_universe_2025_26.csv.gz \
+            --out artifacts/kd_rapid_plan --mode benchmark --benchmark-games 3 --benchmark-per-game 4
+          echo "matrix=$(cat artifacts/kd_rapid_plan/matrix.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-ultrafast-plan
+          path: artifacts/kd_rapid_plan
+          if-no-files-found: error
+
+  screen_game:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install minimal CPU stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install pandas requests opencv-python-headless ultralytics
+      - uses: actions/download-artifact@v4
+        with:
+          name: kd-ultrafast-plan
+          path: artifacts/plan
+      - name: Image-space upper-bound screen
+        run: |
+          python tools/kd_double_team_ultrafast_screen.py \
+            --input "artifacts/plan/kd_rapid_plan/shards/${{ matrix.game_id }}.csv" \
+            --out "artifacts/screen/${{ matrix.game_id }}" \
+            --sample-fps 2.0 --max-seconds 12 --radius-body-heights 2.5 \
+            --min-visible-persons 7 --min-observable-frames 8 --min-observable-fraction 0.55 \
+            --candidate-streak 2
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kd-ultrafast-${{ matrix.game_id }}
+          path: artifacts/screen/${{ matrix.game_id }}
+          if-no-files-found: warn
+
+  fan_in:
+    needs: [prepare, screen_game]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install pandas
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: kd-ultrafast-*
+          path: artifacts/all_shards
+          merge-multiple: false
+      - run: python tools/merge_kd_double_team_fast_screen.py --root artifacts/all_shards --out artifacts/merged
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-double-team-ultrafast-merged
+          path: artifacts/merged
+          if-no-files-found: error
