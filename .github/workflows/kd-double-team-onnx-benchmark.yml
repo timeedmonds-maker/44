@@ -1,0 +1,112 @@
+name: KD double-team ONNX benchmark
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/kd-double-team-probe]
+    paths:
+      - 'tools/kd_double_team_ultrafast_onnx.py'
+      - '.github/workflows/kd-double-team-onnx-benchmark.yml'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build exact possession benchmark plan
+        run: |
+          pip install pandas pyreadr requests
+          python tools/build_kd_possession_universe_2025_26.py
+      - id: plan
+        run: |
+          python tools/plan_kd_double_team_rapid_screen.py \
+            --input artifacts/kd_double_team_universe/kd_possession_universe_2025_26.csv.gz \
+            --out artifacts/kd_rapid_plan --mode benchmark --benchmark-games 3 --benchmark-per-game 4
+          echo "matrix=$(cat artifacts/kd_rapid_plan/matrix.json)" >> "$GITHUB_OUTPUT"
+      - name: Export person detector once to ONNX
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install ultralytics onnx onnxslim
+          mkdir -p artifacts/models
+          python - <<'PY'
+          from ultralytics import YOLO
+          from pathlib import Path
+          m=YOLO('yolo11n.pt')
+          p=Path(m.export(format='onnx',imgsz=640,opset=12,dynamic=False,simplify=True,nms=False))
+          out=Path('artifacts/models/yolo11n.onnx')
+          out.write_bytes(p.read_bytes())
+          print(out, out.stat().st_size)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-onnx-bundle
+          path: |
+            artifacts/kd_rapid_plan
+            artifacts/models/yolo11n.onnx
+          if-no-files-found: error
+
+  screen_game:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install lightweight worker dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install pandas requests opencv-python-headless
+      - uses: actions/download-artifact@v4
+        with:
+          name: kd-onnx-bundle
+          path: artifacts/bundle
+      - name: ONNX image-space upper-bound screen
+        run: |
+          python tools/kd_double_team_ultrafast_onnx.py \
+            --input "artifacts/bundle/kd_rapid_plan/shards/${{ matrix.game_id }}.csv" \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --out "artifacts/screen/${{ matrix.game_id }}" \
+            --sample-fps 2.0 --max-seconds 12 --radius-body-heights 2.5 \
+            --min-visible-persons 7 --min-observable-frames 8 --min-observable-fraction 0.55 \
+            --candidate-streak 2 --target-hls-width 640
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kd-onnx-screen-${{ matrix.game_id }}
+          path: artifacts/screen/${{ matrix.game_id }}
+          if-no-files-found: warn
+
+  fan_in:
+    needs: [prepare, screen_game]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: kd-onnx-screen-*
+          path: artifacts/all_shards
+          merge-multiple: false
+      - run: python tools/merge_kd_double_team_fast_screen.py --root artifacts/all_shards --out artifacts/merged
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-double-team-onnx-merged
+          path: artifacts/merged
+          if-no-files-found: error
