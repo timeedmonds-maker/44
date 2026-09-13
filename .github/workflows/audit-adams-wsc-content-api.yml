@@ -1,0 +1,62 @@
+name: Audit Adams WSC Content API
+on:
+  push:
+    paths:
+      - '.github/workflows/audit-adams-wsc-content-api.yml'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query public NBA content metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import json, requests
+          from urllib.parse import urlencode
+          base='https://content-api-prod.nba.com/public/1/leagues/nba'
+          queries=[
+            ('game_videos','/content/video',{'games':'0022100923','count':100}),
+            ('video_id','/content/video',{'id':'716980','count':20}),
+            ('video_slug','/content/video',{'slug':'steven-adams-with-one-of-the-days-best-assists','count':20}),
+            ('search_title','/search/video',{'q':'Steven Adams with one of the day best assists','count':50,'page':1,'offset':0,'sources':'league','region':'united-states'}),
+            ('search_adams','/search/video',{'q':'Steven Adams','count':100,'page':1,'offset':0,'sources':'league','region':'united-states'}),
+          ]
+          s=requests.Session(); h={'User-Agent':'Mozilla/5.0','Accept':'application/json','Referer':'https://www.nba.com/'}
+          summary=[]
+          for name,path,params in queries:
+            u=base+path
+            r=s.get(u,params=params,headers=h,timeout=30)
+            print('QUERY',name,'STATUS',r.status_code,'LEN',len(r.content),'URL',r.url)
+            open(f'out/{name}.json','wb').write(r.content)
+            rec={'name':name,'status':r.status_code,'length':len(r.content)}
+            try:
+              j=r.json(); results=j.get('results',j) if isinstance(j,dict) else j
+              items=[]
+              if isinstance(results,dict):
+                items=results.get('items') or []
+              elif isinstance(results,list): items=results
+              rec['item_count']=len(items)
+              compact=[]
+              for x in items:
+                if not isinstance(x,dict): continue
+                if str(x.get('id'))=='716980' or '0022100923' in json.dumps(x) or 'steven-adams' in str(x.get('slug','')):
+                  compact.append({k:x.get(k) for k in ['id','type','title','slug','permalink','date','modified','featuredImage','videoCreationSource','entitlements','videoDuration','videoDurationSeconds','mediaKindAssetId','mediakindExternalProgramId','mediaKindOperationStatus','videoIviCaid','videoIviCType','videoName','videoAssets','attributes','taxonomy','related'] if k in x})
+              rec['matches']=compact
+              print('MATCHES',name,json.dumps(compact,separators=(',',':'))[:20000])
+            except Exception as e:
+              rec['json_error']=str(e)
+            summary.append(rec)
+          open('out/summary.json','w').write(json.dumps(summary,indent=2))
+          PY
+      - name: Upload audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-wsc-content-api-audit
+          path: out/
+          retention-days: 14
