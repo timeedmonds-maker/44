@@ -1,0 +1,77 @@
+name: Download event352 official NBA WSC master native
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/download-event352-official-wsc-native.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install ffmpeg
+        shell: bash
+        run: |
+          sudo apt-get update >/dev/null
+          sudo apt-get install -y ffmpeg >/dev/null
+      - name: Resolve exact NBA WSC VOD and download highest native HLS rendition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,json,uuid,requests,subprocess,hashlib,re
+          from pathlib import Path
+          OUT=Path('event352_official_wsc_native'); OUT.mkdir(exist_ok=True)
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36'
+          external='fake_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA_NBA_movie'
+          identity='https://identity.nba.com/api/v1'; ott='https://ottapp-appgw-client.nba.com'
+          s=requests.Session(); s.headers.update({'User-Agent':UA,'content-type':'application/json','x-client-platform':'web','x-client-id':'Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs','Origin':'https://www.nba.com','Referer':'https://www.nba.com/'})
+          r=s.get(identity+'/sts',params={'deviceId':str(uuid.uuid4())},timeout=25); r.raise_for_status(); j=r.json(); d=j.get('data',j); token=d.get('AccessToken') or d.get('accessToken') or d.get('token')
+          if not token: raise SystemExit('No NBA STS token')
+          print('::add-mask::'+token)
+          mh={'User-Agent':UA,'Authorization':f'OAUTH2 access_token="{token}"','content-type':'application/json','Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          loc=s.get(ott+'/S1/subscriber/location-lookup',headers=mh,timeout=25); loc.raise_for_status(); lj=loc.json()
+          country=lj.get('CountryCode') or lj.get('countryCode') or 'US'; postal=lj.get('PostalCode') or lj.get('postalCode') or ''
+          detail=base64.b64encode(json.dumps({'PostalCode':postal,'CountryCode':country},separators=(',',':')).encode()).decode()
+          p=s.get(ott+f'/S1/subscriber/v3/programs/{external}/play-options',params={'IsexternalId':'true','locationDetail':detail},headers=mh,timeout=30); p.raise_for_status(); pj=p.json()
+          vod=(pj.get('Vods') or [None])[0]
+          if not vod: raise SystemExit('NBA WSC VOD disappeared')
+          action=(vod.get('PlayActions') or [None])[0]
+          if not action: raise SystemExit('NBA WSC PlayAction missing')
+          vp=action['VideoProfile']; uri=vp['PlaybackUri']
+          OUT.joinpath('play_options.json').write_text(json.dumps(pj,indent=2))
+          print('PROFILE_ID',vp.get('Id'),'ORIGIN',vp.get('PlaybackOrigin'),'ENCRYPTED',vp.get('IsEncrypted'),'URI',uri,flush=True)
+
+          # Inspect master/media playlist first. NBA returned this exact playback URI.
+          rr=requests.get(uri,headers={'User-Agent':UA,'Referer':'https://www.nba.com/','Accept':'application/vnd.apple.mpegurl,*/*'},timeout=25)
+          print('PLAYLIST_STATUS',rr.status_code,'CT',rr.headers.get('content-type'),'BYTES',len(rr.content),flush=True)
+          OUT.joinpath('source_playlist.m3u8').write_bytes(rr.content)
+          if rr.ok:
+            print('PLAYLIST',rr.text[:12000],flush=True)
+
+          dst=OUT/'event352_Steven_Adams_to_Ja_Morant_official_NBA_WSC_SOURCE.mp4'
+          hdr=f'User-Agent: {UA}\r\nReferer: https://www.nba.com/\r\n'
+          cmd=['ffmpeg','-y','-v','error','-rw_timeout','30000000','-headers',hdr,'-i',uri,'-map','0:v:0','-map','0:a:0?','-c','copy','-movflags','+faststart',str(dst)]
+          print('+',' '.join(cmd),flush=True); subprocess.run(cmd,check=True)
+          q=subprocess.run(['ffprobe','-v','error','-show_entries','stream=index,codec_type,codec_name,width,height,avg_frame_rate,bit_rate:format=duration,size,bit_rate','-of','json',str(dst)],capture_output=True,text=True,check=True)
+          meta=json.loads(q.stdout); meta['sha256']=hashlib.sha256(dst.read_bytes()).hexdigest(); meta['bytes']=dst.stat().st_size
+          OUT.joinpath('ffprobe.json').write_text(json.dumps(meta,indent=2))
+          dur=float(meta['format'].get('duration') or 0); streams=meta.get('streams',[]); vs=next((x for x in streams if x.get('codec_type')=='video'),{})
+          if dur < 10 or dur > 20 or not vs.get('width') or not vs.get('height'): raise SystemExit(f'Unexpected media metadata: {meta}')
+          # Basic frame-motion/non-placeholder fingerprints for retained QA.
+          hashes=[]
+          for frac in (0.2,0.5,0.8):
+            t=max(.2,min(dur-.2,dur*frac)); z=subprocess.run(['ffmpeg','-v','error','-ss',str(t),'-i',str(dst),'-vf','scale=16:9,format=gray','-frames:v','1','-f','rawvideo','-pix_fmt','gray','-'],capture_output=True,check=True).stdout
+            if len(z)!=144: raise SystemExit('Frame fingerprint failed')
+            avg=sum(z)/len(z); bits=''.join('1' if b>=avg else '0' for b in z); hashes.append(f'{int(bits,2):036x}')
+          OUT.joinpath('qa.json').write_text(json.dumps({'game_id':'0022100923','event_id':352,'content_record_id':716980,'media_kind_asset_id':'EAE0A37C0784E086ECADF4DADEBCEB4433D773CA','title':vod.get('CatalogInfo',{}).get('Name'),'description':vod.get('CatalogInfo',{}).get('Description'),'runtime_seconds':vod.get('CatalogInfo',{}).get('RuntimeSeconds'),'video_profile':vp,'ffprobe':meta,'frame_fingerprints':hashes,'native_no_upscale_no_reencode':True},indent=2))
+          print('SUCCESS',dst,'WIDTH',vs.get('width'),'HEIGHT',vs.get('height'),'DURATION',dur,'BYTES',dst.stat().st_size,'SHA256',meta['sha256'],flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event352-official-NBA-WSC-native
+          path: event352_official_wsc_native/
+          retention-days: 14
+          compression-level: 0
