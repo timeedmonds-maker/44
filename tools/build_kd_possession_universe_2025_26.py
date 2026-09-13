@@ -69,11 +69,15 @@ def main():
         q_anchor=q_hou if len(q_hou) else q
         anchor=q_anchor.sort_values(['clock_sec','event_num_i'],ascending=[True,False],kind='stable').iloc[0] if len(q_anchor) else None
         kdq=q[q.kd_any_event]; kd_p1=q[q.kd_p1]
+        window_nums=[int(x) for x in q.event_num_i.dropna().tolist()]
+        hou_nums=[int(x) for x in q_hou.event_num_i.dropna().tolist()]
         rec={
             'season':SEASON,'game_id':r.game_id_norm,'period':per,'poss_num_team':r.poss_num_team,'possession_uid':r.possession_uid,
             'start_time':r.start_time,'end_time':r.end_time,'score_team_start':r.score_team_start,'score_opp_start':r.score_opp_start,
             'opp':r.opp,'pts_poss':r.pts_poss,'type_end':r.type_end,'events_seq':r.events_seq,'lineup_team':r.lineup_team,'lineup_opp':r.lineup_opp,
             'window_event_count':int(len(q)),'hou_event_count':int(len(q_hou)),'kd_event_count':int(len(kdq)),'kd_player1_event_count':int(len(kd_p1)),
+            'window_event_nums':'|'.join(str(x) for x in window_nums),
+            'hou_event_nums':'|'.join(str(x) for x in hou_nums),
             'kd_event_nums':'|'.join(str(int(x)) for x in kdq.event_num_i.dropna().tolist()),
             'kd_player1_event_nums':'|'.join(str(int(x)) for x in kd_p1.event_num_i.dropna().tolist()),
             'anchor_event_num':int(anchor.event_num_i) if anchor is not None and pd.notna(anchor.event_num_i) else None,
@@ -98,6 +102,7 @@ def main():
         'kd_games_match_expected_78':bool(out.game_id.nunique()==78),'possessions_with_anchor_event':int(out.anchor_event_num.notna().sum()),
         'anchor_coverage':float(out.anchor_event_num.notna().mean()),'possessions_with_any_kd_pbp_event':int((out.kd_event_count>0).sum()),
         'possessions_with_multiple_kd_pbp_events':int((out.kd_event_count>=2).sum()),'candidate_priority_counts':out.candidate_priority.value_counts().to_dict(),
+        'possessions_with_exact_window_event_nums':int(out.window_event_nums.fillna('').astype(str).ne('').sum()),
         'duplicate_possession_uid':int(out.possession_uid.duplicated().sum()),'classification':'exact observed possession universe; candidate_priority is workload triage only and is NOT a double-team label'
     }
     (OUT/'qa.json').write_text(json.dumps(qa,indent=2,default=str)); print(json.dumps(qa,indent=2,default=str))
