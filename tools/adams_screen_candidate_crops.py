@@ -12,7 +12,7 @@ from adams_screen_temporal_onnx import associate, cluster_tracks, by_tid, norm_d
 
 
 def torso_crop(frame, box):
-    x1,y1,x2,y2=[int(v) for v in box]; w=x2-x1; h=y2-y1
+    x1,y1,x2,y2=[int(v) for v in box[:4]]; w=x2-x1; h=y2-y1
     cx1=x1+int(.18*w); cx2=x2-int(.18*w); cy1=y1+int(.12*h); cy2=y1+int(.55*h)
     c=frame[max(0,cy1):max(0,cy2),max(0,cx1):max(0,cx2)]
     return c if c.size else None
@@ -55,7 +55,7 @@ def annotate(frame, boxes, tids, labels):
     out=frame.copy(); role_colors={'ballhandler':(255,255,255),'screener':(0,255,255),'screened_defender':(255,0,255),'screener_defender':(0,165,255)}
     for role,tid in tids.items():
         if tid is None or tid not in boxes: continue
-        x1,y1,x2,y2=[int(v) for v in boxes[tid]]; color=role_colors[role]
+        x1,y1,x2,y2=[int(v) for v in boxes[tid][:4]]; color=role_colors[role]
         cv2.rectangle(out,(x1,y1),(x2,y2),color,2)
         cv2.putText(out,f'{role} T{tid}',(x1,max(18,y1-5)),cv2.FONT_HERSHEY_SIMPLEX,.48,color,1,cv2.LINE_AA)
     return out
