@@ -1,0 +1,103 @@
+name: Adams OKC high-res screen identity
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/adams-okc-screen-identity-hires.yml'
+      - 'tools/adams_screen_candidate_crops.py'
+      - 'tools/adams_screen_parseq_identity.py'
+
+jobs:
+  crop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0,1,2,3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install lightweight video stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install pandas requests opencv-python-headless
+      - name: Download validated identity plan and detector
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-okc-identity-bundle
+          path: artifacts/bundle
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 34744116090
+      - name: Build native-resolution participant crops
+        run: |
+          python tools/adams_screen_candidate_crops.py \
+            --input "artifacts/bundle/identity_plan/shards/shard_${{ matrix.shard }}.csv" \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --out "artifacts/crops/shard_${{ matrix.shard }}" \
+            --sample-fps 10.0 --max-seconds 16 --target-hls-width 960 --person-conf 0.14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-hires-crops-${{ matrix.shard }}
+          path: artifacts/crops/shard_${{ matrix.shard }}
+          if-no-files-found: error
+
+  identity:
+    needs: crop
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download identity plan
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-okc-identity-bundle
+          path: artifacts/bundle
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 34744116090
+      - name: Download all high-res crops
+        uses: actions/download-artifact@v4
+        with:
+          pattern: adams-okc-hires-crops-*
+          path: artifacts/all_crops
+          merge-multiple: true
+      - name: Install CPU jersey OCR dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install pandas numpy opencv-python-headless timm pytorch-lightning pillow tqdm pyyaml gdown scipy scikit-learn nltk
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+          mkdir -p /tmp/nbacv/models
+          gdown -q 1uRln22tlhneVt3P6MePmVxBWSLMsL3bm -O /tmp/nbacv/models/parseq_soccernet.ckpt
+          gdown -q 18HAuZbge3z8TSfRiX_FzsnKgiBs-RRNw -O /tmp/nbacv/models/legibility_soccernet.pth
+      - name: Read high-res jerseys and map to exact lineups
+        run: |
+          cd /tmp/nbacv
+          python "$GITHUB_WORKSPACE/tools/adams_screen_parseq_identity.py" \
+            --candidates "$GITHUB_WORKSPACE/artifacts/bundle/identity_plan/adams_okc_identity_candidates.csv" \
+            --crop-root "$GITHUB_WORKSPACE/artifacts/all_crops/crops" \
+            --roster "$GITHUB_WORKSPACE/data/rosters/0022500001.json" \
+            --nbacv-src /tmp/nbacv/src \
+            --out "$GITHUB_WORKSPACE/artifacts/identity"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-hires-screen-identity
+          path: |
+            artifacts/identity
+            artifacts/all_crops/contacts
+            artifacts/all_crops/evidence
+            artifacts/all_crops/crop_metadata.csv
+          if-no-files-found: warn
