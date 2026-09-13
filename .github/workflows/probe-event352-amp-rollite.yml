@@ -1,0 +1,48 @@
+name: Probe event352 NBA AMP rollite resolver
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-event352-amp-rollite.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe current AMP rollite endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,uuid,requests
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36'
+          identity='https://identity.nba.com/api/v1'
+          amp='https://ottapp-appgw-amp.nba.com'
+          media='NBA_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA_Jitp_Reach_HD'
+          H={'User-Agent':UA,'content-type':'application/json','x-client-platform':'web','x-client-id':'Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs','Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          s=requests.Session()
+          r=s.get(identity+'/sts',params={'deviceId':str(uuid.uuid4())},headers=H,timeout=25); r.raise_for_status(); j=r.json(); d=j.get('data',j); token=d.get('AccessToken') or d.get('accessToken') or d.get('token')
+          if not token: raise SystemExit('no STS token')
+          print('::add-mask::'+token); print('STS_OK',len(token),flush=True)
+          variants=[]
+          for path in ['/client/rollite','/S1/client/rollite','/v1/client/rollite','/S1/v1/client/rollite']:
+            for tokmode in ['query','auth','both','none']:
+              for mid in [media,'EAE0A37C0784E086ECADF4DADEBCEB4433D773CA','fake_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA_NBA_movie']:
+                variants.append((path,tokmode,mid))
+          for path,tokmode,mid in variants:
+            sess=str(uuid.uuid4())
+            params={'owner_uid':'azuki','media_uid':mid,'session_uid':sess,'seq':'0'}
+            headers={'User-Agent':UA,'Accept':'application/json,*/*','Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+            if tokmode in ('query','both'): params['user_token']=token
+            if tokmode in ('auth','both'): headers['Authorization']=f'OAUTH2 access_token="{token}"'
+            try:
+              q=s.get(amp+path,params=params,headers=headers,timeout=12,allow_redirects=True)
+              body=q.text[:2500]
+              # Mask token in any echoed payload before logging.
+              body=body.replace(token,'<TOKEN>')
+              print('RESULT',path,tokmode,mid,'STATUS',q.status_code,'CT',q.headers.get('content-type'),'LEN',len(q.content),'BODY',body,flush=True)
+            except Exception as e:
+              print('ERR',path,tokmode,mid,type(e).__name__,str(e)[:300],flush=True)
+          PY
