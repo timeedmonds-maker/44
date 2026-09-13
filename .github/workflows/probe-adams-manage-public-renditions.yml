@@ -1,0 +1,30 @@
+name: Probe Adams public Manage renditions
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-adams-manage-public-renditions.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe deterministic public CDN paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://cdn.nba.com/manage/2022/02/EAE0A37C0784E086ECADF4DADEBCEB4433D773CA'
+          for suffix in \
+            '.mp4' \
+            '_1280x720.mp4' \
+            '_1920x1080.mp4' \
+            '_960x540.mp4' \
+            '_16x9.mp4' \
+            '.m3u8'; do
+            url="${base}${suffix}"
+            code=$(curl -L -sS -o /tmp/body -w '%{http_code}' -H 'Range: bytes=0-31' -A 'Mozilla/5.0' "$url" || true)
+            ctype=$(curl -L -sSI -A 'Mozilla/5.0' "$url" 2>/dev/null | awk -F': ' 'tolower($1)=="content-type"{gsub("\r","",$2); print $2}' | tail -1)
+            bytes=$(wc -c </tmp/body 2>/dev/null || echo 0)
+            printf 'PROBE %s STATUS %s TYPE %s BYTES %s\n' "$suffix" "$code" "${ctype:-unknown}" "$bytes"
+          done
