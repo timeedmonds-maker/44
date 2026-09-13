@@ -1,0 +1,73 @@
+name: Resolve Adams free VOD simple roll
+on:
+  push:
+    paths:
+      - '.github/workflows/resolve-adams-free-vod-simple-roll.yml'
+  workflow_dispatch:
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve free unencrypted NBA asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import base64, json, os, re, subprocess, uuid
+          from urllib.parse import quote
+          import requests
+
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+          CLIENT='Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs'
+          PROGRAM='fake_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA_NBA_movie'
+          VOD='NBA_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA'
+          PROFILE=VOD+'_Jitp_Reach_HD'
+          device=uuid.uuid4().hex
+          s=requests.Session()
+          common={'User-Agent':UA,'Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+
+          r=s.get('https://identity.nba.com/api/v1/sts',params={'deviceId':device},headers={**common,'content-type':'application/json','x-client-platform':'web','x-client-id':CLIENT},timeout=25)
+          r.raise_for_status(); token=r.json()['data']['AccessToken']; print('::add-mask::'+token); print('STS',r.status_code)
+
+          loc=base64.b64encode(b'{"PostalCode":"","CountryCode":""}').decode()
+          u=f'https://ottapp-appgw-client.nba.com/S1/subscriber/v3/programs/{PROGRAM}/play-options'
+          p=s.get(u,params={'IsexternalId':'true','locationDetail':loc},headers={**common,'Authorization':f'OAUTH2 access_token="{token}"'},timeout=25)
+          print('PLAY_OPTIONS',p.status_code); p.raise_for_status(); po=p.json()
+          vod=next(v for v in po['Vods'] if v['Id']==VOD)
+          act=next(a for a in vod['PlayActions'] if a['VideoProfile']['Id']==PROFILE)
+          print('PROFILE',act['VideoProfile']['Id'],'ENCRYPTED',act['VideoProfile'].get('IsEncrypted'),'ORIGIN',act['VideoProfile'].get('PlaybackOrigin'))
+          if act['VideoProfile'].get('IsEncrypted') is not False: raise SystemExit('not unencrypted')
+
+          dp=base64.b64encode(json.dumps({'model':'Desktop','osVersion':'10','vendorName':'Microsoft','osName':'HTML5','wvLevel':'L3','deviceUUID':device},separators=(',',':')).encode()).decode()
+          h={**common,'AuthorizationToken':token,'AzukiIMC':'IMC7.5.0_AN_D3.0.0_S0','DeviceProfile':dp,'Content-Type':'application/json'}
+          rr=s.post('https://ottapp-appgw-amp.nba.com/v1/client/roll',params={'ownerUid':'azuki','mediaId':PROFILE,'sessionId':'sessionId'},headers=h,data='{}',timeout=30)
+          print('ROLL',rr.status_code,rr.text[:5000].replace(token,'<TOKEN>'))
+          open('out/roll.json','w').write(rr.text.replace(token,'<TOKEN>'))
+          rr.raise_for_status(); data=rr.json()['response']
+          base=data['cdns']['cdn'][0]['base_uri'].rstrip('/')
+          manifest=data['manifest_uri'].lstrip('/')
+          url=base+'/'+manifest
+          print('MANIFEST_HOST',requests.utils.urlparse(url).netloc,'PATH',requests.utils.urlparse(url).path)
+          m=s.get(url,headers=common,timeout=30)
+          print('MANIFEST',m.status_code,m.headers.get('content-type'),len(m.content))
+          m.raise_for_status(); open('out/master.m3u8','wb').write(m.content)
+          if b'#EXTM3U' not in m.content[:1000]: raise SystemExit('not HLS')
+          cmd=['ffmpeg','-y','-loglevel','warning','-headers',f'Referer: https://www.nba.com/\r\nOrigin: https://www.nba.com\r\nUser-Agent: {UA}\r\n','-i',url,'-c','copy','out/adams_morant_original_native.mp4']
+          x=subprocess.run(cmd,capture_output=True,text=True,timeout=120)
+          print('FFMPEG',x.returncode,x.stderr[-1500:])
+          if x.returncode: raise SystemExit('ffmpeg failed')
+          q=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration,size:stream=codec_name,width,height,r_frame_rate','-of','json','out/adams_morant_original_native.mp4'],capture_output=True,text=True,timeout=30)
+          print('FFPROBE',q.stdout); open('out/ffprobe.json','w').write(q.stdout)
+          PY
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-free-vod-simple-roll
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 7
