@@ -15,11 +15,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
       - name: Fetch official KD possession anchor clip
         run: |
           pip install requests
           mkdir -p artifacts/kd_cv
           python tools/fetch_official_nba_event_clip.py --game 0022500001 --event 321 --out artifacts/kd_cv/kd_event_321.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate -show_entries format=duration -of json artifacts/kd_cv/kd_event_321.mp4 > artifacts/kd_cv/clip_probe.json
       - name: Install external broadcast-CV research backend
         run: |
           git clone --depth 1 https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
@@ -33,7 +39,7 @@ jobs:
           nbacv "$GITHUB_WORKSPACE/artifacts/kd_cv/kd_event_321.mp4" --skip-jersey --imgsz 960 --stop 360 -o "$GITHUB_WORKSPACE/artifacts/kd_cv/nbacv_out"
       - name: Inventory outputs
         if: always()
-        run: find artifacts/kd_cv -maxdepth 3 -type f -printf '%p %s bytes\n' || true
+        run: find artifacts/kd_cv -maxdepth 4 -type f -printf '%p %s bytes\n' | sort || true
       - if: always()
         uses: actions/upload-artifact@v4
         with:
