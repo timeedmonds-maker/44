@@ -1,0 +1,78 @@
+name: Probe NBA video playback asset for 786873
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-nba-video-id-786873.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Mine current NBA watch JS for playback endpoints and probe asset IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p nba786873
+          python - <<'PY'
+          import requests,re,json,html,urllib.parse
+          from pathlib import Path
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36'}
+          page='https://www.nba.com/watch/video/assist-of-the-year-steven-adams?collection=fan-favorites-2022&plsrc=nba'
+          r=requests.get(page,headers=H,timeout=30); Path('nba786873/page.html').write_text(r.text)
+          srcs=re.findall(r'<script[^>]+src="([^"]+)"',r.text,re.I)
+          print('SCRIPTS',len(srcs))
+          endpoint_hits=set(); keyword_hits=[]
+          for i,src in enumerate(srcs):
+              u=urllib.parse.urljoin(page,html.unescape(src))
+              if '/_next/' not in u: continue
+              try:q=requests.get(u,headers=H,timeout=25)
+              except Exception as e:continue
+              if q.status_code!=200:continue
+              text=q.text
+              Path(f'nba786873/js_{i:02d}.js').write_text(text)
+              for pat in ['videoAssets','videoIviCaid','vodClips','IviC','playback','mediakind','mediaKind','videoId','assetId','m3u8','content-api','api.nba','nba.net']:
+                  for m in re.finditer(pat,text,re.I):
+                      s=max(0,m.start()-350); e=min(len(text),m.end()+650)
+                      snip=text[s:e]
+                      keyword_hits.append({'script':u,'pattern':pat,'snippet':snip})
+              for x in re.findall(r'https?://[^"\'`<>\\\s]+',text):
+                  if any(k in x.lower() for k in ['video','stream','playback','ivi','asset','media','api']): endpoint_hits.add(x)
+          Path('nba786873/js_hits.json').write_text(json.dumps(keyword_hits,indent=2))
+          Path('nba786873/endpoints.txt').write_text('\n'.join(sorted(endpoint_hits)))
+          for h in keyword_hits[:120]:
+              print('HIT',h['pattern'],re.sub(r'\s+',' ',h['snippet'])[:1000])
+          print('ENDPOINTS')
+          for x in sorted(endpoint_hits): print(x)
+          # Generic likely endpoint families using three independent identifiers.
+          ids=['786873','nba-manage-prod-1-786873','202206011217NBA_____VIDEOS__NBAE_2590852','fake_202206011217NBA_____VIDEOS__NBAE_2590852_NBA_movie']
+          templates=[
+            'https://api.nba.net/2/nba/video/{id}',
+            'https://api.nba.net/2/nba/video/{id}/playback',
+            'https://api.nba.net/content/static/json/video/{id}.json',
+            'https://api.nba.net/content/static/json/video/video_{id}.json',
+            'https://content-api-prod.nba.com/public/1/endeavor/video/{id}',
+            'https://content-api-prod.nba.com/public/1/video/{id}',
+            'https://content-api.nba.com/public/1/video/{id}',
+            'https://api-hub.nba.com/video/{id}',
+            'https://www.nba.com/api/1.1/json/cms/noseason/video/{id}.json',
+            'https://www.nba.com/api/1.1/json/cms/noseason/video/{id}/index.json',
+          ]
+          probes=[]
+          for idv in ids:
+              for t in templates:
+                  u=t.format(id=urllib.parse.quote(idv,safe=''))
+                  try:
+                      q=requests.get(u,headers=H,timeout=12,allow_redirects=True)
+                      text=q.text[:1500]
+                      rec={'url':u,'status':q.status_code,'ct':q.headers.get('content-type'),'bytes':len(q.content),'final':q.url,'sample':text}
+                      probes.append(rec)
+                      if q.status_code not in (404,403): print('PROBE',q.status_code,q.headers.get('content-type'),u,text[:700])
+                  except Exception as e: probes.append({'url':u,'error':repr(e)})
+          Path('nba786873/probes.json').write_text(json.dumps(probes,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nba-video-786873-probe
+          path: nba786873/
+          retention-days: 7
