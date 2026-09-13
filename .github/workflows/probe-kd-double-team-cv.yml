@@ -1,0 +1,42 @@
+name: Probe KD double-team CV
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/kd-double-team-probe]
+    paths:
+      - 'tools/fetch_official_nba_event_clip.py'
+      - '.github/workflows/probe-kd-double-team-cv.yml'
+jobs:
+  cv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch official KD possession anchor clip
+        run: |
+          pip install requests
+          mkdir -p artifacts/kd_cv
+          python tools/fetch_official_nba_event_clip.py --game 0022500001 --event 321 --out artifacts/kd_cv/kd_event_321.mp4
+      - name: Install external broadcast-CV research backend
+        run: |
+          git clone --depth 1 https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          pip install -e /tmp/nbacv gdown
+          mkdir -p /tmp/nbacv/models
+          gdown 1nfECuSyJvPUmz3njZCdFERSQQbERt8FU -O /tmp/nbacv/models/wasb_basketball_best.pth.tar
+          curl -L --retry 3 -o /tmp/nbacv/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Run CV reconstruction
+        working-directory: /tmp/nbacv
+        run: |
+          nbacv "$GITHUB_WORKSPACE/artifacts/kd_cv/kd_event_321.mp4" --skip-jersey --imgsz 960 --stop 360 -o "$GITHUB_WORKSPACE/artifacts/kd_cv/nbacv_out"
+      - name: Inventory outputs
+        if: always()
+        run: find artifacts/kd_cv -maxdepth 3 -type f -printf '%p %s bytes\n' || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kd-double-team-cv-proof-event-321
+          path: artifacts/kd_cv
+          if-no-files-found: warn
