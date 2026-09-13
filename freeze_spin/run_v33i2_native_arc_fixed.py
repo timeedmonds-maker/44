@@ -4,8 +4,8 @@ from __future__ import annotations
 
 This wrapper changes only input plumbing around the existing v33i renderer:
 1. preserve the full accepted v33e +/-20 frame-reader window;
-2. bridge the v32j camera mapping shape (K/R/C) to the inherited v31 renderer,
-   whose legacy loader contract unpacks camera values as (C,R,K).
+2. bridge the v32j camera mapping shape (K/R/C) to inherited render layers that
+   use either named mapping access or legacy tuple access (C,R,K).
 
 No camera is refit. No centre, exact-state selection, ball world point, source
 frame, renderer geometry, RGB source, resolution or appearance rule changes.
@@ -15,11 +15,21 @@ from freeze_spin import build_v33i_native_arc_from_v33h as v33i
 
 
 class _CameraCompat(dict):
-    """Dictionary for modern project()/ray() calls, iterable as legacy (C,R,K)."""
+    """Modern K/R/C mapping plus legacy tuple semantics (C,R,K)."""
+    _ORDER = ('C', 'R', 'K')
+
     def __iter__(self):
-        yield self['C']
-        yield self['R']
-        yield self['K']
+        for key in self._ORDER:
+            yield dict.__getitem__(self, key)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            if key < 0:
+                key += 3
+            if key not in (0, 1, 2):
+                raise IndexError(key)
+            key = self._ORDER[key]
+        return dict.__getitem__(self, key)
 
 
 def main() -> None:
