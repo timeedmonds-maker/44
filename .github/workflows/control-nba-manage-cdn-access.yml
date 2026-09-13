@@ -1,0 +1,30 @@
+name: Control NBA Manage CDN access
+on:
+  push:
+    paths:
+      - '.github/workflows/control-nba-manage-cdn-access.yml'
+  workflow_dispatch:
+
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe known public NBA CDN assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            'https://cdn.nba.com/manage/2022/02/EAE0A37C0784E086ECADF4DADEBCEB4433D773CA.jpg'
+            'https://cdn.nba.com/manage/2025/12/a99056c4-d1cb-901e-c34f-60ec6ab4bb69_1280x720.mp4'
+            'https://cdn.nba.com/manage/2023/05/37DzasAR3OYMApHQGJER_lukadoncic_FanVote_top5_assists_16x9_capcut.mp4'
+          )
+          for url in "${urls[@]}"; do
+            code=$(curl -L -sS -o /tmp/body -w '%{http_code}' -A 'Mozilla/5.0' -H 'Referer: https://www.nba.com/' "$url" || true)
+            type=$(file -b --mime-type /tmp/body 2>/dev/null || true)
+            bytes=$(wc -c </tmp/body 2>/dev/null || echo 0)
+            printf 'CONTROL host=%s path=%s status=%s filetype=%s bytes=%s\n' \
+              "$(printf '%s' "$url" | sed -E 's#https://([^/]+).*#\1#')" \
+              "$(printf '%s' "$url" | sed -E 's#https://[^/]+##')" \
+              "$code" "${type:-unknown}" "$bytes"
+          done
