@@ -1,0 +1,44 @@
+name: Probe event352 archive fast
+on:
+  push:
+    paths:
+      - '.github/workflows/probe-event352-archive-fast.yml'
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Parallel path probe
+        shell: bash
+        run: |
+          python - <<'PY'
+          import requests,re,html
+          from concurrent.futures import ThreadPoolExecutor,as_completed
+          H={'User-Agent':'Mozilla/5.0','Referer':'https://clips.nba.com/','Accept':'*/*'}
+          def signed(game,event):
+              p=requests.get(f'https://clips.nba.com/?gameNo={game}&eventNum={event}&source=grs',headers=H,timeout=15)
+              for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',p.text,re.I|re.S):
+                  u=html.unescape(m.group(1));
+                  if 'lrmedia.nba.com' in u and '.m3u8' in u and 'selected' in m.group(2).lower(): return u
+          old=signed('0022100923','352'); cur=signed('0022500375','608')
+          tests={'OLD_SIGNED':old,'CUR_SIGNED':cur,'OLD_UNSIGNED':old.split('?')[0],'CUR_UNSIGNED':cur.split('?')[0]}
+          files=['0001254773_1509kbps.mp4','0001254773.mp4']+[f'0001254773_{r}kbps.mp4' for r in ('400','600','800','1200','1500','1600','2000','2500','3000','4500')]
+          apps=['CFSec/_definst_','CFSec','vod/_definst_','vod','ondemand/_definst_','grs/_definst_']
+          for app in apps:
+              for f in files:
+                  tests[f'{app}|{f}']=f'https://lrmedia.nba.com/{app}/mp4:{f}/playlist.m3u8'
+          def go(kv):
+              k,u=kv
+              try:
+                  r=requests.get(u,headers=H,timeout=5,stream=True,allow_redirects=True)
+                  b=next(r.iter_content(128),b'')
+                  return k,r.status_code,r.headers.get('content-type'),r.headers.get('content-length'),b[:40].hex(),r.url
+              except Exception as e:return k,'ERR',type(e).__name__,str(e)[:80],'',''
+          with ThreadPoolExecutor(max_workers=24) as ex:
+              fut=[ex.submit(go,x) for x in tests.items()]
+              rows=[f.result() for f in as_completed(fut)]
+          for row in sorted(rows):
+              if row[0] in ('OLD_SIGNED','CUR_SIGNED','OLD_UNSIGNED','CUR_UNSIGNED') or row[1] not in (404,'ERR'):
+                  print('RESULT',row,flush=True)
+          print('TOTAL',len(rows),'NON404',sum(1 for x in rows if x[1] not in (404,'ERR')),flush=True)
+          PY
