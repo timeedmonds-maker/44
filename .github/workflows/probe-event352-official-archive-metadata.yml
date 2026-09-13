@@ -1,0 +1,64 @@
+name: Probe event352 official NBA archive metadata
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-event352-official-archive-metadata.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe Wayback CDX and official NBA legacy routes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, re, requests, urllib.parse
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138 Safari/537.36'}
+          prefix='videos.nba.com/nba/pbp/media/2022/02/28/0022100923/352/*'
+          cdx_urls=[
+            'https://web.archive.org/cdx/search/cdx?'+urllib.parse.urlencode({
+              'url':prefix,'output':'json','fl':'timestamp,original,statuscode,mimetype,digest,length',
+              'filter':'statuscode:200','collapse':'urlkey','limit':'1000'
+            }),
+            'http://web.archive.org/cdx/search/cdx?'+urllib.parse.urlencode({
+              'url':prefix,'output':'json','fl':'timestamp,original,statuscode,mimetype,digest,length',
+              'filter':'statuscode:200','collapse':'urlkey','limit':'1000'
+            }),
+          ]
+          for u in cdx_urls:
+            try:
+              r=requests.get(u,headers=H,timeout=30)
+              print('CDX',r.status_code,r.url,'LEN',len(r.content),'CT',r.headers.get('content-type'),flush=True)
+              print('CDX_BODY',r.text[:30000],flush=True)
+            except Exception as e:
+              print('CDX_ERR',repr(e),flush=True)
+
+          # Historical NBA video API normally returned UUID-backed URLs at this path.
+          # Probe likely official API/proxy variants only; no third-party media sources.
+          params='GameEventID=352&GameID=0022100923'
+          api_urls=[
+            'https://stats.nba.com/stats/videoeventsasset?'+params,
+            'https://www.nba.com/stats/videoeventsasset?'+params,
+            'https://nba.com/stats/videoeventsasset?'+params,
+          ]
+          headers_variants=[
+            {'User-Agent':H['User-Agent'],'Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','x-nba-stats-origin':'stats','x-nba-stats-token':'true'},
+            {'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/','Accept':'*/*'},
+          ]
+          def fetch(x):
+            u,h=x
+            try:
+              r=requests.get(u,headers=h,timeout=12,allow_redirects=True)
+              return ('API',u,r.status_code,r.url,r.headers.get('content-type'),len(r.content),r.text[:10000])
+            except Exception as e:
+              return ('API_ERR',u,type(e).__name__,str(e)[:500])
+          with ThreadPoolExecutor(max_workers=6) as ex:
+            fut=[ex.submit(fetch,(u,h)) for u in api_urls for h in headers_variants]
+            for f in as_completed(fut):
+              print('RESULT',repr(f.result()),flush=True)
+          PY
