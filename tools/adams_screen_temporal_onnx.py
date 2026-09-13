@@ -58,6 +58,53 @@ def ballhandler_tid(dets,balls):
             if best is None or z<best[0]: best=(z,d['tid'])
     return None if best is None or best[0]>0.95 else best[1]
 
+def propagate_ballhandler_tids(tracked, observed, fps, bridge_s=1.25, edge_s=0.50):
+    """Conservatively carry a ballhandler track through short ball-missing gaps.
+
+    The generic COCO sports-ball detector is sparse on broadcast footage.  A
+    player track, however, is usually continuous through the screen action.
+    We therefore fill only frames where the SAME observed ballhandler track
+    remains present, bridge only short gaps between same-track observations,
+    and stop at any conflicting observed ballhandler.  This is an inference,
+    not a new ball observation.
+    """
+    out=list(observed)
+    present=[{d['tid'] for d in ds} for ds in tracked]
+    max_bridge=max(1,int(round(bridge_s*fps)))
+    edge=max(1,int(round(edge_s*fps)))
+
+    obs_by_tid=defaultdict(list)
+    for i,tid in enumerate(observed):
+        if tid is not None:
+            obs_by_tid[int(tid)].append(i)
+
+    # Bridge two observations of the same track when no different observed
+    # ballhandler appears in between.
+    for tid,idxs in obs_by_tid.items():
+        for a,b in zip(idxs,idxs[1:]):
+            if b-a>max_bridge:
+                continue
+            if any(observed[k] not in (None,tid) for k in range(a+1,b)):
+                continue
+            for k in range(a+1,b):
+                if out[k] is None and tid in present[k]:
+                    out[k]=tid
+
+    # Short edge extension around each direct observation. A conflicting
+    # direct observation is a hard boundary.
+    for i,tid0 in enumerate(observed):
+        if tid0 is None:
+            continue
+        tid=int(tid0)
+        for step in (-1,1):
+            for n in range(1,edge+1):
+                k=i+step*n
+                if k<0 or k>=len(out): break
+                if observed[k] is not None and observed[k]!=tid: break
+                if tid not in present[k]: break
+                if out[k] is None: out[k]=tid
+    return out
+
 def cluster_tracks(frame_paths,tracked):
     feats=defaultdict(list)
     for fi,(pth,dets) in enumerate(zip(frame_paths,tracked)):
@@ -88,14 +135,14 @@ def track_motion(track_boxes,tid,a,b,ref_h):
     return float(np.linalg.norm(pts[-1]-pts[0])/max(1.,ref_h))
 
 def signed_side(ball_box,screen_box):
-    # horizontal relative side; robust enough for broadcast screen-crossing cue
     return float((center(ball_box)[0]-center(screen_box)[0])/max(1.,ball_box[3]-ball_box[1]))
 
 def detect_sequences(frame_paths,tracked,balls_pf,labels,centers,fps,
                      same_radius=2.7,def_radius=3.0,contact_radius=1.65,
                      still_move=0.75,bh_move=0.75,min_color_delta=18.0):
     boxes=[by_tid(d) for d in tracked]; hits=[]
-    bh_tids=[ballhandler_tid(tracked[i],balls_pf[i]) for i in range(len(tracked))]
+    observed=[ballhandler_tid(tracked[i],balls_pf[i]) for i in range(len(tracked))]
+    bh_tids=propagate_ballhandler_tids(tracked,observed,fps)
     for fi,bh in enumerate(bh_tids):
         if bh is None or bh not in boxes[fi] or bh not in labels: continue
         B=boxes[fi][bh]; h=max(1.,B[3]-B[1]); bl=labels[bh]
@@ -104,7 +151,6 @@ def detect_sequences(frame_paths,tracked,balls_pf,labels,centers,fps,
             dbs=norm_dist(B,S,h)
             if dbs>same_radius: continue
             sh=max(1.,S[3]-S[1])
-            # Temporal screen shape over ~0.5 sec either side.
             w=max(1,int(round(0.5*fps)))
             sm=track_motion(boxes,s,fi-w,fi+w,sh)
             bm=track_motion(boxes,bh,fi-w,fi+w,h)
@@ -125,8 +171,8 @@ def detect_sequences(frame_paths,tracked,balls_pf,labels,centers,fps,
                 hits.append({'frame':fi,'ballhandler_tid':bh,'screener_tid':s,'defender_tid':d,
                              'bh_screener_norm':round(dbs,3),'bh_defender_norm':round(dbd,3),'screener_defender_norm':round(dsd,3),
                              'screener_motion_norm':round(sm,3),'ballhandler_motion_norm':round(bm,3),
-                             'side_before':round(side0,3),'side_after':round(side1,3),'color_delta':round(delta,1),'score':round(float(score),3)})
-    # merge temporally adjacent hits with same B/S into sequences
+                             'side_before':round(side0,3),'side_after':round(side1,3),'color_delta':round(delta,1),'score':round(float(score),3),
+                             'ballhandler_source':'observed' if observed[fi]==bh else 'propagated'})
     seq=[]
     for hrec in sorted(hits,key=lambda x:x['frame']):
         if seq and hrec['frame']-seq[-1]['end_frame']<=max(1,int(round(0.5*fps))) and hrec['ballhandler_tid']==seq[-1]['ballhandler_tid'] and hrec['screener_tid']==seq[-1]['screener_tid']:
@@ -134,7 +180,7 @@ def detect_sequences(frame_paths,tracked,balls_pf,labels,centers,fps,
             if hrec['score']>seq[-1]['best']['score']: seq[-1]['best']=hrec
         else:
             seq.append({'start_frame':hrec['frame'],'end_frame':hrec['frame'],'ballhandler_tid':hrec['ballhandler_tid'],'screener_tid':hrec['screener_tid'],'hits':[hrec],'best':hrec})
-    return [s for s in seq if len(s['hits'])>=2],bh_tids
+    return [s for s in seq if len({h['frame'] for h in s['hits']})>=2],bh_tids
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--input',required=True); ap.add_argument('--out',type=Path,required=True); ap.add_argument('--onnx-model',required=True)
@@ -163,7 +209,7 @@ def main():
                     for si,s in enumerate(seqs):
                         rec={'game_id':str(r.game_id),'possession_uid':r.possession_uid,'event_num':int(ev),'sequence_index':si,
                              'start_sample':s['start_frame'],'end_sample':s['end_frame'],'start_s':round(s['start_frame']/a.sample_fps,3),'end_s':round(s['end_frame']/a.sample_fps,3),
-                             'ballhandler_tid':s['ballhandler_tid'],'screener_tid':s['screener_tid'],'n_hits':len(s['hits']),**{f'best_{k}':v for k,v in s['best'].items() if k not in ('frame','ballhandler_tid','screener_tid')}}
+                             'ballhandler_tid':s['ballhandler_tid'],'screener_tid':s['screener_tid'],'n_hits':len({h['frame'] for h in s['hits']}),**{f'best_{k}':v for k,v in s['best'].items() if k not in ('frame','ballhandler_tid','screener_tid')}}
                         seq_rows.append(rec)
                         if best is None or rec['best_score']>best['best_score']: best=rec
                 except Exception as e: errors.append(f'event {ev}: {type(e).__name__}: {e}')
