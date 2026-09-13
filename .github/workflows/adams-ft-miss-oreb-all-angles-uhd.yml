@@ -7,6 +7,7 @@ on:
       - 'resolve_adams_ft_miss_oreb_request.py'
       - 'build_kd_top10_all_angles.py'
       - 'nba_video_worker.py'
+      - 'tools/render_deterministic_master.py'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +35,7 @@ jobs:
           PY
           )
           ln -sf "$FFMPEG_EXE" bin/ffmpeg
+          ln -sf "$FFMPEG_EXE" bin/ffprobe || true
           echo "$PWD/bin" >> "$GITHUB_PATH"
 
       - name: Resolve strict Adams FT-miss OREB event IDs
@@ -49,34 +51,28 @@ jobs:
           set -euo pipefail
           FFMPEG_BINARY="$PWD/bin/ffmpeg" python3 build_kd_top10_all_angles.py --request request.json --out output --workers 8
 
-      - name: Render deterministic UHD masters
+      - name: Render deterministic UHD masters with repository standard
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p uhd
+          mkdir -p uhd qa_uhd
           for f in output/clips/*.mp4; do
             base=$(basename "$f" .mp4)
-            ffmpeg -nostdin -y -v error -i "$f" \
-              -map 0:v:0 -map 0:a:0? \
-              -vf 'hqdn3d=0.6:0.6:2.0:2.0,scale=3840:2160:flags=lanczos,cas=0.22,fps=30' \
-              -c:v libx264 -preset veryfast -crf 16 -maxrate 36M -bufsize 72M -profile:v high -pix_fmt yuv420p \
-              -c:a aac -b:a 192k -movflags +faststart \
-              "uhd/${base}_UHD.mp4"
+            python3 tools/render_deterministic_master.py \
+              "$f" "uhd/${base}_UHD.mp4" \
+              --profile uhd \
+              --qa-json "qa_uhd/${base}.json"
           done
           python3 - <<'PY'
-          import json, subprocess
+          import json
           from pathlib import Path
           files = sorted(Path('uhd').glob('*.mp4'))
+          qa_files = sorted(Path('qa_uhd').glob('*.json'))
           if not files:
               raise SystemExit('No UHD files')
-          qa = []
-          for path in files:
-              probe = subprocess.run(['ffmpeg', '-hide_banner', '-i', str(path), '-f', 'null', '-'], capture_output=True, text=True)
-              text = probe.stderr or ''
-              ok = '3840x2160' in text and 'Video:' in text
-              qa.append({'file': path.name, 'bytes': path.stat().st_size, 'uhd_3840x2160': ok})
-              if not ok:
-                  raise SystemExit(f'UHD QA failed: {path}')
+          if len(files) != len(qa_files):
+              raise SystemExit(f'UHD QA count mismatch: files={len(files)} qa={len(qa_files)}')
+          qa = [json.loads(p.read_text()) for p in qa_files]
           Path('uhd_qa.json').write_text(json.dumps(qa, indent=2))
           print(f'UHD_FILES={len(files)}')
           PY
