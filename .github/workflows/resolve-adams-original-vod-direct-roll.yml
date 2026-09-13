@@ -1,0 +1,158 @@
+name: Resolve Adams original VOD direct roll
+on:
+  push:
+    paths:
+      - '.github/workflows/resolve-adams-original-vod-direct-roll.yml'
+  workflow_dispatch:
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve current NBA MediaKind VOD
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import base64, json, os, re, subprocess, sys, uuid
+          from urllib.parse import quote, urljoin, urlparse, parse_qsl, urlencode, urlunparse
+          import requests
+
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+          CLIENT='Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs'
+          ID='https://identity.nba.com/api/v1'
+          CAT='https://ottapp-appgw-client.nba.com'
+          AMP='https://ottapp-appgw-amp.nba.com'
+          PROGRAM='fake_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA_NBA_movie'
+          EXPECTED_VOD='NBA_EAE0A37C0784E086ECADF4DADEBCEB4433D773CA'
+          EXPECTED_PROFILE=EXPECTED_VOD+'_Jitp_Reach_HD'
+          DEVICE_ID=str(uuid.uuid4())
+          SESSION_ID=str(uuid.uuid4())
+
+          def safe_url(u):
+              try:
+                  x=urlparse(u)
+                  q=[]
+                  for k,v in parse_qsl(x.query,keep_blank_values=True):
+                      if re.search(r'token|auth|sig|signature|hdnts|policy|key-pair-id|expires',k,re.I): v='REDACTED'
+                      q.append((k,v))
+                  return urlunparse((x.scheme,x.netloc,x.path,x.params,urlencode(q),x.fragment))
+              except Exception:
+                  return u
+
+          s=requests.Session()
+          h={'User-Agent':UA,'content-type':'application/json','x-client-platform':'web','x-client-id':CLIENT,'Origin':'https://www.nba.com','Referer':'https://www.nba.com/'}
+          r=s.get(ID+'/sts',params={'deviceId':DEVICE_ID},headers=h,timeout=25)
+          r.raise_for_status()
+          token=r.json()['data']['AccessToken']
+          print('::add-mask::'+token)
+          print('STS_OK',len(token))
+
+          loc=base64.b64encode(json.dumps({'PostalCode':'','CountryCode':''},separators=(',',':')).encode()).decode()
+          u=f'{CAT}/S1/subscriber/v3/programs/{quote(PROGRAM,safe="")}/play-options?IsexternalId=true&locationDetail={quote(loc,safe="")}'
+          q=s.get(u,headers={'Authorization':f'OAUTH2 access_token="{token}"','User-Agent':UA,'Origin':'https://www.nba.com','Referer':'https://www.nba.com/'},timeout=25)
+          print('PLAY_OPTIONS',q.status_code,len(q.content))
+          q.raise_for_status()
+          po=q.json()
+          vod=next((v for v in po.get('Vods',[]) if v.get('Id')==EXPECTED_VOD),None)
+          if not vod: raise SystemExit('Expected VOD missing')
+          action=next((a for a in vod.get('PlayActions',[]) if (a.get('VideoProfile') or {}).get('Id')==EXPECTED_PROFILE),None)
+          if not action: raise SystemExit('Expected ReachHD profile missing')
+          vp=action['VideoProfile']
+          print('VOD',vod['Id'],'PROFILE',vp['Id'],'QUALITY',vp.get('QualityLevel'),'ENCRYPTED',vp.get('IsEncrypted'),'ORIGIN',vp.get('PlaybackOrigin'))
+          if vp.get('IsEncrypted') is not False: raise SystemExit('Asset unexpectedly encrypted')
+
+          # Exact current SDK values decoded from NBA's bundled MediaKind player.
+          azuki_imc='IMC7.5.0_AN_D3.0.0_S0'
+          device_profile={
+              'model':'Desktop',
+              'osVersion':'10',
+              'vendorName':'Microsoft',
+              'osName':'HTML5',
+              'supportsHevcDecode':False,
+              'wvLevel':'L3',
+              'deviceUUID':DEVICE_ID,
+          }
+          dp=base64.b64encode(json.dumps(device_profile,separators=(',',':')).encode()).decode()
+          headers={
+              'AuthorizationToken':token,
+              'AzukiIMC':azuki_imc,
+              'ApplicationToken':'',
+              'DeviceProfile':dp,
+              'Content-Type':'application/json',
+              'User-Agent':UA,
+              'Origin':'https://www.nba.com',
+              'Referer':'https://www.nba.com/',
+          }
+          params={'ownerUid':'azuki','mediaId':EXPECTED_VOD,'sessionId':SESSION_ID,'oid':''}
+          body={'roll':{'inhome':False,'rightsMode':1}}
+          rr=s.post(AMP+'/v1/client/roll',params=params,headers=headers,json=body,timeout=30)
+          print('ROLL_STATUS',rr.status_code,'CT',rr.headers.get('content-type'),'LEN',len(rr.content),'URL',safe_url(rr.url))
+          text=rr.text
+          sanitized=text.replace(token,'<TOKEN>')
+          print('ROLL_BODY',sanitized[:12000])
+          open('out/roll_sanitized.json','w').write(sanitized)
+          if not rr.ok:
+              raise SystemExit('Roll request failed')
+          data=rr.json()
+
+          # MediaKind response can wrap data under response.
+          root=data.get('response',data)
+          manifest_uri=root.get('manifest_uri') or root.get('manifestUri')
+          cdns=root.get('cdns') or {}
+          cdn_list=cdns.get('cdn') if isinstance(cdns,dict) else None
+          if isinstance(cdn_list,dict): cdn_list=[cdn_list]
+          if not manifest_uri or not cdn_list:
+              raise SystemExit('Roll response lacks manifest_uri/cdn')
+          print('MANIFEST_URI',safe_url(str(manifest_uri)))
+          print('CDN_COUNT',len(cdn_list))
+
+          chosen=None
+          for idx,c in enumerate(cdn_list):
+              base_uri=(c or {}).get('base_uri') or (c or {}).get('baseUri')
+              if not base_uri: continue
+              if str(manifest_uri).startswith('http'):
+                  mu=str(manifest_uri)
+              else:
+                  mu=urljoin(base_uri.rstrip('/')+'/',str(manifest_uri).lstrip('/'))
+              # Current manifests may require the same MediaKind session id.
+              sep='&' if '?' in mu else '?'
+              if 'sessionId=' not in mu: mu += sep+'sessionId='+quote(SESSION_ID)
+              try:
+                  mr=s.get(mu,headers={'User-Agent':UA,'Referer':'https://www.nba.com/','Origin':'https://www.nba.com'},timeout=25,allow_redirects=True)
+                  print('MANIFEST_PROBE',idx,'STATUS',mr.status_code,'CT',mr.headers.get('content-type'),'LEN',len(mr.content),'URL',safe_url(mr.url))
+                  if mr.ok and ('#EXTM3U' in mr.text[:500] or 'mpegurl' in (mr.headers.get('content-type') or '').lower()):
+                      chosen=mr.url
+                      open('out/master.m3u8','w').write(mr.text)
+                      break
+              except Exception as e:
+                  print('MANIFEST_ERR',idx,type(e).__name__,str(e)[:300])
+          if not chosen:
+              raise SystemExit('No playable manifest found')
+
+          print('PLAYABLE_MANIFEST',safe_url(chosen))
+          # Asset is explicitly unencrypted. Remux native stream without upscaling/re-encoding.
+          cmd=['ffmpeg','-y','-loglevel','warning','-headers',f'Referer: https://www.nba.com/\r\nOrigin: https://www.nba.com\r\nUser-Agent: {UA}\r\n','-i',chosen,'-c','copy','out/adams_morant_original_native.mp4']
+          p=subprocess.run(cmd,text=True,capture_output=True,timeout=120)
+          print('FFMPEG_RC',p.returncode)
+          if p.stderr: print('FFMPEG_ERR',p.stderr[-3000:])
+          if p.returncode!=0 or not os.path.exists('out/adams_morant_original_native.mp4'):
+              raise SystemExit('ffmpeg remux failed')
+          sz=os.path.getsize('out/adams_morant_original_native.mp4')
+          print('MP4_BYTES',sz)
+          if sz<100000: raise SystemExit('MP4 too small')
+          probe=subprocess.run(['ffprobe','-v','error','-show_entries','format=duration:stream=codec_name,width,height,r_frame_rate','-of','json','out/adams_morant_original_native.mp4'],text=True,capture_output=True,timeout=30)
+          print('FFPROBE',probe.stdout[:4000])
+          open('out/ffprobe.json','w').write(probe.stdout)
+          PY
+      - name: Upload resolved native clip
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-morant-original-native-roll
+          path: out/
+          if-no-files-found: ignore
+          retention-days: 7
