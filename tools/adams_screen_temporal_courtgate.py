@@ -7,7 +7,7 @@ import shutil
 import sys
 import tempfile
 import time
-from collections import defaultdict
+from collections import Counter
 from pathlib import Path
 
 import cv2
@@ -17,91 +17,127 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from kd_double_team_ballhandler_onnx import YoloOnnx, extract_frames
+from kd_double_team_ballhandler_onnx import YoloOnnx, extract_frames, players_on_courtish
 from adams_screen_candidate_onnx import screen_events
 from adams_screen_temporal_onnx import associate, cluster_tracks, detect_sequences
 
 
-def tracks_to_list(tracked):
-    acc = defaultdict(lambda: {"frames": [], "boxes": []})
-    for fi, dets in enumerate(tracked):
-        for d in dets:
-            acc[int(d["tid"])]["frames"].append(fi)
-            acc[int(d["tid"])]["boxes"].append(list(map(float, d["box"])))
-    return [{"track_id": tid, "frames": rec["frames"], "boxes": rec["boxes"]}
-            for tid, rec in acc.items()]
+def raw_court_polygons(frame_paths, court_model, device='cpu', conf=0.32, min_kp=5):
+    """Return per-frame convex hulls of visible court landmarks.
 
+    This is intentionally less strict than metric homography calibration.  We
+    only need an image-space participation gate here: player feet should lie
+    on or very near the visible playing floor.  A nearest-good polygon is
+    reused for short gaps because the sampled broadcast camera moves slowly.
+    """
+    from nbacv.court import _court_infer
 
-def court_calibrate(frame_paths, court_model, device="cpu"):
-    from nbacv.court import _court_infer, calibrate_video
-    kps = {}
+    hulls = [None] * len(frame_paths)
     good_size = 640
     sizes = [640, 960]
-    hw = None
+    detected = 0
     for i, p in enumerate(frame_paths):
         fr = cv2.imread(str(p))
         if fr is None:
-            kps[i] = None
             continue
-        hw = fr.shape[:2]
-        kp = None
+        best = None
         for sz in [good_size] + [x for x in sizes if x != good_size]:
             cand = _court_infer(court_model, fr, sz, device)
-            if cand is not None and (cand[1] >= 0.5).sum() >= 6:
-                kp = cand
+            if cand is None:
+                continue
+            xy, cf = cand
+            sel = (cf >= conf) & (xy[:, 0] > 1) & (xy[:, 1] > 1)
+            if int(sel.sum()) >= min_kp:
+                best = xy[sel].astype(np.float32)
                 good_size = sz
                 break
-            if kp is None:
-                kp = cand
-        kps[i] = kp
-    if hw is None:
-        return {}, 0.0
-    calib = calibrate_video(kps, frame_hw=hw)
-    cov = sum(1 for v in calib.values() if v.get("H")) / max(len(calib), 1)
-    return calib, cov
+        if best is not None:
+            hulls[i] = cv2.convexHull(best)
+            detected += 1
+
+    # Bridge only short gaps. At 6 fps, +/-3 samples is about half a second.
+    good = [i for i, h in enumerate(hulls) if h is not None]
+    if good:
+        for i, h in enumerate(hulls):
+            if h is not None:
+                continue
+            j = min(good, key=lambda g: abs(g - i))
+            if abs(j - i) <= 3:
+                hulls[i] = hulls[j]
+    covered = sum(h is not None for h in hulls)
+    return hulls, detected / max(len(hulls), 1), covered / max(len(hulls), 1)
 
 
-def court_filter(tracked, calib, fps):
-    from nbacv.court_gate import court_roi_roles
-    tracks = tracks_to_list(tracked)
-    if not tracks:
-        return tracked, {}, {}, {}
-    keep, near_frac, inside_frac = court_roi_roles(tracks, calib, fps=fps)
-    playable = {}
-    for t in tracks:
-        tid = t["track_id"]
-        playable[tid] = bool(keep.get(tid, True) and
-                             inside_frac.get(tid, 1.0) >= 0.20)
-    filtered = [[d for d in dets if playable.get(int(d["tid"]), True)]
-                for dets in tracked]
-    return filtered, playable, near_frac, inside_frac
+def polygon_gate(people_pf, hulls, frame_paths, margin_frac=0.085):
+    """Remove detections whose footpoint is clearly outside the court hull."""
+    out = []
+    tested = kept = removed = 0
+    for pth, people, hull in zip(frame_paths, people_pf, hulls):
+        fr = cv2.imread(str(pth))
+        if fr is None or hull is None:
+            out.append(people)
+            continue
+        margin_px = max(24.0, margin_frac * fr.shape[0])
+        row = []
+        for b in people:
+            x = float((b[0] + b[2]) * 0.5)
+            y = float(b[3])
+            signed = cv2.pointPolygonTest(hull, (x, y), True)
+            tested += 1
+            if signed >= -margin_px:
+                row.append(b); kept += 1
+            else:
+                removed += 1
+        out.append(row)
+    return out, {'tested': tested, 'kept': kept, 'removed': removed}
+
+
+def keep_two_player_clusters(tracked, labels):
+    """Retain the two colour clusters with the most on-frame mass.
+
+    cluster_tracks uses k=3 when enough tracks exist; the third cluster is
+    normally officials/staff.  Counting detections rather than distinct
+    track ids makes the two five-player uniform groups dominate short track
+    fragmentation.
+    """
+    mass = Counter()
+    for dets in tracked:
+        for d in dets:
+            lab = labels.get(d['tid'])
+            if lab is not None:
+                mass[int(lab)] += 1
+    keep = {lab for lab, _ in mass.most_common(2)}
+    if len(keep) < 2:
+        return tracked, keep, dict(mass)
+    filtered = [[d for d in dets if labels.get(d['tid']) in keep] for dets in tracked]
+    return filtered, keep, dict(mass)
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", required=True)
-    ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--onnx-model", required=True)
-    ap.add_argument("--court-model", required=True)
-    ap.add_argument("--nbacv-src", required=True)
-    ap.add_argument("--sample-fps", type=float, default=6.0)
-    ap.add_argument("--max-seconds", type=float, default=16.0)
-    ap.add_argument("--target-hls-width", type=int, default=960)
-    ap.add_argument("--person-conf", type=float, default=0.14)
-    ap.add_argument("--ball-conf", type=float, default=0.03)
-    a = ap.parse_args()
-    a.out.mkdir(parents=True, exist_ok=True)
-    sys.path.insert(0, str(Path(a.nbacv_src)))
+    ap.add_argument('--input', required=True)
+    ap.add_argument('--out', type=Path, required=True)
+    ap.add_argument('--onnx-model', required=True)
+    ap.add_argument('--court-model', required=True)
+    ap.add_argument('--nbacv-src', required=True)
+    ap.add_argument('--sample-fps', type=float, default=6.0)
+    ap.add_argument('--max-seconds', type=float, default=16.0)
+    ap.add_argument('--target-hls-width', type=int, default=960)
+    ap.add_argument('--person-conf', type=float, default=0.14)
+    ap.add_argument('--ball-conf', type=float, default=0.03)
+    args = ap.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+    sys.path.insert(0, str(Path(args.nbacv_src)))
 
     from ultralytics import YOLO
-    court_model = YOLO(a.court_model)
-    model = YoloOnnx(a.onnx_model)
+    court_model = YOLO(args.court_model)
+    model = YoloOnnx(args.onnx_model)
 
-    df = pd.read_csv(a.input, dtype={"game_id": str})
-    df["game_id"] = df.game_id.str.zfill(10)
+    df = pd.read_csv(args.input, dtype={'game_id': str})
+    df['game_id'] = df.game_id.str.zfill(10)
     rows, seq_rows = [], []
 
-    with tempfile.TemporaryDirectory(prefix="adams_courtgate_") as td:
+    with tempfile.TemporaryDirectory(prefix='adams_polycourt_') as td:
         root = Path(td)
         for _, r in df.iterrows():
             t0 = time.perf_counter()
@@ -109,122 +145,126 @@ def main():
             total_sequences = 0
             best = None
             sampled = bh_obs = 0
-            raw_tracks = kept_tracks = 0
-            mean_calib = []
+            raw_tracks = player_tracks = 0
+            raw_poly_cov = bridged_poly_cov = []
+            poly_removed = 0
             errors = []
 
             for ev in events:
-                evdir = root / f"{r.game_id}_{ev}"
+                evdir = root / f'{r.game_id}_{ev}'
                 try:
-                    meta = extract_frames(str(r.game_id), ev, evdir, a.sample_fps,
-                                          a.max_seconds, a.target_hls_width)
-                    paths = meta["frames"]
+                    meta = extract_frames(str(r.game_id), int(ev), evdir,
+                                          args.sample_fps, args.max_seconds,
+                                          args.target_hls_width)
+                    paths = meta['frames']
                     people_pf, balls_pf = [], []
-                    from kd_double_team_ballhandler_onnx import players_on_courtish
                     for p in paths:
                         fr = cv2.imread(str(p))
                         if fr is None:
                             people_pf.append([]); balls_pf.append([]); continue
                         people_pf.append(players_on_courtish(
-                            model.detect_class(fr, 0, a.person_conf), fr.shape[0],
-                            max_players=18))
-                        balls_pf.append(model.detect_class(fr, 32, a.ball_conf, 0.35))
+                            model.detect_class(fr, 0, args.person_conf),
+                            fr.shape[0], max_players=18))
+                        balls_pf.append(model.detect_class(fr, 32, args.ball_conf, 0.35))
 
-                    tracked = associate(people_pf)
-                    raw_ids = {d["tid"] for ds in tracked for d in ds}
+                    hulls, raw_cov, bridge_cov = raw_court_polygons(paths, court_model)
+                    raw_poly_cov.append(raw_cov); bridged_poly_cov.append(bridge_cov)
+                    court_people, gate_stats = polygon_gate(people_pf, hulls, paths)
+                    poly_removed += gate_stats['removed']
+
+                    tracked = associate(court_people)
+                    raw_ids = {d['tid'] for ds in tracked for d in ds}
                     raw_tracks += len(raw_ids)
-                    calib, cov = court_calibrate(paths, court_model)
-                    mean_calib.append(cov)
-                    gated, playable, near_frac, inside_frac = court_filter(
-                        tracked, calib, a.sample_fps)
-                    kept_ids = {d["tid"] for ds in gated for d in ds}
-                    kept_tracks += len(kept_ids)
 
-                    labels, centers = cluster_tracks(paths, gated)
-                    seqs, bhs = detect_sequences(paths, gated, balls_pf,
-                                                  labels, centers, a.sample_fps)
+                    labels, centers = cluster_tracks(paths, tracked)
+                    tracked2, keep_labs, cluster_mass = keep_two_player_clusters(tracked, labels)
+                    kept_ids = {d['tid'] for ds in tracked2 for d in ds}
+                    player_tracks += len(kept_ids)
+
+                    seqs, bhs = detect_sequences(paths, tracked2, balls_pf,
+                                                  labels, centers,
+                                                  args.sample_fps)
                     seqs = [s for s in seqs
-                            if s["end_frame"] > s["start_frame"] and
-                            len({h["frame"] for h in s["hits"]}) >= 2]
+                            if s['end_frame'] > s['start_frame'] and
+                            len({h['frame'] for h in s['hits']}) >= 2]
                     sampled += len(paths)
                     bh_obs += sum(x is not None for x in bhs)
                     total_sequences += len(seqs)
 
                     for si, s in enumerate(seqs):
-                        b = s["best"]
+                        b = s['best']
                         rec = {
-                            "game_id": str(r.game_id),
-                            "possession_uid": r.possession_uid,
-                            "event_num": ev,
-                            "sequence_index": si,
-                            "start_sample": s["start_frame"],
-                            "end_sample": s["end_frame"],
-                            "start_s": round(s["start_frame"] / a.sample_fps, 3),
-                            "end_s": round(s["end_frame"] / a.sample_fps, 3),
-                            "ballhandler_tid": s["ballhandler_tid"],
-                            "screener_tid": s["screener_tid"],
-                            "defender_tid": b.get("defender_tid"),
-                            "n_hits": len({h["frame"] for h in s["hits"]}),
-                            "best_score": b["score"],
-                            "calibration_coverage": round(cov, 3),
-                            "screener_near_frac": round(float(near_frac.get(s["screener_tid"], 0)), 3),
-                            "screener_inside_frac": round(float(inside_frac.get(s["screener_tid"], 0)), 3),
-                            "defender_near_frac": round(float(near_frac.get(b.get("defender_tid"), 0)), 3),
-                            "defender_inside_frac": round(float(inside_frac.get(b.get("defender_tid"), 0)), 3),
+                            'game_id': str(r.game_id),
+                            'possession_uid': r.possession_uid,
+                            'event_num': int(ev),
+                            'sequence_index': si,
+                            'start_sample': s['start_frame'],
+                            'end_sample': s['end_frame'],
+                            'start_s': round(s['start_frame'] / args.sample_fps, 3),
+                            'end_s': round(s['end_frame'] / args.sample_fps, 3),
+                            'ballhandler_tid': s['ballhandler_tid'],
+                            'screener_tid': s['screener_tid'],
+                            'defender_tid': b.get('defender_tid'),
+                            'n_hits': len({h['frame'] for h in s['hits']}),
+                            'best_score': b['score'],
+                            'raw_polygon_coverage': round(raw_cov, 3),
+                            'bridged_polygon_coverage': round(bridge_cov, 3),
+                            'player_cluster_labels': '|'.join(map(str, sorted(keep_labs))),
+                            'cluster_mass': json.dumps(cluster_mass, sort_keys=True),
                         }
                         seq_rows.append(rec)
-                        if best is None or rec["best_score"] > best["best_score"]:
+                        if best is None or rec['best_score'] > best['best_score']:
                             best = rec
                 except Exception as e:
-                    errors.append(f"event {ev}: {type(e).__name__}: {e}")
+                    errors.append(f'event {ev}: {type(e).__name__}: {e}')
                 finally:
                     shutil.rmtree(evdir, ignore_errors=True)
 
             rows.append({
-                "game_id": str(r.game_id),
-                "period": r.get("period"),
-                "possession_uid": r.possession_uid,
-                "start_time": r.get("start_time"),
-                "end_time": r.get("end_time"),
-                "duration_s": r.get("duration_s"),
-                "pts_poss": r.get("pts_poss"),
-                "type_end": r.get("type_end"),
-                "lineup_team": r.get("lineup_team"),
-                "lineup_opp": r.get("lineup_opp"),
-                "screen_event_nums": "|".join(map(str, events)),
-                "court_screen_sequences": total_sequences,
-                "court_candidate": total_sequences > 0,
-                "best_event_num": None if best is None else best["event_num"],
-                "best_start_s": None if best is None else best["start_s"],
-                "best_end_s": None if best is None else best["end_s"],
-                "best_screen_score": None if best is None else best["best_score"],
-                "sampled_frames": sampled,
-                "ballhandler_observed_frames": bh_obs,
-                "raw_track_count": raw_tracks,
-                "kept_track_count": kept_tracks,
-                "mean_calibration_coverage": round(float(np.mean(mean_calib)), 3) if mean_calib else None,
-                "errors": " || ".join(errors),
-                "runtime_seconds": round(time.perf_counter() - t0, 2),
+                'game_id': str(r.game_id), 'period': r.get('period'),
+                'possession_uid': r.possession_uid,
+                'start_time': r.get('start_time'), 'end_time': r.get('end_time'),
+                'duration_s': r.get('duration_s'), 'pts_poss': r.get('pts_poss'),
+                'type_end': r.get('type_end'), 'lineup_team': r.get('lineup_team'),
+                'lineup_opp': r.get('lineup_opp'),
+                'screen_event_nums': '|'.join(map(str, events)),
+                'court_screen_sequences': total_sequences,
+                'court_candidate': total_sequences > 0,
+                'best_event_num': None if best is None else best['event_num'],
+                'best_start_s': None if best is None else best['start_s'],
+                'best_end_s': None if best is None else best['end_s'],
+                'best_screen_score': None if best is None else best['best_score'],
+                'sampled_frames': sampled,
+                'ballhandler_observed_frames': bh_obs,
+                'raw_track_count': raw_tracks,
+                'player_track_count': player_tracks,
+                'mean_raw_polygon_coverage': round(float(np.mean(raw_poly_cov)), 3) if raw_poly_cov else None,
+                'mean_bridged_polygon_coverage': round(float(np.mean(bridged_poly_cov)), 3) if bridged_poly_cov else None,
+                'polygon_removed_detections': poly_removed,
+                'errors': ' || '.join(errors),
+                'runtime_seconds': round(time.perf_counter() - t0, 2),
             })
             print(json.dumps(rows[-1], default=str), flush=True)
 
     out = pd.DataFrame(rows)
     seq = pd.DataFrame(seq_rows)
-    out.to_csv(a.out / "court_screen_candidates.csv", index=False)
-    seq.to_csv(a.out / "court_screen_sequences.csv", index=False)
+    out.to_csv(args.out / 'court_screen_candidates.csv', index=False)
+    seq.to_csv(args.out / 'court_screen_sequences.csv', index=False)
     qa = {
-        "rows": len(out),
-        "candidate_possessions": int(out.court_candidate.sum()) if len(out) else 0,
-        "candidate_rate": float(out.court_candidate.mean()) if len(out) else None,
-        "total_sequences": int(out.court_screen_sequences.sum()) if len(out) else 0,
-        "mean_runtime_seconds": float(out.runtime_seconds.mean()) if len(out) else None,
-        "mean_calibration_coverage": float(out.mean_calibration_coverage.dropna().mean()) if len(out) and out.mean_calibration_coverage.notna().any() else None,
-        "error_rows": int(out.errors.fillna("").astype(str).ne("").sum()) if len(out) else 0,
-        "note": "All 70 Adams-on-court HOU possessions scanned with early/late/mid anchors as duration requires. Screen geometry is evaluated only after robust court-ROI participation gating; candidate is not yet Adams-confirmed."
+        'rows': len(out),
+        'candidate_possessions': int(out.court_candidate.sum()) if len(out) else 0,
+        'candidate_rate': float(out.court_candidate.mean()) if len(out) else None,
+        'total_sequences': int(out.court_screen_sequences.sum()) if len(out) else 0,
+        'mean_runtime_seconds': float(out.runtime_seconds.mean()) if len(out) else None,
+        'mean_raw_polygon_coverage': float(out.mean_raw_polygon_coverage.dropna().mean()) if len(out) and out.mean_raw_polygon_coverage.notna().any() else None,
+        'mean_bridged_polygon_coverage': float(out.mean_bridged_polygon_coverage.dropna().mean()) if len(out) and out.mean_bridged_polygon_coverage.notna().any() else None,
+        'polygon_removed_detections': int(out.polygon_removed_detections.sum()) if len(out) else 0,
+        'error_rows': int(out.errors.fillna('').astype(str).ne('').sum()) if len(out) else 0,
+        'note': 'Raw court-landmark polygon gate plus two dominant uniform clusters; candidate is not yet Adams-confirmed.'
     }
-    (a.out / "qa.json").write_text(json.dumps(qa, indent=2))
+    (args.out / 'qa.json').write_text(json.dumps(qa, indent=2))
     print(json.dumps(qa, indent=2))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
