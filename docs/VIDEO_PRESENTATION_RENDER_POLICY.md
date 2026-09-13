@@ -12,4 +12,6 @@ Approved UHD encoding defaults are CRF 16, maxrate 36 Mbps, bufsize 72 Mbps, AAC
 
 Computer-vision analysis, tracking, player identity, court calibration and geometry must be performed on the best available native official NBA source before any presentation resize. Presentation resizing is a delivery step only and must never be described as recovering new source detail.
 
-Do not add a second presentation-enhancement path. New workflows should call the shared renderer rather than duplicating an FFmpeg filter chain inline. Existing operational files that render HD/UHD should be migrated to this helper when touched.
+Do not add a second presentation-enhancement path. New workflows should call the shared renderer rather than duplicating an FFmpeg filter chain inline. Existing operational files that render HD/UHD must use this helper.
+
+The repository audit is expected to report zero alternative or non-standard presentation-render paths.
