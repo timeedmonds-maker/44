@@ -1,0 +1,42 @@
+name: Adams OKC event 240 exact xFG row
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/adams-okc-event240-xfg.yml'
+
+jobs:
+  xfg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas requests
+      - name: Extract exact game/event xFG row from validated integration
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          from pathlib import Path
+          url='https://raw.githubusercontent.com/timeedmonds-maker/long-rebound-era/main/outputs/integration/nba_xfg_2025_26/nba_xfg_shots_2025_26.csv.gz'
+          d=pd.read_csv(url, compression='gzip', low_memory=False)
+          gid=d['game_id'].astype(str).str.replace('.0','',regex=False).str.zfill(10)
+          ev=pd.to_numeric(d['event_num'],errors='coerce')
+          q=d[(gid=='0022500001') & (ev==240)].copy()
+          print(q.to_string(index=False))
+          if len(q)!=1:
+              raise SystemExit(f'expected one xFG row, got {len(q)}')
+          rec={k:(None if pd.isna(v) else v) for k,v in q.iloc[0].to_dict().items()}
+          out=Path('artifacts/event240_xfg'); out.mkdir(parents=True,exist_ok=True)
+          (out/'event240_xfg.json').write_text(json.dumps({'xfg':rec},indent=2,default=str))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-event240-xfg
+          path: artifacts/event240_xfg/event240_xfg.json
+          if-no-files-found: error
+          retention-days: 30
