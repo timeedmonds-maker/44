@@ -1,0 +1,48 @@
+name: Probe current NBA player resolver
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-nba-player-resolver.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download NBA page runtime and discover dynamic player chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re,requests,json
+          from pathlib import Path
+          O=Path('nba_player_resolver'); O.mkdir(exist_ok=True)
+          H={'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/'}
+          page=requests.get('https://www.nba.com/watch/video/steven-adams-with-one-of-the-days-best-assists',headers=H,timeout=30); page.raise_for_status(); O.joinpath('page.html').write_text(page.text)
+          scripts=re.findall(r'<script[^>]+src="([^"]+)"',page.text,re.I)
+          print('SCRIPTS',len(scripts),flush=True)
+          runtime=next((x for x in scripts if 'webpack-' in x),None)
+          if not runtime: raise SystemExit('No webpack runtime')
+          if runtime.startswith('/'): runtime='https://www.nba.com'+runtime
+          rr=requests.get(runtime,headers=H,timeout=30); rr.raise_for_status(); txt=rr.text; O.joinpath('webpack.js').write_text(txt)
+          print('RUNTIME',runtime,'BYTES',len(txt),flush=True)
+          for cid in ('72516','84965'):
+            print('CHUNK_ID',cid,'POSITIONS',[m.start() for m in re.finditer(cid,txt)][:20],flush=True)
+            for m in list(re.finditer(cid,txt))[:5]: print('SNIP',txt[max(0,m.start()-1200):m.start()+2500],flush=True)
+          # Save all same-build manifests/runtime scripts for offline inspection.
+          for i,src in enumerate(scripts):
+            if src.startswith('/'): src='https://www.nba.com'+src
+            if '_next/static' not in src: continue
+            try:
+              r=requests.get(src,headers=H,timeout=20)
+              if r.ok and len(r.content)<5_000_000:
+                O.joinpath(f'script_{i:02d}.js').write_bytes(r.content)
+            except Exception: pass
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nba-current-player-resolver
+          path: nba_player_resolver/
+          retention-days: 7
