@@ -123,7 +123,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq git
           pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
-          pip install pandas numpy opencv-python-headless timm pytorch-lightning pillow tqdm pyyaml gdown scipy scikit-learn
+          pip install pandas numpy opencv-python-headless timm pytorch-lightning pillow tqdm pyyaml gdown scipy scikit-learn nltk
           git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
           cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
           mkdir -p /tmp/nbacv/models
