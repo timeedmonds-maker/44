@@ -1,0 +1,69 @@
+name: Adams OKC PBP-seeded screen gallery
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/adams_screen_gallery_identity.py'
+      - '.github/workflows/adams-okc-screen-gallery.yml'
+
+jobs:
+  gallery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install video and appearance stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install pandas numpy requests opencv-python-headless transformers pillow safetensors huggingface_hub
+
+      - name: Download identity bundle from validated crop run
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-okc-identity-bundle
+          path: artifacts/bundle
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 34744116090
+
+      - name: Download all validated screen crops
+        uses: actions/download-artifact@v4
+        with:
+          pattern: adams-okc-screen-crops-*
+          path: artifacts/screen_crops
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 34744116090
+
+      - name: Download OCR evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-okc-screen-identity
+          path: artifacts/identity
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: timeedmonds-maker/44
+          run-id: 34744116090
+
+      - name: Build PBP-seeded game gallery and classify screener tracks
+        run: |
+          python tools/adams_screen_gallery_identity.py \
+            --screen-crop-root artifacts/screen_crops/crops \
+            --candidates artifacts/bundle/identity_plan/adams_okc_identity_candidates.csv \
+            --ocr-evidence artifacts/identity/identity/ocr_evidence.json \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --out artifacts/gallery
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-okc-screen-gallery-identity
+          path: artifacts/gallery
+          if-no-files-found: error
