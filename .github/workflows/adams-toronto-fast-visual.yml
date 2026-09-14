@@ -1,0 +1,43 @@
+name: Adams Toronto fast visual audit
+
+on:
+  push:
+    branches: [codex/adams-screen-v8-toronto]
+    paths:
+      - '.github/workflows/adams-toronto-fast-visual.yml'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        event: [83,483,613]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lightweight deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install -q requests
+      - name: Fetch exact official broadcast clip
+        run: |
+          mkdir -p out/event_${{ matrix.event }}
+          python tools/fetch_official_nba_event_clip.py \
+            --game 0022500131 --event ${{ matrix.event }} \
+            --out out/event_${{ matrix.event }}/source.mp4
+      - name: Build dense visual audit sheet
+        run: |
+          python tools/build_nba_event_audit_sheet.py \
+            --input out/event_${{ matrix.event }}/source.mp4 \
+            --out out/event_${{ matrix.event }}/contact.jpg \
+            --frames 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toronto-fast-visual-${{ matrix.event }}
+          path: out/event_${{ matrix.event }}
+          retention-days: 2
+          compression-level: 0
