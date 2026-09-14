@@ -1,0 +1,52 @@
+name: Player-conditioned xFG proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/player_conditioned_xfg.py'
+      - '.github/workflows/player-conditioned-xfg-proof.yml'
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install data dependencies
+        run: pip install --quiet pandas pyreadr requests numpy
+      - name: Compute reproducible KD xFG for Christmas event 94
+        run: |
+          python tools/player_conditioned_xfg.py \
+            --player-id 201142 \
+            --game-id 0022500012 \
+            --event-num 94 \
+            --distance-window-ft 1.0 \
+            --xfg-window-pp 2.5 \
+            --workers 4 \
+            --out artifacts/kd_event94_player_xfg
+      - name: QA exact target and sample
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('artifacts/kd_event94_player_xfg/player_conditioned_xfg.json')
+          j=json.loads(p.read_text())
+          assert j['target']['game_id']=='0022500012'
+          assert j['target']['event_num']==94
+          assert abs(j['target']['league_xfg_pct']-42.6) < 0.2, j['target']
+          assert j['sample_fga'] > 0, j
+          assert j['player_conditioned_xfg_pct'] is not None
+          print(json.dumps(j,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-event94-player-conditioned-xfg
+          path: artifacts/kd_event94_player_xfg
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
