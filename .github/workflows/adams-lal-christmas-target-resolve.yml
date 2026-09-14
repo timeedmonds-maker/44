@@ -21,15 +21,14 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           pip install requests
-      - name: Resolve Durant Q1 4:10 made two and official xFG
+      - name: Discover Christmas HOU-LAL game and resolve Durant made two near Q1 4:10
         run: |
           python - <<'PY'
           import csv, io, json, time, urllib.request
           from pathlib import Path
           import requests
 
-          GAME='0022500012'
-          PLAYER='201142'
+          PLAYER_ID='201142'
           PERIOD=1
           TARGET_SECONDS=4*60+10
           PBP='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv'
@@ -42,36 +41,67 @@ jobs:
                   return None
 
           req=urllib.request.Request(PBP, headers={'User-Agent':'Mozilla/5.0'})
-          candidates=[]
+          game_rows=[]
           with urllib.request.urlopen(req, timeout=180) as resp:
               reader=csv.DictReader(io.TextIOWrapper(resp,encoding='utf-8-sig',newline=''))
               for r in reader:
-                  gid=str(r.get('game_id') or '').replace('.0','').zfill(10)
-                  if gid != GAME: continue
-                  try: per=int(float(r.get('period') or 0))
-                  except: continue
-                  if per != PERIOD: continue
-                  p1=str(r.get('player1_name') or '')
-                  if not p1.startswith(PLAYER+' '): continue
-                  if str(r.get('msg_type') or '') not in {'1','1.0'}: continue
-                  try: pts=int(float(r.get('shot_pts') or 0))
-                  except: pts=0
-                  if pts != 2: continue
-                  sec=clock_seconds(r.get('clock'))
-                  if sec is None: continue
-                  candidates.append((abs(sec-TARGET_SECONDS),sec,r))
+                  date=str(r.get('game_date') or '')[:10]
+                  home=str(r.get('team_home') or '').upper()
+                  away=str(r.get('team_away') or '').upper()
+                  teams={home,away}
+                  if date=='2025-12-25' and {'HOU','LAL'}.issubset(teams):
+                      game_rows.append(r)
+          if not game_rows:
+              raise RuntimeError('Could not discover 2025-12-25 HOU-LAL in authoritative PBP')
+
+          gids=sorted({str(r.get('game_id') or '').replace('.0','').zfill(10) for r in game_rows})
+          if len(gids)!=1:
+              raise RuntimeError('Ambiguous Christmas HOU-LAL game IDs: '+repr(gids))
+          GAME=gids[0]
+          print('DISCOVERED_GAME_ID='+GAME)
+
+          near=[]; durant=[]
+          for r in game_rows:
+              try: per=int(float(r.get('period') or 0))
+              except: continue
+              if per != PERIOD: continue
+              sec=clock_seconds(r.get('clock'))
+              if sec is not None and abs(sec-TARGET_SECONDS)<=50:
+                  near.append(r)
+              pfields=' '.join(str(r.get(k) or '') for k in ['player1_name','player2_name','player3_name','description'])
+              if PLAYER_ID in pfields or 'durant' in pfields.lower():
+                  durant.append(r)
+
+          print('NEAR_4_10='+json.dumps([{k:r.get(k) for k in ['event_num','clock','description','player1_name','player2_name','msg_type','shot_pts','team_abb','lineup_home','lineup_away']} for r in near]))
+          print('DURANT_Q1='+json.dumps([{k:r.get(k) for k in ['event_num','clock','description','player1_name','player2_name','msg_type','shot_pts','team_abb','lineup_home','lineup_away']} for r in durant]))
+
+          candidates=[]
+          for r in durant:
+              p1=str(r.get('player1_name') or '')
+              desc=str(r.get('description') or '')
+              if PLAYER_ID not in p1 and 'durant' not in p1.lower() and 'durant' not in desc.lower():
+                  continue
+              # Made field goal, but tolerate schema differences by description if needed.
+              msg=str(r.get('msg_type') or '')
+              made = msg in {'1','1.0'} or ('makes' in desc.lower()) or ('made' in desc.lower())
+              if not made: continue
+              try: pts=int(float(r.get('shot_pts') or 0))
+              except: pts=0
+              if pts and pts != 2: continue
+              # If shot_pts absent, exclude obvious threes.
+              if not pts and ('3pt' in desc.lower() or '3-pt' in desc.lower() or 'three' in desc.lower()): continue
+              sec=clock_seconds(r.get('clock'))
+              if sec is None: continue
+              candidates.append((abs(sec-TARGET_SECONDS),sec,r))
           if not candidates:
-              raise RuntimeError('No Durant Q1 made 2PT candidates found')
+              raise RuntimeError('No Durant Q1 made-two candidates found; inspect DURANT_Q1/NEAR_4_10 log')
           candidates.sort(key=lambda x:(x[0],-x[1]))
-          print('CANDIDATES='+json.dumps([{k:x[2].get(k) for k in ['event_num','clock','description','shot_pts','lineup_home','lineup_away']} for x in candidates]))
           delta,sec,r=candidates[0]
-          if delta > 20:
+          if delta > 30:
               raise RuntimeError(f'Nearest Durant Q1 made two is {delta:.1f}s from 4:10; refusing target ambiguity')
           ev=int(float(r['event_num']))
-          target={k:r.get(k) for k in ['game_date','game_id','event_num','period','clock','description','player1_name','team_abb','shot_pts','lineup_home','lineup_away']}
-          target['event_num']=ev
-          target['requested_clock']='04:10'
-          target['clock_delta_seconds']=delta
+          target={k:r.get(k) for k in ['game_date','game_id','event_num','period','clock','description','player1_name','player2_name','team_abb','shot_pts','lineup_home','lineup_away']}
+          target['game_id']=GAME; target['event_num']=ev; target['requested_clock']='04:10'; target['clock_delta_seconds']=delta
 
           URL='https://stats.gleague.nba.com/stats/shotqualityvideologs'
           H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
@@ -79,10 +109,10 @@ jobs:
           payload=None; last=None
           for n in range(1,6):
               try:
-                  rr=s.get(URL,params={'GameID':GAME,'PlayerID':int(PLAYER)},timeout=(8,35))
+                  rr=s.get(URL,params={'GameID':GAME,'PlayerID':int(PLAYER_ID)},timeout=(8,35))
                   if rr.status_code==200:
                       j=rr.json()
-                      if str(j.get('gameId') or '').zfill(10)==GAME and int(j.get('playerId') or 0)==int(PLAYER): payload=j; break
+                      if str(j.get('gameId') or '').zfill(10)==GAME and int(j.get('playerId') or 0)==int(PLAYER_ID): payload=j; break
                   last=f'{rr.status_code}: {rr.text[:200]}'
               except Exception as e: last=repr(e)
               if n<5: time.sleep(min(6,.7*(2**(n-1))))
@@ -94,18 +124,18 @@ jobs:
               if sev==ev: xs.append(sh)
           if len(xs)!=1: raise RuntimeError(f'Expected one xFG row for event {ev}, got {len(xs)}')
           sh=xs[0]; q=float(sh.get('shotQuality'))
-          xfg={'game_id':GAME,'player_id':int(PLAYER),'event_num':ev,'xfg':q,'xfg_pct':q*100 if q<=1.5 else q,'period':sh.get('period'),'game_clock':sh.get('gameClock'),'action_type':sh.get('actionType'),'shot_type':sh.get('shotType'),'made':int(sh.get('success') or 0),'loc_x':sh.get('locX'),'loc_y':sh.get('locY'),'guid':sh.get('guid'),'source':URL,'join':'exact game_id + player_id + event_num'}
+          xfg={'game_id':GAME,'player_id':int(PLAYER_ID),'event_num':ev,'xfg':q,'xfg_pct':q*100 if q<=1.5 else q,'period':sh.get('period'),'game_clock':sh.get('gameClock'),'action_type':sh.get('actionType'),'shot_type':sh.get('shotType'),'made':int(sh.get('success') or 0),'loc_x':sh.get('locX'),'loc_y':sh.get('locY'),'guid':sh.get('guid'),'source':URL,'join':'exact game_id + player_id + event_num'}
           out=Path('artifacts/christmas_target'); out.mkdir(parents=True,exist_ok=True)
           (out/'target.json').write_text(json.dumps(target,indent=2))
           (out/'xfg.json').write_text(json.dumps(xfg,indent=2))
-          (out/'event.txt').write_text(str(ev))
-          print('TARGET='+json.dumps(target))
-          print('XFG='+json.dumps(xfg))
+          (out/'event.txt').write_text(str(ev)); (out/'game.txt').write_text(GAME)
+          print('TARGET='+json.dumps(target)); print('XFG='+json.dumps(xfg))
           PY
       - name: Fetch official Broadcast event clip
         run: |
+          GAME=$(cat artifacts/christmas_target/game.txt)
           EVENT=$(cat artifacts/christmas_target/event.txt)
-          python tools/fetch_official_nba_event_clip.py --game 0022500012 --event "$EVENT" --out artifacts/christmas_target/source_native.mp4
+          python tools/fetch_official_nba_event_clip.py --game "$GAME" --event "$EVENT" --out artifacts/christmas_target/source_native.mp4
       - uses: actions/upload-artifact@v4
         with:
           name: adams-lal-christmas-target
