@@ -21,17 +21,18 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           pip install requests
-      - name: Discover Christmas HOU-LAL game and resolve Durant made two near Q1 4:10
+      - name: Resolve Durant Q1 made two near 4:10 directly from official shot logs
         run: |
           python - <<'PY'
-          import csv, io, json, time, urllib.request
+          import json, time
           from pathlib import Path
           import requests
 
-          PLAYER_ID='201142'
-          PERIOD=1
+          GAME='0022500012'
+          PLAYER_ID=201142
           TARGET_SECONDS=4*60+10
-          PBP='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv'
+          URL='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
 
           def clock_seconds(v):
               try:
@@ -40,95 +41,46 @@ jobs:
               except Exception:
                   return None
 
-          req=urllib.request.Request(PBP, headers={'User-Agent':'Mozilla/5.0'})
-          game_rows=[]
-          with urllib.request.urlopen(req, timeout=180) as resp:
-              reader=csv.DictReader(io.TextIOWrapper(resp,encoding='utf-8-sig',newline=''))
-              for r in reader:
-                  date=str(r.get('game_date') or '')[:10]
-                  home=str(r.get('team_home') or '').upper()
-                  away=str(r.get('team_away') or '').upper()
-                  teams={home,away}
-                  if date=='2025-12-25' and {'HOU','LAL'}.issubset(teams):
-                      game_rows.append(r)
-          if not game_rows:
-              raise RuntimeError('Could not discover 2025-12-25 HOU-LAL in authoritative PBP')
-
-          gids=sorted({str(r.get('game_id') or '').replace('.0','').zfill(10) for r in game_rows})
-          if len(gids)!=1:
-              raise RuntimeError('Ambiguous Christmas HOU-LAL game IDs: '+repr(gids))
-          GAME=gids[0]
-          print('DISCOVERED_GAME_ID='+GAME)
-
-          near=[]; durant=[]
-          for r in game_rows:
-              try: per=int(float(r.get('period') or 0))
-              except: continue
-              if per != PERIOD: continue
-              sec=clock_seconds(r.get('clock'))
-              if sec is not None and abs(sec-TARGET_SECONDS)<=50:
-                  near.append(r)
-              pfields=' '.join(str(r.get(k) or '') for k in ['player1_name','player2_name','player3_name','description'])
-              if PLAYER_ID in pfields or 'durant' in pfields.lower():
-                  durant.append(r)
-
-          print('NEAR_4_10='+json.dumps([{k:r.get(k) for k in ['event_num','clock','description','player1_name','player2_name','msg_type','shot_pts','team_abb','lineup_home','lineup_away']} for r in near]))
-          print('DURANT_Q1='+json.dumps([{k:r.get(k) for k in ['event_num','clock','description','player1_name','player2_name','msg_type','shot_pts','team_abb','lineup_home','lineup_away']} for r in durant]))
-
-          candidates=[]
-          for r in durant:
-              p1=str(r.get('player1_name') or '')
-              desc=str(r.get('description') or '')
-              if PLAYER_ID not in p1 and 'durant' not in p1.lower() and 'durant' not in desc.lower():
-                  continue
-              # Made field goal, but tolerate schema differences by description if needed.
-              msg=str(r.get('msg_type') or '')
-              made = msg in {'1','1.0'} or ('makes' in desc.lower()) or ('made' in desc.lower())
-              if not made: continue
-              try: pts=int(float(r.get('shot_pts') or 0))
-              except: pts=0
-              if pts and pts != 2: continue
-              # If shot_pts absent, exclude obvious threes.
-              if not pts and ('3pt' in desc.lower() or '3-pt' in desc.lower() or 'three' in desc.lower()): continue
-              sec=clock_seconds(r.get('clock'))
-              if sec is None: continue
-              candidates.append((abs(sec-TARGET_SECONDS),sec,r))
-          if not candidates:
-              raise RuntimeError('No Durant Q1 made-two candidates found; inspect DURANT_Q1/NEAR_4_10 log')
-          candidates.sort(key=lambda x:(x[0],-x[1]))
-          delta,sec,r=candidates[0]
-          if delta > 30:
-              raise RuntimeError(f'Nearest Durant Q1 made two is {delta:.1f}s from 4:10; refusing target ambiguity')
-          ev=int(float(r['event_num']))
-          target={k:r.get(k) for k in ['game_date','game_id','event_num','period','clock','description','player1_name','player2_name','team_abb','shot_pts','lineup_home','lineup_away']}
-          target['game_id']=GAME; target['event_num']=ev; target['requested_clock']='04:10'; target['clock_delta_seconds']=delta
-
-          URL='https://stats.gleague.nba.com/stats/shotqualityvideologs'
-          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
           s=requests.Session(); s.headers.update(H)
           payload=None; last=None
           for n in range(1,6):
               try:
-                  rr=s.get(URL,params={'GameID':GAME,'PlayerID':int(PLAYER_ID)},timeout=(8,35))
-                  if rr.status_code==200:
-                      j=rr.json()
-                      if str(j.get('gameId') or '').zfill(10)==GAME and int(j.get('playerId') or 0)==int(PLAYER_ID): payload=j; break
-                  last=f'{rr.status_code}: {rr.text[:200]}'
+                  r=s.get(URL,params={'GameID':GAME,'PlayerID':PLAYER_ID},timeout=(8,35))
+                  if r.status_code==200:
+                      j=r.json()
+                      if str(j.get('gameId') or '').zfill(10)==GAME and int(j.get('playerId') or 0)==PLAYER_ID:
+                          payload=j; break
+                  last=f'{r.status_code}: {r.text[:200]}'
               except Exception as e: last=repr(e)
               if n<5: time.sleep(min(6,.7*(2**(n-1))))
-          if payload is None: raise RuntimeError('xFG fetch failed '+str(last))
-          xs=[]
+          if payload is None: raise RuntimeError('official shot-quality fetch failed '+str(last))
+
+          q1=[]; candidates=[]
           for sh in payload.get('shotList') or []:
-              try: sev=int(sh.get('eventNum'))
+              try: per=int(sh.get('period') or 0)
               except: continue
-              if sev==ev: xs.append(sh)
-          if len(xs)!=1: raise RuntimeError(f'Expected one xFG row for event {ev}, got {len(xs)}')
-          sh=xs[0]; q=float(sh.get('shotQuality'))
-          xfg={'game_id':GAME,'player_id':int(PLAYER_ID),'event_num':ev,'xfg':q,'xfg_pct':q*100 if q<=1.5 else q,'period':sh.get('period'),'game_clock':sh.get('gameClock'),'action_type':sh.get('actionType'),'shot_type':sh.get('shotType'),'made':int(sh.get('success') or 0),'loc_x':sh.get('locX'),'loc_y':sh.get('locY'),'guid':sh.get('guid'),'source':URL,'join':'exact game_id + player_id + event_num'}
+              if per != 1: continue
+              rec={k:sh.get(k) for k in ['eventNum','period','gameClock','actionType','shotType','success','shotQuality','locX','locY','guid']}
+              q1.append(rec)
+              sec=clock_seconds(sh.get('gameClock'))
+              if sec is None: continue
+              made=int(sh.get('success') or 0)==1
+              st=str(sh.get('shotType') or '').upper()
+              two=('2PT' in st or '2-PT' in st or ('3PT' not in st and '3-PT' not in st))
+              if made and two:
+                  candidates.append((abs(sec-TARGET_SECONDS),sec,sh))
+          print('DURANT_Q1_SHOTS='+json.dumps(q1))
+          if not candidates: raise RuntimeError('No Durant Q1 made-two shots returned by official shot logs')
+          candidates.sort(key=lambda x:(x[0],-x[1]))
+          delta,sec,sh=candidates[0]
+          if delta > 20:
+              raise RuntimeError(f'Nearest official Durant Q1 made 2 is {delta:.1f}s from 4:10; refusing ambiguity')
+          ev=int(sh.get('eventNum'))
+          q=float(sh.get('shotQuality'))
+          xfg={'game_id':GAME,'player_id':PLAYER_ID,'event_num':ev,'xfg':q,'xfg_pct':q*100 if q<=1.5 else q,'period':sh.get('period'),'game_clock':sh.get('gameClock'),'action_type':sh.get('actionType'),'shot_type':sh.get('shotType'),'made':int(sh.get('success') or 0),'loc_x':sh.get('locX'),'loc_y':sh.get('locY'),'guid':sh.get('guid'),'source':URL,'join':'exact game_id + player_id + event_num'}
+          target={'game_id':GAME,'event_num':ev,'period':1,'requested_clock':'4:10','official_game_clock':sh.get('gameClock'),'clock_delta_seconds':delta,'player_id':PLAYER_ID,'player_name':'Kevin Durant','shot_type':sh.get('shotType'),'action_type':sh.get('actionType')}
           out=Path('artifacts/christmas_target'); out.mkdir(parents=True,exist_ok=True)
-          (out/'target.json').write_text(json.dumps(target,indent=2))
-          (out/'xfg.json').write_text(json.dumps(xfg,indent=2))
-          (out/'event.txt').write_text(str(ev)); (out/'game.txt').write_text(GAME)
+          (out/'target.json').write_text(json.dumps(target,indent=2)); (out/'xfg.json').write_text(json.dumps(xfg,indent=2)); (out/'event.txt').write_text(str(ev)); (out/'game.txt').write_text(GAME)
           print('TARGET='+json.dumps(target)); print('XFG='+json.dumps(xfg))
           PY
       - name: Fetch official Broadcast event clip
