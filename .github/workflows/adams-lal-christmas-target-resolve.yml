@@ -21,7 +21,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           pip install requests
-      - name: Resolve exact Durant make and official xFG
+      - name: Resolve Durant Q1 4:10 made two and official xFG
         run: |
           python - <<'PY'
           import csv, io, json, time, urllib.request
@@ -31,10 +31,18 @@ jobs:
           GAME='0022500012'
           PLAYER='201142'
           PERIOD=1
-          CLOCK='04:10.00'
+          TARGET_SECONDS=4*60+10
           PBP='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv'
+
+          def clock_seconds(v):
+              try:
+                  m,s=str(v).split(':',1)
+                  return int(m)*60+float(s)
+              except Exception:
+                  return None
+
           req=urllib.request.Request(PBP, headers={'User-Agent':'Mozilla/5.0'})
-          hits=[]
+          candidates=[]
           with urllib.request.urlopen(req, timeout=180) as resp:
               reader=csv.DictReader(io.TextIOWrapper(resp,encoding='utf-8-sig',newline=''))
               for r in reader:
@@ -43,17 +51,27 @@ jobs:
                   try: per=int(float(r.get('period') or 0))
                   except: continue
                   if per != PERIOD: continue
-                  clk=str(r.get('clock') or '')
                   p1=str(r.get('player1_name') or '')
-                  msg=str(r.get('msg_type') or '')
-                  if clk == CLOCK and p1.startswith(PLAYER+' ') and msg in {'1','1.0'}:
-                      hits.append(r)
-          if len(hits)!=1:
-              raise RuntimeError(f'Expected one Durant made FG at Q1 {CLOCK}, got {len(hits)}: '+json.dumps([{k:r.get(k) for k in ['event_num','clock','description','player1_name','lineup_home','lineup_away']} for r in hits]))
-          r=hits[0]
+                  if not p1.startswith(PLAYER+' '): continue
+                  if str(r.get('msg_type') or '') not in {'1','1.0'}: continue
+                  try: pts=int(float(r.get('shot_pts') or 0))
+                  except: pts=0
+                  if pts != 2: continue
+                  sec=clock_seconds(r.get('clock'))
+                  if sec is None: continue
+                  candidates.append((abs(sec-TARGET_SECONDS),sec,r))
+          if not candidates:
+              raise RuntimeError('No Durant Q1 made 2PT candidates found')
+          candidates.sort(key=lambda x:(x[0],-x[1]))
+          print('CANDIDATES='+json.dumps([{k:x[2].get(k) for k in ['event_num','clock','description','shot_pts','lineup_home','lineup_away']} for x in candidates]))
+          delta,sec,r=candidates[0]
+          if delta > 20:
+              raise RuntimeError(f'Nearest Durant Q1 made two is {delta:.1f}s from 4:10; refusing target ambiguity')
           ev=int(float(r['event_num']))
           target={k:r.get(k) for k in ['game_date','game_id','event_num','period','clock','description','player1_name','team_abb','shot_pts','lineup_home','lineup_away']}
           target['event_num']=ev
+          target['requested_clock']='04:10'
+          target['clock_delta_seconds']=delta
 
           URL='https://stats.gleague.nba.com/stats/shotqualityvideologs'
           H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
