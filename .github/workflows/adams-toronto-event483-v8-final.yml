@@ -1,0 +1,94 @@
+name: Adams Toronto event483 V8 final
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-v8-toronto]
+    paths:
+      - '.github/workflows/adams-toronto-event483-v8-final.yml'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic CV and data stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git fonts-dejavu-core zip
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow pyreadr
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Lock visually and temporally validated roles
+        run: |
+          mkdir -p artifacts
+          cat > artifacts/event483_overrides.json <<'JSON'
+          {
+            "adams": 10,
+            "ballhandler": 7,
+            "screened_defender": 3,
+            "adams_defender": 4,
+            "names": {
+              "10": "ADAMS",
+              "7": "SHEPPARD"
+            }
+          }
+          JSON
+      - name: Render final V8 Adams screen clip
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022500131 --event 483 \
+            --start-s 3.5 --end-s 11.5 \
+            --analysis-fps 15 --number-fps 6 --court-fps 1 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --overrides artifacts/event483_overrides.json \
+            --out artifacts/toronto_event483_v8_final
+      - name: Validate identities and package
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('artifacts/toronto_event483_v8_final')
+          qa=json.loads((p/'qa.json').read_text())
+          r=qa['roles']
+          assert r['adams']==10, r
+          assert r['ballhandler']==7, r
+          assert r['screened_defender']==3, r
+          assert qa['game_id']=='0022500131' and qa['event_num']==483
+          assert qa['source']['angle']=='Broadcast'
+          assert qa['source']['variant']['width']==960 and qa['source']['variant']['height']==540
+          print(json.dumps(qa,indent=2))
+          PY
+          cd artifacts/toronto_event483_v8_final
+          zip -j -9 ../adams_toronto_event483_v8_uhd.zip adams_screen_overlay_2160p.mp4 qa.json roles.json context.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-toronto-event483-v8-final
+          path: |
+            artifacts/toronto_event483_v8_final/adams_screen_overlay_h264.mp4
+            artifacts/toronto_event483_v8_final/adams_screen_overlay_2160p.mp4
+            artifacts/toronto_event483_v8_final/qa.json
+            artifacts/toronto_event483_v8_final/roles.json
+            artifacts/toronto_event483_v8_final/context.json
+            artifacts/toronto_event483_v8_final/track_contact_sheet.jpg
+            artifacts/adams_toronto_event483_v8_uhd.zip
+          if-no-files-found: error
+          retention-days: 30
