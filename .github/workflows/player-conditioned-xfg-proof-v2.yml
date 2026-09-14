@@ -1,0 +1,55 @@
+name: Player-conditioned xFG proof v2
+
+on:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/player_conditioned_xfg_v2.py'
+      - '.github/workflows/player-conditioned-xfg-proof-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet pandas requests
+      - name: Compute KD xFG with authoritative official shot distance
+        run: |
+          python tools/player_conditioned_xfg_v2.py \
+            --player-id 201142 \
+            --game-id 0022500012 \
+            --event-num 94 \
+            --distance-window-ft 1.0 \
+            --xfg-window-pp 2.5 \
+            --workers 4 \
+            --out artifacts/kd_event94_player_xfg_v2
+      - name: QA source-of-truth distance
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path('artifacts/kd_event94_player_xfg_v2/player_conditioned_xfg.json').read_text())
+          assert j['definition_version']=='player_conditioned_xfg_v2_official_distance'
+          assert j['target']['distance_source']=='official_nba_shotchartdetail.SHOT_DISTANCE'
+          assert j['comparison_rule']['coordinate_derived_distance_allowed'] is False
+          assert j['target']['game_id']=='0022500012' and j['target']['event_num']==94
+          assert abs(j['target']['league_xfg_pct']-42.6) < 0.2
+          assert j['sample_fga'] > 0
+          assert j['player_conditioned_xfg_pct'] is not None
+          print(json.dumps(j,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kd-event94-player-conditioned-xfg-v2
+          path: artifacts/kd_event94_player_xfg_v2
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
