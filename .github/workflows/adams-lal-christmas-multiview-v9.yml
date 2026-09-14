@@ -26,7 +26,7 @@ jobs:
           git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
           pip install -e /tmp/object-detection-eval
           pip install git+https://github.com/roboflow/trackers.git
-          pip install requests ultralytics scipy pandas 'numpy<2' pillow
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow pyreadr
           git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
           cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
       - name: Download tracking models
