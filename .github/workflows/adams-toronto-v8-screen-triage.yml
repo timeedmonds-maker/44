@@ -1,0 +1,104 @@
+name: Adams Toronto V8 screen triage
+
+on:
+  push:
+    branches: [codex/adams-screen-v8-toronto]
+    paths:
+      - '.github/workflows/adams-toronto-v8-screen-triage.yml'
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build exact Toronto Adams-on-court possession universe
+        run: |
+          pip install -q pandas pyreadr requests
+          python - <<'PY'
+          from pathlib import Path
+          import tools.build_adams_okc_opener_possessions as m
+          m.GAME='0022500131'
+          m.OUT=Path('artifacts/universe')
+          m.OUT.mkdir(parents=True,exist_ok=True)
+          m.TMP=m.OUT/'tmp'; m.TMP.mkdir(exist_ok=True)
+          m.main()
+          PY
+      - name: Select five fresh pull-up screen candidates
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          p='artifacts/universe/adams_okc_opener_possessions.csv'
+          d=pd.read_csv(p,dtype={'game_id':str})
+          targets=[83,263,281,483,613]
+          d=d[d.anchor_event_num.isin(targets)].copy()
+          assert set(d.anchor_event_num.astype(int))==set(targets), (targets,d.anchor_event_num.tolist())
+          out=Path('artifacts/candidates'); out.mkdir(parents=True,exist_ok=True)
+          for ev in targets:
+              d[d.anchor_event_num.astype(int).eq(ev)].to_csv(out/f'event_{ev}.csv',index=False)
+          print(d[['period','start_time','end_time','anchor_event_num','anchor_description','window_event_nums']].to_string(index=False))
+          PY
+      - name: Export compact person-ball detector
+        run: |
+          pip install -q --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install -q ultralytics onnx onnxslim
+          mkdir -p artifacts/models
+          python - <<'PY'
+          from ultralytics import YOLO
+          from pathlib import Path
+          p=Path(YOLO('yolo11n.pt').export(format='onnx',imgsz=640,opset=12,dynamic=False,simplify=True,nms=False))
+          Path('artifacts/models/yolo11n.onnx').write_bytes(p.read_bytes())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toronto-v8-screen-triage-bundle
+          path: |
+            artifacts/candidates
+            artifacts/models/yolo11n.onnx
+          retention-days: 7
+
+  scan:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        event: [83,263,281,483,613]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install lightweight CV stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install -q pandas requests opencv-python-headless numpy scipy onnxruntime
+      - uses: actions/download-artifact@v4
+        with:
+          name: toronto-v8-screen-triage-bundle
+          path: artifacts/bundle
+      - name: Run temporal screen-geometry sieve
+        run: |
+          python tools/adams_screen_candidate_onnx.py \
+            --input artifacts/bundle/candidates/event_${{ matrix.event }}.csv \
+            --out artifacts/result_${{ matrix.event }} \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --sample-fps 6 --max-seconds 16 --target-hls-width 960 \
+            --min-assessed-frames 4 --min-candidate-frames 2
+          cat artifacts/result_${{ matrix.event }}/screen_candidates.csv
+          cat artifacts/result_${{ matrix.event }}/qa.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: toronto-v8-screen-triage-${{ matrix.event }}
+          path: artifacts/result_${{ matrix.event }}
+          if-no-files-found: warn
+          retention-days: 7
