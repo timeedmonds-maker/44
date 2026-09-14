@@ -6,7 +6,8 @@ on:
     branches: [codex/adams-screen-okc-opener]
     paths:
       - 'tools/christmas_event94_broadcast_v7.py'
-      - 'tools/player_conditioned_xfg.py'
+      - 'tools/player_conditioned_xfg_v2.py'
+      - 'tools/player_conditioned_xfg_authoritative.py'
       - '.github/workflows/adams-lal-christmas-broadcast-v7.yml'
 
 jobs:
@@ -27,7 +28,7 @@ jobs:
           git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
           pip install -e /tmp/object-detection-eval
           pip install git+https://github.com/roboflow/trackers.git
-          pip install pyreadr requests ultralytics scipy pandas 'numpy<2' pillow
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow
           git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
           cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
       - name: Download tracking models
@@ -38,9 +39,9 @@ jobs:
           echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
           curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
             https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
-      - name: Compute reproducible KD player-conditioned xFG
+      - name: Compute reproducible KD player-conditioned xFG from authoritative shot distance
         run: |
-          python tools/player_conditioned_xfg.py \
+          python tools/player_conditioned_xfg_authoritative.py \
             --player-id 201142 \
             --game-id 0022500012 \
             --event-num 94 \
@@ -48,17 +49,23 @@ jobs:
             --xfg-window-pp 2.5 \
             --workers 4 \
             --out artifacts/kd_event94_player_xfg
-      - name: Assert player-conditioned xFG proof
+      - name: Assert authoritative player-conditioned xFG proof
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           j=json.loads(Path('artifacts/kd_event94_player_xfg/player_conditioned_xfg.json').read_text())
+          assert j['definition_version']=='player_conditioned_xfg_v2_official_distance', j
           assert j['target']['game_id']=='0022500012'
           assert j['target']['event_num']==94
           assert abs(j['target']['league_xfg_pct']-42.6)<0.2
-          assert j['sample_fga']>0
-          assert j['player_conditioned_xfg_pct'] is not None
+          assert j['target']['shot_distance_ft']==17.0, j['target']
+          assert j['target']['distance_source']=='official_nba_shotchartdetail.SHOT_DISTANCE'
+          assert j['comparison_rule']['coordinate_derived_distance_allowed'] is False
+          assert j['sample_fga']==45, j
+          assert j['sample_fgm']==23, j
+          assert abs(j['player_conditioned_xfg_pct']-51.1111111111)<0.01, j
+          assert abs(j['distance_join_coverage_pct']-100.0)<0.001, j
           print(json.dumps(j,indent=2))
           PY
       - name: Rebuild deterministic event 94 tracks
@@ -95,8 +102,10 @@ jobs:
           nd,ud=dur(native),dur(uhd)
           m=q['player_conditioned_xfg']
           print(json.dumps({'native_duration_s':nd,'uhd_duration_s':ud,'player_xfg':m},indent=2))
-          assert abs(m['pct']-50.0)<0.01, m
-          assert m['sample_fga']==30, m
+          assert abs(m['pct']-51.1111111111)<0.01, m
+          assert m['sample_fga']==45, m
+          assert m['definition_version']=='player_conditioned_xfg_v2_official_distance', m
+          assert m['target']['shot_distance_ft']==17.0, m
           if ud < nd-0.10: raise SystemExit(f'UHD truncated: native={nd:.3f}s uhd={ud:.3f}s')
           if ud < 6.8: raise SystemExit(f'UHD too short: {ud:.3f}s')
           PY
@@ -108,7 +117,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: adams-lal-christmas-broadcast-v7
+          name: adams-lal-christmas-broadcast-v7-authoritative-distance
           path: |
             artifacts/christmas_broadcast_v7
             artifacts/kd_event94_player_xfg
