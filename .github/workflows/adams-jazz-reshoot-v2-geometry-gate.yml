@@ -1,0 +1,116 @@
+name: Adams Jazz Reshoot v2 exact geometry gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/reshoot-three-view-anchor-v2]
+    paths:
+      - 'freeze_spin/validate_reshoot_v2_exact_geometry.py'
+      - '.github/workflows/adams-jazz-reshoot-v2-geometry-gate.yml'
+
+jobs:
+  exact-geometry-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONFAULTHANDLER: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
+    steps:
+      - name: Checkout v2 branch
+        uses: actions/checkout@v4
+
+      - name: Checkout validated v33e implementation
+        uses: actions/checkout@v4
+        with:
+          ref: c76fa7fa5c5e2a3ccbd37a6676f9366af7ba90f4
+          path: validated_v33e
+
+      - name: Install deterministic geometry runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git
+          python -m pip install --quiet numpy scipy opencv-python-headless pillow 'rfdetr>=1.8.1'
+
+      - name: Reacquire exact official event-489 source angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out target_source --workers 8
+          test -n "$(find target_source/clips -type f -name '*_489_Left_Above_Rim_SOURCE.mp4' -print -quit)"
+          test -n "$(find target_source/clips -type f -name '*_489_Right_Above_Rim_SOURCE.mp4' -print -quit)"
+          test -n "$(find target_source/clips -type f -name '*_489_Broadcast_SOURCE.mp4' -print -quit)"
+
+      - name: Download accepted B32 metric scene
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v32-sharp-latent-quality-cluster-4dgs-34669584507
+          path: inputs_b32
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34669584507
+
+      - name: Download accepted v73 RAR metric camera evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-right-above-rim-metric-camera-v73-33911842169
+          path: inputs_v73
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33911842169
+
+      - name: Download passed v33e exact-state evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: adams-jazz-v33e-wide-locked-three-camera-34727285810
+          path: inputs_v33e
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 34727285810
+
+      - name: Rebuild authoritative exact cameras and body geometry
+        run: |
+          python freeze_spin/validate_reshoot_v2_exact_geometry.py \
+            --clips target_source/clips \
+            --b32-root inputs_b32 \
+            --v73-frame0257 inputs_v73/L_Right_Above_Rim_8.562013s_frame0257.png \
+            --v33e-json inputs_v33e/v33e_locked_three_camera_wide_flow_state_search.json \
+            --validated-root validated_v33e \
+            --out v2_geometry
+
+      - name: Enforce v2 exact-geometry lock
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v2_geometry/v2_exact_geometry_lock.json'))
+          assert q['status']=='PASS_V2_EXACT_GEOMETRY_GATE'
+          assert q['source_lock']['cameras']=={'Left Above Rim':259,'Right Above Rim':250,'Broadcast':294}
+          assert q['source_lock']['native_resolution']==[960,540]
+          assert q['body_reprojection']['gate'] is True
+          assert all(v['gate'] for v in q['camera_fingerprint'].values())
+          assert q['old_v1_ball_pivot_audit']['stale_invalid_for_v33e_exact_state'] is True
+          assert q['freeview_render_unlocked'] is False
+          print('BODY_REPRO',q['body_reprojection']['recomputed'])
+          print('STALE_V1_BALL',q['old_v1_ball_pivot_audit'])
+          print('NEXT_GATE',q['next_gate'])
+          PY
+
+      - name: Package exact geometry evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v2_geometry/v2_exact_geometry_lock.json delivery/ 2>/dev/null || true
+          cp v2_geometry/v2_body_*.png delivery/ 2>/dev/null || true
+          cp target_source/qa.json delivery/source_qa.json 2>/dev/null || true
+          (cd delivery && zip -0 adams_jazz_reshoot_v2_exact_geometry.zip ./* || true)
+
+      - name: Upload v2 exact geometry evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-reshoot-v2-exact-geometry-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
