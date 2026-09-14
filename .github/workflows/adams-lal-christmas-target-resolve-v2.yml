@@ -1,0 +1,79 @@
+name: Adams LAL Christmas target resolve v2
+
+on:
+  push:
+    branches:
+      - codex/adams-screen-okc-opener
+    paths:
+      - '.github/workflows/adams-lal-christmas-target-resolve-v2.yml'
+  workflow_dispatch:
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install requests
+      - name: Resolve exact official Durant shot
+        run: |
+          python - <<'PY'
+          import json, time
+          from pathlib import Path
+          import requests
+          GAME='0022500012'; PLAYER_ID=201142; TARGET=250.0
+          URL='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
+          def sec(v):
+              try:
+                  m,s=str(v).split(':',1); return int(m)*60+float(s)
+              except: return None
+          sess=requests.Session(); sess.headers.update(H); payload=None; last=None
+          for n in range(5):
+              try:
+                  r=sess.get(URL,params={'GameID':GAME,'PlayerID':PLAYER_ID},timeout=(8,35))
+                  if r.status_code==200:
+                      j=r.json()
+                      if str(j.get('gameId') or '').zfill(10)==GAME and int(j.get('playerId') or 0)==PLAYER_ID: payload=j; break
+                  last=f'{r.status_code}: {r.text[:200]}'
+              except Exception as e: last=repr(e)
+              time.sleep(min(6,.7*(2**n)))
+          if payload is None: raise RuntimeError(last)
+          q1=[]; cand=[]
+          for sh in payload.get('shotList') or []:
+              if int(sh.get('period') or 0)!=1: continue
+              rec={k:sh.get(k) for k in ['eventNum','period','gameClock','actionType','shotType','success','shotQuality','locX','locY','guid']}; q1.append(rec)
+              s=sec(sh.get('gameClock'))
+              if s is None or int(sh.get('success') or 0)!=1: continue
+              st=str(sh.get('shotType') or '').upper()
+              if '3PT' in st or '3-PT' in st: continue
+              cand.append((abs(s-TARGET),s,sh))
+          print('Q1_SHOTS='+json.dumps(q1),flush=True)
+          if not cand: raise RuntimeError('no q1 made twos')
+          cand.sort(key=lambda z:(z[0],-z[1])); delta,s,sh=cand[0]
+          if delta>20: raise RuntimeError(f'nearest q1 made two {delta}s from 4:10')
+          ev=int(sh['eventNum']); q=float(sh['shotQuality'])
+          target={'game_id':GAME,'event_num':ev,'period':1,'requested_clock':'4:10','official_game_clock':sh.get('gameClock'),'clock_delta_seconds':delta,'player_id':PLAYER_ID,'player_name':'Kevin Durant','shot_type':sh.get('shotType'),'action_type':sh.get('actionType')}
+          xfg={'game_id':GAME,'player_id':PLAYER_ID,'event_num':ev,'xfg':q,'xfg_pct':q*100 if q<=1.5 else q,'period':sh.get('period'),'game_clock':sh.get('gameClock'),'action_type':sh.get('actionType'),'shot_type':sh.get('shotType'),'made':int(sh.get('success') or 0),'loc_x':sh.get('locX'),'loc_y':sh.get('locY'),'guid':sh.get('guid'),'source':URL,'join':'exact game_id + player_id + event_num'}
+          out=Path('artifacts/christmas_target'); out.mkdir(parents=True,exist_ok=True)
+          (out/'target.json').write_text(json.dumps(target,indent=2)); (out/'xfg.json').write_text(json.dumps(xfg,indent=2)); (out/'game.txt').write_text(GAME); (out/'event.txt').write_text(str(ev))
+          print('TARGET='+json.dumps(target),flush=True); print('XFG='+json.dumps(xfg),flush=True)
+          PY
+      - name: Fetch official broadcast clip
+        run: |
+          GAME=$(cat artifacts/christmas_target/game.txt)
+          EVENT=$(cat artifacts/christmas_target/event.txt)
+          python tools/fetch_official_nba_event_clip.py --game "$GAME" --event "$EVENT" --out artifacts/christmas_target/source_native.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-lal-christmas-target-v2
+          path: artifacts/christmas_target
+          if-no-files-found: error
+          retention-days: 30
