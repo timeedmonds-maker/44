@@ -1,0 +1,49 @@
+name: Adams LAL Christmas event 94 context
+
+on:
+  push:
+    branches:
+      - codex/adams-screen-okc-opener
+    paths:
+      - '.github/workflows/adams-lal-christmas-event94-context.yml'
+  workflow_dispatch:
+
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Extract exact PBP row from final 2025-26 release
+        run: |
+          python - <<'PY'
+          import csv, io, json, urllib.request
+          from pathlib import Path
+          GAME='0022500012'; EVENT=94
+          URL='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
+          req=urllib.request.Request(URL,headers={'User-Agent':'Mozilla/5.0'})
+          hits=[]
+          with urllib.request.urlopen(req,timeout=180) as resp:
+              reader=csv.DictReader(io.TextIOWrapper(resp,encoding='utf-8-sig',newline=''))
+              for r in reader:
+                  gid=str(r.get('game_id') or '').replace('.0','').zfill(10)
+                  if gid!=GAME: continue
+                  try: ev=int(float(r.get('event_num') or -1))
+                  except: continue
+                  if ev==EVENT: hits.append(r)
+          if len(hits)!=1: raise RuntimeError(f'expected 1 exact row, got {len(hits)}')
+          r=hits[0]
+          keep=['game_date','game_id','event_num','period','clock','description','player1_name','player2_name','player3_name','team_abb','shot_pts','msg_type','lineup_home','lineup_away']
+          out={k:r.get(k) for k in keep}
+          p=Path('artifacts/christmas_context'); p.mkdir(parents=True,exist_ok=True); (p/'event94_context.json').write_text(json.dumps(out,indent=2))
+          print('CONTEXT='+json.dumps(out))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-lal-christmas-event94-context
+          path: artifacts/christmas_context/event94_context.json
+          if-no-files-found: error
+          retention-days: 30
