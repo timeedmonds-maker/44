@@ -5,11 +5,11 @@ No generated/altered basketball pixels. The underlying video is the official NBA
 Broadcast HLS source produced by adams_screen_prod_v3.py. Graphics are OpenCV only.
 
 Validated event-240 participant mapping (V3 track IDs from the locked interaction
-window, exact lineup + visual jersey audit):
-  T29 Reed Sheppard #15      ballhandler
-  T34 Steven Adams #12       screener
-  T35 Ajay Mitchell #25      screened defender
-  T13 Isaiah Hartenstein #55 screener defender
+window):
+  T29 Reed Sheppard      ballhandler
+  T34 Steven Adams       screener
+  T35 Ajay Mitchell      screened defender
+  T13 Isaiah Hartenstein screener defender
 """
 from __future__ import annotations
 import argparse, json, subprocess
@@ -18,13 +18,15 @@ import cv2
 import numpy as np
 import pandas as pd
 
+from render_deterministic_master import render as render_presentation
+
 PLAYERS = {
     29: {"label": "#15 SHEPPARD", "team": "HOU", "role": "ballhandler", "name": "Reed Sheppard"},
     34: {"label": "#12 ADAMS", "team": "HOU", "role": "screener", "name": "Steven Adams"},
     35: {"label": "#25 MITCHELL", "team": "OKC", "role": "screened defender", "name": "Ajay Mitchell"},
     13: {"label": "#55 HARTENSTEIN", "team": "OKC", "role": "screener defender", "name": "Isaiah Hartenstein"},
 }
-COLORS = {"HOU": (36, 54, 226), "OKC": (230, 133, 28)}  # BGR
+COLORS = {"HOU": (36, 54, 226), "OKC": (230, 133, 28)}
 DARK = {"HOU": (18, 27, 105), "OKC": (90, 55, 10)}
 OFFSETS = {29: (-62, -16), 34: (-82, -2), 35: (58, -16), 13: (74, -2)}
 
@@ -58,7 +60,6 @@ def draw_ring(frame, box, color, dark):
     x1,y1,x2,y2 = box
     cx = int(round((x1+x2)/2)); cy = int(round(y2-1))
     rx = int(np.clip((x2-x1)*0.82, 26, 48)); ry = int(np.clip(rx*0.25, 7, 12))
-    # Wide open broadcast arcs: intentionally not a closed detector ellipse.
     for c,thick,dy in ((dark,5,1),(color,3,0)):
         cv2.ellipse(frame,(cx,cy+dy),(rx,ry),0,28,152,c,thick,cv2.LINE_AA)
         cv2.ellipse(frame,(cx,cy+dy),(rx,ry),0,208,332,c,thick,cv2.LINE_AA)
@@ -122,10 +123,8 @@ def main():
                     '-map','0:v:0','-map','1:a:0?','-c:v','libx264','-profile:v','high','-crf','16','-preset','medium','-pix_fmt','yuv420p',
                     '-c:a','aac','-b:a','192k','-shortest','-movflags','+faststart',str(native)], check=True)
     uhd = a.out/'event240_four_involved_UHD.mp4'
-    subprocess.run(['ffmpeg','-y','-loglevel','error','-i',str(native),
-                    '-vf','hqdn3d=0.6:0.6:2.0:2.0,scale=3840:2160:flags=lanczos,cas=0.22,fps=30',
-                    '-c:v','libx264','-profile:v','high','-crf','16','-maxrate','36M','-bufsize','72M','-pix_fmt','yuv420p',
-                    '-c:a','aac','-b:a','192k','-movflags','+faststart',str(uhd)], check=True)
+    uhd_qa = render_presentation(native, uhd, 'uhd', preset='veryfast')
+    (a.out/'uhd_render_qa.json').write_text(json.dumps(uhd_qa, indent=2), encoding='utf-8')
     manifest = {
         'game_id':'0022500001','event_num':240,'gold_positive':True,
         'source':'official NBA Broadcast HLS, native 960x540','clip_window_s':[a.start_s,a.end_s],
