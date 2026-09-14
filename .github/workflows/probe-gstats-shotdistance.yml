@@ -1,0 +1,39 @@
+name: Probe gstats shot distance
+
+on:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths: ['.github/workflows/probe-gstats-shotdistance.yml']
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install --quiet requests
+      - name: Probe
+        run: |
+          python - <<'PY'
+          import requests,json
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9'}
+          params={'AheadBehind':'','CFID':'','CFPARAMS':'','ClutchTime':'','ContextFilter':'','ContextMeasure':'FGA','DateFrom':'','DateTo':'','EndPeriod':'10','EndRange':'28800','GameID':'','GameSegment':'','LastNGames':'0','LeagueID':'00','Location':'','Month':'0','OpponentTeamID':'0','Outcome':'','Period':'0','PlayerID':'201142','PlayerPosition':'','PointDiff':'','Position':'','RangeType':'0','RookieYear':'','Season':'2025-26','SeasonSegment':'','SeasonType':'Regular Season','StartPeriod':'1','StartRange':'0','TeamID':'0','VsConference':'','VsDivision':''}
+          for host in ['https://stats.gleague.nba.com/stats/shotchartdetail','https://stats.nba.com/stats/shotchartdetail']:
+            print('HOST',host)
+            try:
+              r=requests.get(host,params=params,headers=H,timeout=(5,20)); print('STATUS',r.status_code,'LEN',len(r.content));
+              if r.status_code!=200: print(r.text[:500]); continue
+              j=r.json(); sets=j.get('resultSets') or j.get('resultSet') or []
+              if isinstance(sets,dict): sets=[sets]
+              for rs in sets:
+                h=rs.get('headers') or []
+                if 'GAME_EVENT_ID' in h and 'SHOT_DISTANCE' in h:
+                  for row in rs.get('rowSet',[]):
+                    d=dict(zip(h,row))
+                    if str(d.get('GAME_ID'))=='0022500012' and int(d.get('GAME_EVENT_ID') or -1)==94:
+                      print('TARGET',json.dumps({k:d.get(k) for k in ['GAME_ID','GAME_EVENT_ID','PLAYER_ID','PLAYER_NAME','SHOT_DISTANCE','LOC_X','LOC_Y','ACTION_TYPE','SHOT_TYPE']},indent=2))
+                  print('ROWS',len(rs.get('rowSet',[])))
+            except Exception as e: print('ERROR',repr(e))
+          PY
