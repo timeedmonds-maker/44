@@ -1,0 +1,44 @@
+name: Inspect KD event94 xFG shot schema
+
+on:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/inspect-kd-event94-xfg-schema.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet requests
+      - name: Fetch exact shot and print schema
+        run: |
+          python - <<'PY'
+          import json, requests
+          URL='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9'}
+          r=requests.get(URL,params={'GameID':'0022500012','PlayerID':201142},headers=H,timeout=(8,35)); r.raise_for_status(); j=r.json()
+          hits=[]
+          for s in j.get('shotList') or []:
+              ev=None
+              for k in ('eventNum','event_num','eventNumber','eventId','eventID','actionNumber'):
+                  try:
+                      if k in s: ev=int(float(s[k])); break
+                  except: pass
+              if ev==94: hits.append(s)
+          if len(hits)!=1: raise SystemExit(f'expected one hit, got {len(hits)}')
+          s=hits[0]
+          print('TARGET_SHOT_JSON')
+          print(json.dumps(s,indent=2,sort_keys=True))
+          print('TARGET_KEYS')
+          for k,v in sorted(s.items()): print(f'{k}={v!r}')
+          print('TOP_LEVEL_KEYS', sorted(j.keys()))
+          PY
