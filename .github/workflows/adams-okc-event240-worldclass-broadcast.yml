@@ -8,6 +8,7 @@ on:
       - 'tools/adams_event240_worldclass_broadcast.py'
       - '.github/workflows/adams-okc-event240-worldclass-broadcast.yml'
       - 'tools/adams_screen_prod_v3.py'
+      - 'tools/render_deterministic_master.py'
 
 jobs:
   render:
@@ -44,13 +45,6 @@ jobs:
           curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
             https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
 
-      - name: Download authoritative 2025-26 xFG join
-        run: |
-          mkdir -p artifacts/xfg
-          curl -L --retry 3 --fail -o artifacts/xfg/nba_xfg_pbp_fga_join_2025_26.csv.gz \
-            https://raw.githubusercontent.com/timeedmonds-maker/long-rebound-era/main/outputs/integration/nba_xfg_2025_26/nba_xfg_pbp_fga_join_2025_26.csv.gz
-          test -s artifacts/xfg/nba_xfg_pbp_fga_join_2025_26.csv.gz
-
       - name: Rebuild validated event 240 native tracks
         run: |
           python tools/adams_screen_prod_v3.py \
@@ -63,13 +57,13 @@ jobs:
             --nbacv-src /tmp/nbacv/src \
             --out artifacts/adams_screen_event240_v3
 
-      - name: Render world-class deterministic four-player overlay
+      - name: Render broadcast overlay with exact event xFG
         run: |
           python tools/adams_event240_worldclass_broadcast.py \
             --source artifacts/adams_screen_event240_v3/source_native.mp4 \
             --tracks artifacts/adams_screen_event240_v3/tracks.csv \
-            --xfg-csv artifacts/xfg/nba_xfg_pbp_fga_join_2025_26.csv.gz \
-            --start-s 9.0 --end-s 13.45 --xfg-start-s 11.15 \
+            --start-s 9.0 --end-s 13.45 \
+            --xfg-start-s 11.15 --xfg-end-s 12.45 \
             --out artifacts/event240_worldclass
 
       - name: Report exact xFG and render manifest
