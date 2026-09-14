@@ -1,0 +1,91 @@
+name: Adams OKC event 240 world-class deterministic broadcast
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/adams_event240_worldclass_broadcast.py'
+      - '.github/workflows/adams-okc-event240-worldclass-broadcast.yml'
+      - 'tools/adams_screen_prod_v3.py'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git zip
+
+      - name: Install CV stack
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install pyreadr requests ultralytics scipy pandas 'numpy<2'
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+
+      - name: Download tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx \
+            https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
+            https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+
+      - name: Download authoritative 2025-26 xFG join
+        run: |
+          mkdir -p artifacts/xfg
+          curl -L --retry 3 --fail -o artifacts/xfg/nba_xfg_pbp_fga_join_2025_26.csv.gz \
+            https://raw.githubusercontent.com/timeedmonds-maker/long-rebound-era/main/outputs/integration/nba_xfg_2025_26/nba_xfg_pbp_fga_join_2025_26.csv.gz
+          test -s artifacts/xfg/nba_xfg_pbp_fga_join_2025_26.csv.gz
+
+      - name: Rebuild validated event 240 native tracks
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022500001 --event 240 \
+            --start-s 2.8 --end-s 13.6 \
+            --analysis-fps 10 --number-fps 3 --court-fps 2 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/adams_screen_event240_v3
+
+      - name: Render world-class deterministic four-player overlay
+        run: |
+          python tools/adams_event240_worldclass_broadcast.py \
+            --source artifacts/adams_screen_event240_v3/source_native.mp4 \
+            --tracks artifacts/adams_screen_event240_v3/tracks.csv \
+            --xfg-csv artifacts/xfg/nba_xfg_pbp_fga_join_2025_26.csv.gz \
+            --start-s 9.0 --end-s 13.45 --xfg-start-s 11.15 \
+            --out artifacts/event240_worldclass
+
+      - name: Report exact xFG and render manifest
+        if: always()
+        run: |
+          echo '--- exact shot xFG ---'
+          cat artifacts/event240_worldclass/xfg_event240.json || true
+          echo '--- render manifest ---'
+          cat artifacts/event240_worldclass/manifest.json || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-event240-worldclass-deterministic-broadcast
+          path: |
+            artifacts/event240_worldclass
+            artifacts/adams_screen_event240_v3/qa.json
+          if-no-files-found: warn
+          retention-days: 30
