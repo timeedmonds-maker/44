@@ -1,0 +1,41 @@
+name: Adams LAL Christmas primary defender probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/christmas_event94_primary_defender_probe.py'
+      - '.github/workflows/adams-lal-christmas-primary-defender.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic CV stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install ultralytics requests opencv-python numpy
+      - name: Resolve release primary defender and metric distance
+        run: |
+          python tools/christmas_event94_primary_defender_probe.py \
+            --model yolo11x-pose.pt \
+            --out artifacts/christmas_primary_defender
+      - name: Report
+        if: always()
+        run: cat artifacts/christmas_primary_defender/primary_defender.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-lal-christmas-primary-defender
+          path: artifacts/christmas_primary_defender
+          if-no-files-found: warn
+          retention-days: 30
