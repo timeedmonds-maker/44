@@ -6,6 +6,7 @@ on:
     branches: [codex/adams-screen-okc-opener]
     paths:
       - 'tools/christmas_event94_broadcast_v7.py'
+      - 'tools/broadcast_overlay_style.py'
       - 'tools/player_conditioned_xfg_v2.py'
       - 'tools/player_conditioned_xfg_authoritative.py'
       - '.github/workflows/adams-lal-christmas-broadcast-v7.yml'
@@ -28,7 +29,7 @@ jobs:
           git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
           pip install -e /tmp/object-detection-eval
           pip install git+https://github.com/roboflow/trackers.git
-          pip install requests ultralytics scipy pandas 'numpy<2' pillow
+          pip install pyreadr requests ultralytics scipy pandas 'numpy<2' pillow
           git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
           cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
       - name: Download tracking models
@@ -88,7 +89,7 @@ jobs:
             --source artifacts/adams_lal_christmas_event94/source_native.mp4 \
             --tracks artifacts/adams_lal_christmas_event94/tracks.csv \
             --out artifacts/christmas_broadcast_v7
-      - name: Assert V7 metric and UHD duration
+      - name: Assert V7 metric, panel style and UHD duration
         run: |
           python - <<'PY'
           import json, subprocess
@@ -101,11 +102,15 @@ jobs:
               return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=nk=1:nw=1',str(p)],text=True).strip())
           nd,ud=dur(native),dur(uhd)
           m=q['player_conditioned_xfg']
-          print(json.dumps({'native_duration_s':nd,'uhd_duration_s':ud,'player_xfg':m},indent=2))
+          panel=q['broadcast_panel_style']
+          print(json.dumps({'native_duration_s':nd,'uhd_duration_s':ud,'player_xfg':m,'panel_style':panel},indent=2))
           assert abs(m['pct']-51.1111111111)<0.01, m
           assert m['sample_fga']==45, m
           assert m['definition_version']=='player_conditioned_xfg_v2_official_distance', m
           assert m['target']['shot_distance_ft']==17.0, m
+          assert panel['style_version']=='neutral_translucent_grey_v1', panel
+          assert panel['coloured_accent_bands'] is False, panel
+          assert 0.45 <= float(panel['alpha']) <= 0.75, panel
           if ud < nd-0.10: raise SystemExit(f'UHD truncated: native={nd:.3f}s uhd={ud:.3f}s')
           if ud < 6.8: raise SystemExit(f'UHD too short: {ud:.3f}s')
           PY
@@ -117,7 +122,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: adams-lal-christmas-broadcast-v7-authoritative-distance
+          name: adams-lal-christmas-broadcast-v7-authoritative-distance-grey-panels
           path: |
             artifacts/christmas_broadcast_v7
             artifacts/kd_event94_player_xfg
