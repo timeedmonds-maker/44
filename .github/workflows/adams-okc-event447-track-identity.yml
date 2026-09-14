@@ -61,13 +61,14 @@ jobs:
           gdown -q 18HAuZbge3z8TSfRiX_FzsnKgiBs-RRNw -O /tmp/nbacv/models/legibility_soccernet.pth
       - name: Resolve track identities from multi-frame jersey evidence
         run: |
-          python tools/adams_event_track_identity_ocr.py \
-            --tracks artifacts/event447_tracks/tracks.csv \
-            --source artifacts/event447_tracks/source_native.mp4 \
-            --context artifacts/event447_tracks/context.json \
-            --roster data/rosters/0022500001.json \
+          cd /tmp/nbacv
+          python "$GITHUB_WORKSPACE/tools/adams_event_track_identity_ocr.py" \
+            --tracks "$GITHUB_WORKSPACE/artifacts/event447_tracks/tracks.csv" \
+            --source "$GITHUB_WORKSPACE/artifacts/event447_tracks/source_native.mp4" \
+            --context "$GITHUB_WORKSPACE/artifacts/event447_tracks/context.json" \
+            --roster "$GITHUB_WORKSPACE/data/rosters/0022500001.json" \
             --nbacv-src /tmp/nbacv/src \
-            --out artifacts/event447_track_identity
+            --out "$GITHUB_WORKSPACE/artifacts/event447_track_identity"
       - name: Report identity QA
         if: always()
         run: |
