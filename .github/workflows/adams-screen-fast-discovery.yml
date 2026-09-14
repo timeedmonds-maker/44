@@ -1,0 +1,43 @@
+name: Adams screen fast discovery
+
+on:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/adams-screen-fast-discovery.yml'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        event: [93,97,247,254,263,274,282,460]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lightweight deps only
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --quiet --disable-pip-version-check --no-cache-dir requests
+      - name: Fetch exact official broadcast clip
+        run: |
+          mkdir -p out/event_${{ matrix.event }}
+          python tools/fetch_official_nba_event_clip.py \
+            --game 0022500001 --event ${{ matrix.event }} \
+            --out out/event_${{ matrix.event }}/source.mp4
+      - name: Build dense visual audit sheet
+        run: |
+          python tools/build_nba_event_audit_sheet.py \
+            --input out/event_${{ matrix.event }}/source.mp4 \
+            --out out/event_${{ matrix.event }}/contact.jpg \
+            --frames 24
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fast-screen-candidate-${{ matrix.event }}
+          path: out/event_${{ matrix.event }}
+          retention-days: 2
+          compression-level: 0
