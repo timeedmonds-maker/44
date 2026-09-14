@@ -1,0 +1,60 @@
+name: Adams Toronto event483 V8 stage
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-v8-toronto]
+    paths:
+      - '.github/workflows/adams-toronto-event483-v8-stage.yml'
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic CV and data stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow pyreadr
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Build Toronto event483 with V8 tracker
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022500131 --event 483 \
+            --start-s 3.5 --end-s 11.5 \
+            --analysis-fps 15 --number-fps 6 --court-fps 1 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/toronto_event483_v8
+      - name: Report
+        if: always()
+        run: |
+          cat artifacts/toronto_event483_v8/context.json || true
+          cat artifacts/toronto_event483_v8/roles.json || true
+          cat artifacts/toronto_event483_v8/qa.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: toronto-event483-v8-stage
+          path: artifacts/toronto_event483_v8
+          if-no-files-found: warn
+          retention-days: 30
