@@ -1,0 +1,117 @@
+name: Adams LAL Christmas multiview V9
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/christmas_event94_multiview_v9.py'
+      - '.github/workflows/adams-lal-christmas-multiview-v9.yml'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic CV and data stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx \
+            https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
+            https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Compute authoritative KD player-conditioned xFG
+        run: |
+          python tools/player_conditioned_xfg_authoritative.py \
+            --player-id 201142 --game-id 0022500012 --event-num 94 \
+            --distance-window-ft 1.0 --xfg-window-pp 2.5 --workers 4 \
+            --out artifacts/kd_event94_player_xfg
+      - name: Rebuild deterministic event 94 source and tracks
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022500012 --event 94 \
+            --start-s 6.8 --end-s 12.4 \
+            --analysis-fps 15 --number-fps 6 --court-fps 1 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/adams_lal_christmas_event94
+      - name: Render validated V7 broadcast base
+        env:
+          PLAYER_XFG_JSON: artifacts/kd_event94_player_xfg/player_conditioned_xfg.json
+          PLAYER_XFG_LABEL: KD
+        run: |
+          python tools/christmas_event94_broadcast_v7.py \
+            --source artifacts/adams_lal_christmas_event94/source_native.mp4 \
+            --tracks artifacts/adams_lal_christmas_event94/tracks.csv \
+            --out artifacts/christmas_broadcast_v7
+      - name: Download all official event 94 camera angles
+        run: |
+          python tools/adams_event240_multiangle_identity.py \
+            --game 0022500012 --event 94 \
+            --out artifacts/event94_multiangle
+          cat artifacts/event94_multiangle/angles.json
+      - name: Render deterministic V9 multi-angle release montage
+        run: |
+          python tools/christmas_event94_multiview_v9.py \
+            --v7-native artifacts/christmas_broadcast_v7/durant_adams_christmas_broadcast_v7_native.mp4 \
+            --broadcast-source artifacts/adams_lal_christmas_event94/source_native.mp4 \
+            --tracks artifacts/adams_lal_christmas_event94/tracks.csv \
+            --base-qa artifacts/christmas_broadcast_v7/qa.json \
+            --angles-dir artifacts/event94_multiangle \
+            --out artifacts/christmas_multiview_v9
+      - name: Assert V9 multi-angle QA and UHD duration
+        run: |
+          python - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          q=json.loads(Path('artifacts/christmas_multiview_v9/qa_v9.json').read_text())
+          assert q['deterministic_only'] is True
+          assert q['game_id']=='0022500012' and q['event_num']==94
+          assert len(q['selected_angles'])==3, q
+          labels=[x['label'].lower() for x in q['selected_angles']]
+          assert sum(('above' in x and 'rim' in x) or ('rim' in x) for x in labels)>=2, labels
+          assert any('hand' in x for x in labels), labels
+          assert all(abs(x['audio_offset_s'])<4.1 for x in q['selected_angles']), q['selected_angles']
+          u=Path(q['uhd']); n=Path(q['native'])
+          def dur(p): return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=nk=1:nw=1',str(p)],text=True).strip())
+          nd,ud=dur(n),dur(u)
+          print(json.dumps({'native_duration_s':nd,'uhd_duration_s':ud,'angles':q['selected_angles']},indent=2))
+          assert ud>=nd-0.10, (nd,ud)
+          assert nd>7.0, nd
+          PY
+      - name: Report QA
+        if: always()
+        run: |
+          cat artifacts/christmas_multiview_v9/qa_v9.json || true
+          cat artifacts/event94_multiangle/angles.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-lal-christmas-multiview-v9
+          path: |
+            artifacts/christmas_multiview_v9
+            artifacts/event94_multiangle/angles.json
+            artifacts/event94_multiangle/multiangle_identity_sheet.jpg
+            artifacts/christmas_broadcast_v7/qa.json
+            artifacts/kd_event94_player_xfg/player_conditioned_xfg.json
+          if-no-files-found: warn
+          retention-days: 30
