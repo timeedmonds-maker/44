@@ -1,0 +1,64 @@
+name: Adams LAL Christmas event 94 tracking
+
+on:
+  push:
+    branches:
+      - codex/adams-screen-okc-opener
+    paths:
+      - '.github/workflows/adams-lal-christmas-event94-track.yml'
+  workflow_dispatch:
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git
+      - name: Install CV stack
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install pyreadr requests ultralytics scipy pandas 'numpy<2'
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx \
+            https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
+            https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Track Christmas event 94 interaction window
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022500012 --event 94 \
+            --start-s 6.8 --end-s 12.4 \
+            --analysis-fps 15 --number-fps 6 --court-fps 1 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/adams_lal_christmas_event94
+      - name: Report QA
+        if: always()
+        run: |
+          cat artifacts/adams_lal_christmas_event94/qa.json || true
+          cat artifacts/adams_lal_christmas_event94/roles.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-lal-christmas-event94-track
+          path: artifacts/adams_lal_christmas_event94
+          if-no-files-found: warn
+          retention-days: 30
