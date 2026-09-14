@@ -1,0 +1,49 @@
+name: Adams LAL Christmas release calibration
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - 'tools/christmas_event94_release_calibration.py'
+      - '.github/workflows/adams-lal-christmas-release-calibration.yml'
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git
+          python -m pip install --upgrade pip
+          pip install ultralytics requests numpy opencv-python pyreadr pandas
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download court model
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt \
+            https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Probe exact release frame
+        run: |
+          python tools/christmas_event94_release_calibration.py \
+            --game 0022500012 --event 94 --release-s 10.56 \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/christmas_release_calibration
+      - name: Report calibration
+        if: always()
+        run: cat artifacts/christmas_release_calibration/release_calibration.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adams-lal-christmas-release-calibration
+          path: artifacts/christmas_release_calibration
+          if-no-files-found: warn
+          retention-days: 30
