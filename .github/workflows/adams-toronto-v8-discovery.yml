@@ -1,0 +1,46 @@
+name: Adams Toronto V8 screen discovery
+
+on:
+  push:
+    branches: [codex/adams-screen-v8-toronto]
+    paths:
+      - '.github/workflows/adams-toronto-v8-discovery.yml'
+  workflow_dispatch:
+
+jobs:
+  possessions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install lightweight data deps
+        run: |
+          python -m pip install --quiet pandas pyreadr requests
+      - name: Build Adams-on-court Houston possessions for fresh Toronto game
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tools.build_adams_okc_opener_possessions as m
+          m.GAME='0022500131'
+          m.OUT=Path('artifacts/adams_toronto_0022500131')
+          m.OUT.mkdir(parents=True,exist_ok=True)
+          m.TMP=m.OUT/'tmp'; m.TMP.mkdir(exist_ok=True)
+          m.main()
+          PY
+      - name: Print candidate possession anchors
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          p='artifacts/adams_toronto_0022500131/adams_okc_opener_possessions.csv'
+          d=pd.read_csv(p)
+          cols=['period','start_time','end_time','pts_poss','type_end','anchor_event_num','anchor_clock','anchor_description','window_event_nums']
+          print(d[cols].to_string(index=False,max_colwidth=180))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-toronto-v8-discovery
+          path: artifacts/adams_toronto_0022500131
+          retention-days: 14
