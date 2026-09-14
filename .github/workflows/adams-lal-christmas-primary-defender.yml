@@ -23,7 +23,7 @@ jobs:
           sudo apt-get install -y -qq ffmpeg
           python -m pip install --upgrade pip
           pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
-          pip install ultralytics requests opencv-python numpy
+          pip install ultralytics requests opencv-python numpy pandas pyreadr supervision
       - name: Resolve release primary defender and metric distance
         run: |
           python tools/christmas_event94_primary_defender_probe.py \
