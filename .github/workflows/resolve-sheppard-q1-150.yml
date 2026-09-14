@@ -1,0 +1,64 @@
+name: Resolve Sheppard Q1 1:50 shot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/resolve-sheppard-q1-150.yml'
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests pandas
+      - name: Resolve exact event from official shot-quality feed
+        run: |
+          mkdir -p artifacts/sheppard_q1_150_resolve
+          python - <<'PY'
+          import json, sys
+          sys.path.insert(0,'tools')
+          import player_conditioned_xfg_v2 as p
+          game='0022500012'; player=1642263
+          payload,meta=p.fetch_xfg_pair(game,player)
+          if payload is None: raise RuntimeError(meta)
+          rows=[]
+          for s in payload.get('shotList') or []:
+              ev=p.event_num_from_shot(s)
+              row={
+                'event_num':ev,
+                'period':s.get('period'),
+                'game_clock':s.get('gameClock'),
+                'made':int(s.get('success') or 0),
+                'shot_type':s.get('shotType'),
+                'action_type':s.get('actionType'),
+                'xfg_pct':p.xfg_pct_from_shot(s),
+                'loc_x':s.get('locX'),'loc_y':s.get('locY'),'guid':s.get('guid')
+              }
+              rows.append(row)
+          print(json.dumps(rows,indent=2))
+          def clock_match(v):
+              t=str(v or '').strip().lstrip('PT').upper()
+              return t in {'1:50','01:50','1:50.0','01:50.0','1:50.00','01:50.00'} or t.startswith('1:50') or t.startswith('01:50')
+          c=[r for r in rows if int(r['period'] or 0)==1 and clock_match(r['game_clock']) and r['made']==1 and str(r['shot_type'] or '').startswith('2PT')]
+          if len(c)!=1:
+              # tolerate feed clock rounding around the requested 1:50
+              def secs(v):
+                  q=str(v or '').replace('PT','').replace('M',':').replace('S','').strip()
+                  try:
+                      a,b=q.split(':',1); return 60*float(a)+float(b)
+                  except: return 9999
+              c=[r for r in rows if int(r['period'] or 0)==1 and abs(secs(r['game_clock'])-110.0)<=1.2 and r['made']==1 and str(r['shot_type'] or '').startswith('2PT')]
+          if len(c)!=1: raise RuntimeError(f'Expected one target, found {c}')
+          out={'game_id':game,'player_id':player,'player_name':'Reed Sheppard','target':c[0],'request_meta':meta}
+          open('artifacts/sheppard_q1_150_resolve/target.json','w').write(json.dumps(out,indent=2))
+          print('TARGET',json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sheppard-q1-150-resolve
+          path: artifacts/sheppard_q1_150_resolve
