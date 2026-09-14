@@ -1,0 +1,96 @@
+name: Adams LAL Christmas target resolve
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/adams-screen-okc-opener]
+    paths:
+      - '.github/workflows/adams-lal-christmas-target-resolve.yml'
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install requests
+      - name: Resolve exact Durant make and official xFG
+        run: |
+          python - <<'PY'
+          import csv, io, json, time, urllib.request
+          from pathlib import Path
+          import requests
+
+          GAME='0022500012'
+          PLAYER='201142'
+          PERIOD=1
+          CLOCK='04:10.00'
+          PBP='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.csv'
+          req=urllib.request.Request(PBP, headers={'User-Agent':'Mozilla/5.0'})
+          hits=[]
+          with urllib.request.urlopen(req, timeout=180) as resp:
+              reader=csv.DictReader(io.TextIOWrapper(resp,encoding='utf-8-sig',newline=''))
+              for r in reader:
+                  gid=str(r.get('game_id') or '').replace('.0','').zfill(10)
+                  if gid != GAME: continue
+                  try: per=int(float(r.get('period') or 0))
+                  except: continue
+                  if per != PERIOD: continue
+                  clk=str(r.get('clock') or '')
+                  p1=str(r.get('player1_name') or '')
+                  msg=str(r.get('msg_type') or '')
+                  if clk == CLOCK and p1.startswith(PLAYER+' ') and msg in {'1','1.0'}:
+                      hits.append(r)
+          if len(hits)!=1:
+              raise RuntimeError(f'Expected one Durant made FG at Q1 {CLOCK}, got {len(hits)}: '+json.dumps([{k:r.get(k) for k in ['event_num','clock','description','player1_name','lineup_home','lineup_away']} for r in hits]))
+          r=hits[0]
+          ev=int(float(r['event_num']))
+          target={k:r.get(k) for k in ['game_date','game_id','event_num','period','clock','description','player1_name','team_abb','shot_pts','lineup_home','lineup_away']}
+          target['event_num']=ev
+
+          URL='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
+          s=requests.Session(); s.headers.update(H)
+          payload=None; last=None
+          for n in range(1,6):
+              try:
+                  rr=s.get(URL,params={'GameID':GAME,'PlayerID':int(PLAYER)},timeout=(8,35))
+                  if rr.status_code==200:
+                      j=rr.json()
+                      if str(j.get('gameId') or '').zfill(10)==GAME and int(j.get('playerId') or 0)==int(PLAYER): payload=j; break
+                  last=f'{rr.status_code}: {rr.text[:200]}'
+              except Exception as e: last=repr(e)
+              if n<5: time.sleep(min(6,.7*(2**(n-1))))
+          if payload is None: raise RuntimeError('xFG fetch failed '+str(last))
+          xs=[]
+          for sh in payload.get('shotList') or []:
+              try: sev=int(sh.get('eventNum'))
+              except: continue
+              if sev==ev: xs.append(sh)
+          if len(xs)!=1: raise RuntimeError(f'Expected one xFG row for event {ev}, got {len(xs)}')
+          sh=xs[0]; q=float(sh.get('shotQuality'))
+          xfg={'game_id':GAME,'player_id':int(PLAYER),'event_num':ev,'xfg':q,'xfg_pct':q*100 if q<=1.5 else q,'period':sh.get('period'),'game_clock':sh.get('gameClock'),'action_type':sh.get('actionType'),'shot_type':sh.get('shotType'),'made':int(sh.get('success') or 0),'loc_x':sh.get('locX'),'loc_y':sh.get('locY'),'guid':sh.get('guid'),'source':URL,'join':'exact game_id + player_id + event_num'}
+          out=Path('artifacts/christmas_target'); out.mkdir(parents=True,exist_ok=True)
+          (out/'target.json').write_text(json.dumps(target,indent=2))
+          (out/'xfg.json').write_text(json.dumps(xfg,indent=2))
+          (out/'event.txt').write_text(str(ev))
+          print('TARGET='+json.dumps(target))
+          print('XFG='+json.dumps(xfg))
+          PY
+      - name: Fetch official Broadcast event clip
+        run: |
+          EVENT=$(cat artifacts/christmas_target/event.txt)
+          python tools/fetch_official_nba_event_clip.py --game 0022500012 --event "$EVENT" --out artifacts/christmas_target/source_native.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-lal-christmas-target
+          path: artifacts/christmas_target
+          if-no-files-found: error
+          retention-days: 30
