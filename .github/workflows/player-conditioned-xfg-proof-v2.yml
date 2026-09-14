@@ -5,6 +5,7 @@ on:
     branches: [codex/adams-screen-okc-opener]
     paths:
       - 'tools/player_conditioned_xfg_v2.py'
+      - 'tools/player_conditioned_xfg_authoritative.py'
       - '.github/workflows/player-conditioned-xfg-proof-v2.yml'
   workflow_dispatch:
 
@@ -23,7 +24,7 @@ jobs:
       - run: pip install --quiet pandas requests
       - name: Compute KD xFG with authoritative official shot distance
         run: |
-          python tools/player_conditioned_xfg_v2.py \
+          python tools/player_conditioned_xfg_authoritative.py \
             --player-id 201142 \
             --game-id 0022500012 \
             --event-num 94 \
@@ -42,6 +43,7 @@ jobs:
           assert j['comparison_rule']['coordinate_derived_distance_allowed'] is False
           assert j['target']['game_id']=='0022500012' and j['target']['event_num']==94
           assert abs(j['target']['league_xfg_pct']-42.6) < 0.2
+          assert j['target']['shot_distance_ft']==17.0, j['target']
           assert j['sample_fga'] > 0
           assert j['player_conditioned_xfg_pct'] is not None
           print(json.dumps(j,indent=2))
