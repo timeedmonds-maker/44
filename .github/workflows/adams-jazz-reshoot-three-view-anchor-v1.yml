@@ -1,0 +1,100 @@
+name: Adams Jazz Reshoot-inspired three-view anchor v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/reshoot-three-view-anchor-v1]
+    paths:
+      - 'freeze_spin/build_reshoot_three_view_anchor_v1.py'
+      - '.github/workflows/adams-jazz-reshoot-three-view-anchor-v1.yml'
+
+jobs:
+  reshoot-three-view-anchor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native vision and MoGe runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84 requests
+          python - <<'PY' || python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          import torch, torchvision
+          print(torch.__version__, torchvision.__version__)
+          PY
+          python -m pip install --quiet git+https://github.com/microsoft/MoGe.git
+
+      - name: Retrieve and real-media QA official event 489 angles
+        run: |
+          FFMPEG_BINARY="$(command -v ffmpeg)" python build_kd_top10_all_angles.py \
+            --request freeze_spin/adams_jazz_dunk_request.json \
+            --out jazz_dunk_source --workers 8
+
+      - name: Build deterministic three-view dense anchor
+        run: |
+          python freeze_spin/build_reshoot_three_view_anchor_v1.py \
+            --clips jazz_dunk_source/clips \
+            --out reshoot_anchor_v1 \
+            --tokens 1600 \
+            --max-degree 8.0 \
+            --frames 31 \
+            --splat-radius 1
+
+      - name: Enforce source lock and non-generative policy
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('reshoot_anchor_v1/reshoot_three_view_anchor_qa.json'))
+          lock=q['state_lock']
+          assert q['event']['game_id']=='0022500301' and q['event']['event_id']==489
+          assert lock['camera_count']==3
+          assert lock['cameras']=={'Left Above Rim':259,'Right Above Rim':250,'Broadcast':294}
+          assert lock['native_resolution']==[960,540]
+          assert q['method']['pixel_policy'].startswith('real source pixels only')
+          assert q['render_max_degree']>=3.0
+          for label,solve in q['camera_solves'].items():
+              assert solve['passed'], (label,solve)
+          print('ENDPOINT',q['endpoint'])
+          print('REAL_BASELINE_DEG',q['endpoint_real_baseline_deg'])
+          print('RENDER_MAX_DEG',q['render_max_degree'])
+          for s in q['stills']:
+              print('STILL',s['actual_degree'],'coverage',round(s['resolved_fraction'],5),'holes',s['unresolved_pixels'])
+          for r in q['leave_one_out_real_view_qa']:
+              print('LOO',r)
+          PY
+
+      - name: Encode native orbit preview
+        run: |
+          ffmpeg -y -framerate 30 -i reshoot_anchor_v1/motion_%03d.png \
+            -c:v libx264 -preset medium -crf 15 -pix_fmt yuv420p -movflags +faststart \
+            reshoot_anchor_v1/adams_jazz_reshoot_three_view_anchor_native_960x540.mp4
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 reshoot_anchor_v1/adams_jazz_reshoot_three_view_anchor_native_960x540.mp4)" = "960"
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 reshoot_anchor_v1/adams_jazz_reshoot_three_view_anchor_native_960x540.mp4)" = "540"
+
+      - name: Package visual proof and diagnostics
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp reshoot_anchor_v1/locked/*.png delivery/ 2>/dev/null || true
+          cp reshoot_anchor_v1/locked/locked_three_view_manifest.json delivery/ 2>/dev/null || true
+          cp reshoot_anchor_v1/reshoot_anchor_*deg_native.png delivery/ 2>/dev/null || true
+          cp reshoot_anchor_v1/reshoot_anchor_*deg_holes.png delivery/ 2>/dev/null || true
+          cp reshoot_anchor_v1/loo_*.png delivery/ 2>/dev/null || true
+          cp reshoot_anchor_v1/*_depth_keep.png delivery/ 2>/dev/null || true
+          cp reshoot_anchor_v1/*_dynamic.png delivery/ 2>/dev/null || true
+          cp reshoot_anchor_v1/reshoot_three_view_anchor_qa.json delivery/ 2>/dev/null || true
+          cp reshoot_anchor_v1/adams_jazz_reshoot_three_view_anchor_native_960x540.mp4 delivery/ 2>/dev/null || true
+          cp jazz_dunk_source/qa.json delivery/source_qa.json 2>/dev/null || true
+          (cd delivery && zip -q adams_jazz_reshoot_three_view_anchor_v1_diagnostics.zip ./* || true)
+
+      - name: Upload three-view proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-reshoot-three-view-anchor-v1-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
