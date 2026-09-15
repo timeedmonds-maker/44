@@ -34,19 +34,21 @@
       "identity_evidence": [
         "exact PBP defensive lineup contains Sandro Mamukelashvili and excludes Jakob Poeltl",
         "validated screen-role QA identifies raw track 4 as adams_defender",
-        "multi-frame visual QA resolves raw track 4 to jersey 54",
-        "late raw track 8 continues the same jersey-54 identity after tracker re-identification"
+        "multi-frame visual QA resolves the screener defender to jersey 54",
+        "jersey-54 continuity is T4 through 9.44s, T26 from 9.55-10.60s, and T8 from 10.67s onward"
       ],
       "track_segments": [
-        {"raw_track_id": 4, "start_s": 3.5, "end_s_exclusive": 9.439266666666668},
-        {"raw_track_id": 8, "start_s": 9.439266666666668, "end_s_exclusive": 11.6}
+        {"raw_track_id": 4, "start_s": 3.50, "end_s_exclusive": 9.50},
+        {"raw_track_id": 26, "start_s": 9.50, "end_s_exclusive": 10.635},
+        {"raw_track_id": 8, "start_s": 10.635, "end_s_exclusive": 11.60}
       ]
     }
   },
   "universal_resolution_rule": {
     "lineup_gate": "drop defender identity must be in the exact event defensive lineup",
     "role_gate": "for a drop screen action, resolve the screener-defender role rather than choosing a nominal center or nearest-to-rim player",
-    "continuity_gate": "stitch raw tracker IDs when the same role identity is re-identified through occlusion",
+    "continuity_gate": "stitch all raw tracker re-identifications for the same role identity",
+    "visual_gate": "name bar and floor ring must follow the same identity-stable virtual track",
     "failure_policy": "fail QA rather than label an out-of-lineup or unverified player"
   }
 }
