@@ -1,0 +1,35 @@
+name: Screen Tracker - Kickout 3 xFG + PBP distance
+on:
+  push:
+    branches: [screen-tracker-kickout-3]
+    paths:
+      - 'screen_tracker_kickout3/enrich_xfg_pbp_distance.py'
+      - '.github/workflows/kickout3-xfg-pbp-distance.yml'
+  workflow_dispatch:
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install pandas pyreadr requests
+      - run: python screen_tracker_kickout3/discover_events.py --out artifacts/base
+      - run: python screen_tracker_kickout3/enrich_xfg_pbp_distance.py --manifest artifacts/base/kickout3_event_manifest.json --out artifacts/enriched --workers 6
+      - name: QA
+        run: |
+          python - <<'PY'
+          import json
+          m=json.load(open('artifacts/enriched/kickout3_event_manifest_enriched.json'))
+          for e in m['selected_events']:
+              q=e['shot_quality']; assert q['official_event_xfg_pct'] is not None; assert q['observed_shot_distance_ft'] is not None; assert q['durant_similar_sample_fga']>0
+          print(json.dumps(m,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kickout3-xfg-pbp-distance
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
