@@ -3,9 +3,9 @@
   "$id": "screen-tracker-application.schema.json",
   "title": "Screen Tracker application",
   "type": "object",
-  "required": ["screen_tracker_version", "application_id", "event", "input_artifact", "backend", "output"],
+  "required": ["screen_tracker_version", "application_id", "event", "output"],
   "properties": {
-    "screen_tracker_version": {"type": "string"},
+    "screen_tracker_version": {"enum": ["1.0.0", "1.1.0"]},
     "application_id": {"type": "string", "minLength": 1},
     "event": {
       "type": "object",
@@ -16,6 +16,50 @@
         "coverage_label": {"type": "string"}
       }
     },
+    "angle_policy": {
+      "type": "object",
+      "properties": {
+        "mode": {"enum": ["two_angle_default", "legacy_single_angle"]},
+        "primary_label": {"type": "string", "default": "Broadcast"},
+        "secondary_priority": {
+          "type": "array",
+          "items": {"type": "string"},
+          "default": ["High Tight", "Other Broadcast", "Mobile Broadcast", "Play by Play", "Left Slash", "Right Slash", "Left HandHeld", "Right HandHeld", "In Arena"]
+        },
+        "require_distinct_angles": {"type": "boolean", "default": true},
+        "require_full_length_each_angle": {"type": "boolean", "default": true}
+      },
+      "additionalProperties": true
+    },
+    "angles": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["label", "input_artifact", "backend"],
+        "properties": {
+          "label": {"type": "string", "minLength": 1},
+          "input_artifact": {"$ref": "#/$defs/input_artifact"},
+          "backend": {"$ref": "#/$defs/backend"}
+        }
+      }
+    },
+    "input_artifact": {"$ref": "#/$defs/input_artifact"},
+    "backend": {"$ref": "#/$defs/backend"},
+    "output": {
+      "type": "object",
+      "required": ["basename"],
+      "properties": {
+        "basename": {"type": "string"},
+        "require_native": {"type": "boolean", "default": true},
+        "require_uhd": {"type": "boolean", "default": true},
+        "require_streamable_4k": {"type": "boolean", "default": true},
+        "require_qa_package": {"type": "boolean", "default": true}
+      }
+    }
+  },
+  "$defs": {
     "input_artifact": {
       "type": "object",
       "required": ["repository", "run_id", "name", "source_path", "tracks_path", "source_qa_path"],
@@ -35,16 +79,6 @@
         "engine": {"enum": ["drop_coverage_universal_v2"]},
         "config_path": {"type": "string"},
         "role_manifest_path": {"type": "string"}
-      }
-    },
-    "output": {
-      "type": "object",
-      "required": ["basename"],
-      "properties": {
-        "basename": {"type": "string"},
-        "require_native": {"type": "boolean", "default": true},
-        "require_uhd": {"type": "boolean", "default": true},
-        "require_streamable_4k": {"type": "boolean", "default": true}
       }
     }
   },
