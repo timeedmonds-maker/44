@@ -1,0 +1,90 @@
+name: HOU ATL event 301 angle audit
+
+on:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/hou-atl-event301-angle-audit.yml'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg zip
+          pip install requests pillow
+      - name: Resolve and sample all official angles
+        run: |
+          PYTHONPATH=tools python - <<'PY'
+          from pathlib import Path
+          import json, re, subprocess
+          import requests
+          from urllib.parse import urljoin, urlsplit, urlunsplit
+          from fetch_official_nba_event_clip import parse, UA
+          from PIL import Image, ImageOps, ImageDraw
+
+          out=Path('artifacts/angle_audit'); out.mkdir(parents=True,exist_ok=True)
+          page,angles,chosen=parse('0012500014',301)
+          headers={'User-Agent':UA,'Referer':'https://clips.nba.com/'}
+          ffhdr=f'User-Agent: {UA}\\r\\nReferer: https://clips.nba.com/\\r\\n'
+
+          def choose_variant(url,target_width=960):
+              r=requests.get(url,headers=headers,timeout=30); r.raise_for_status(); text=r.text
+              if '#EXT-X-STREAM-INF' not in text: return url,None
+              lines=[x.strip() for x in text.splitlines() if x.strip()]
+              variants=[]
+              for i,line in enumerate(lines):
+                  if not line.startswith('#EXT-X-STREAM-INF'): continue
+                  m=re.search(r'RESOLUTION=(\\d+)x(\\d+)',line); bw=re.search(r'BANDWIDTH=(\\d+)',line)
+                  uri=None
+                  for j in range(i+1,min(i+4,len(lines))):
+                      if not lines[j].startswith('#'):
+                          uri=lines[j]; break
+                  if not uri: continue
+                  w=int(m.group(1)) if m else 10**9; h=int(m.group(2)) if m else None
+                  full=urljoin(url,uri)
+                  if not urlsplit(full).query and urlsplit(url).query:
+                      q=urlsplit(url); f=urlsplit(full); full=urlunsplit((f.scheme,f.netloc,f.path,q.query,f.fragment))
+                  variants.append((w,h,int(bw.group(1)) if bw else None,full))
+              under=[v for v in variants if v[0]<=target_width]
+              ch=max(under,key=lambda x:x[0]) if under else min(variants,key=lambda x:x[0])
+              return ch[3],{'width':ch[0],'height':ch[1],'bandwidth':ch[2]}
+
+          manifest={'page':page,'angle_count':len(angles),'angles':[]}
+          tiles=[]
+          for idx,a in enumerate(angles):
+              hls,var=choose_variant(a['url'],960)
+              safe=re.sub(r'[^A-Za-z0-9_-]+','_',a['label']).strip('_') or f'angle_{idx:02d}'
+              mp4=out/f'{idx:02d}_{safe}.mp4'; jpg=out/f'{idx:02d}_{safe}.jpg'
+              subprocess.run(['ffmpeg','-y','-v','error','-rw_timeout','30000000','-headers',ffhdr,'-i',hls,'-c','copy',str(mp4)],check=True,timeout=120)
+              subprocess.run(['ffmpeg','-y','-v','error','-ss','7.0','-i',str(mp4),'-frames:v','1','-q:v','2',str(jpg)],check=True)
+              pr=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_entries','stream=width,height,avg_frame_rate:format=duration','-of','json',str(mp4)],text=True))
+              manifest['angles'].append({'index':idx,'label':a['label'],'selected':a['selected'],'variant':var,'file':mp4.name,'probe':pr})
+              im=Image.open(jpg).convert('RGB').resize((480,270))
+              canvas=Image.new('RGB',(480,305),'black'); canvas.paste(im,(0,35)); d=ImageDraw.Draw(canvas); d.text((8,8),f'{idx}: {a["label"]}',fill='white')
+              tiles.append(canvas)
+          cols=2; rows=(len(tiles)+cols-1)//cols
+          sheet=Image.new('RGB',(cols*480,rows*305),(20,20,20))
+          for i,im in enumerate(tiles): sheet.paste(im,((i%cols)*480,(i//cols)*305))
+          sheet.save(out/'all_angles_contact_sheet.jpg',quality=92)
+          (out/'angles.json').write_text(json.dumps(manifest,indent=2))
+          print(json.dumps(manifest,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hou-atl-event301-angle-audit
+          path: artifacts/angle_audit/
+          if-no-files-found: error
+          retention-days: 30
