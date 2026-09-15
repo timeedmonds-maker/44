@@ -1,0 +1,49 @@
+name: Inspect Adams shotquality raw fields
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-adams-shotquality-fields.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect raw per-shot keys
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, requests
+          u='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          h={
+            'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+            'Referer':'https://www.nba.com/',
+            'Origin':'https://www.nba.com',
+            'Accept':'application/json, text/plain, */*',
+          }
+          r=requests.get(u,params={'GameID':'0022500527','PlayerID':203500},headers=h,timeout=(8,35))
+          r.raise_for_status()
+          j=r.json()
+          shots=j.get('shotList') or []
+          keys=sorted({k for s in shots for k in s})
+          print('TOP_LEVEL_KEYS='+json.dumps(sorted(j.keys())))
+          print('SHOT_KEYS='+json.dumps(keys))
+          print('SHOT_COUNT='+str(len(shots)))
+          for s in shots:
+            print('RAW_SHOT='+json.dumps(s,sort_keys=True))
+          open('adams_shotquality_raw_sample.json','w').write(json.dumps(j,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-shotquality-raw-fields
+          path: adams_shotquality_raw_sample.json
+          if-no-files-found: error
+          retention-days: 2

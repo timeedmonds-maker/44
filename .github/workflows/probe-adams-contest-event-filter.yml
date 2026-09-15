@@ -1,0 +1,51 @@
+name: Probe Adams event-level contest filtering
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-adams-contest-event-filter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe shotquality endpoint filters
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, requests
+          h={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*'}
+          base={'GameID':'0022500527','PlayerID':203500}
+          probes=[
+            ('base',{}),
+            ('EventNum',{'EventNum':68}),
+            ('EventID',{'EventID':68}),
+            ('GameEventID',{'GameEventID':68}),
+          ]
+          out=[]
+          for name,extra in probes:
+            p={**base,**extra}
+            r=requests.get('https://stats.gleague.nba.com/stats/shotqualityvideologs',params=p,headers=h,timeout=(8,35))
+            rec={'name':name,'status':r.status_code,'params':p}
+            try:
+              j=r.json(); shots=j.get('shotList') or []
+              rec.update({'avgDefenderBallDistance':j.get('avgDefenderBallDistance'),'shotCount':len(shots),'events':[s.get('eventNum') for s in shots]})
+            except Exception:
+              rec['prefix']=r.text[:300]
+            out.append(rec)
+            print('PROBE='+json.dumps(rec,sort_keys=True))
+          open('contest_filter_probe.json','w').write(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-contest-filter-probe
+          path: contest_filter_probe.json
+          retention-days: 2
