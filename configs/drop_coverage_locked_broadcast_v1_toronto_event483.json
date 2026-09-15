@@ -1,0 +1,50 @@
+{
+  "output_basename": "sheppard_adams_drop_coverage_locked_broadcast_v1",
+  "teams": {
+    "HOU": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"},
+    "TOR": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"}
+  },
+  "players": [
+    {"track_id": 10, "label": "ADAMS", "team": "HOU", "label_dx": 35, "label_dy": -4},
+    {"track_id": 7, "label": "SHEPPARD", "team": "HOU", "label_dx": -54, "label_dy": 5, "distance_dx": -55, "distance_dy": -2},
+    {"track_id": 3, "label": "DEFENDER", "team": "TOR", "label_dx": -8, "label_dy": -34}
+  ],
+  "roles": {"shooter_track_id": 7, "primary_defender_track_id": 3},
+  "timing": {
+    "start_s": 5.40,
+    "end_s": 11.40,
+    "release_s": 8.93,
+    "freeze_s": 1.20,
+    "contact_phases": [[5.6056, 7.4074]],
+    "contact_source_start_frame": 168,
+    "contact_source_end_frame_inclusive": 221,
+    "contact_source_end_exclusive_frame": 222,
+    "contact_source_fps": "30000/1001",
+    "contact_definition": "User-supplied authoritative visual start/end frames matched to source frames 168 through 221 inclusive; end-exclusive boundary source frame 222.",
+    "preview_screen_s": 5.6056
+  },
+  "screen": {"kicker": "SCREEN ACTION", "value": "DROP COVERAGE"},
+  "shot": {
+    "description": "R. Sheppard 17' pullup Jump Shot (5 PTS)",
+    "description_source": "event-level shot description for game 0022500131 event 483",
+    "league_xfg_pct": 41.7,
+    "league_xfg_source": "official NBA shotqualityvideologs, exact event 483",
+    "similar_xfg": {
+      "xfg_pct": 40.9375,
+      "n": 8,
+      "season": "2025-26",
+      "player": "Reed Sheppard",
+      "distance_reference_ft": 17.0,
+      "distance_tolerance_ft": 1.5,
+      "distance_ft_min": 15.5,
+      "distance_ft_max": 18.5,
+      "event_xfg_pct": 41.7,
+      "xfg_tolerance_percentage_points": 2.0,
+      "xfg_pct_min": 39.7,
+      "xfg_pct_max": 43.7,
+      "criteria_logic": "intersection",
+      "action_type_filter": null,
+      "source": "official NBA shotqualityvideologs joined to 2025-26 exact PBP game/event rows; validated V3 result"
+    }
+  }
+}
