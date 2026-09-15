@@ -1,0 +1,28 @@
+name: Screen Tracker - Kickout 3 angle previews
+on:
+  push:
+    branches: [screen-tracker-kickout-3]
+    paths:
+      - 'screen_tracker_kickout3/build_angle_previews.py'
+      - '.github/workflows/kickout3-angle-previews.yml'
+  workflow_dispatch:
+jobs:
+  previews:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install pandas pyreadr requests opencv-python-headless 'numpy<2'
+      - run: python screen_tracker_kickout3/discover_events.py --out artifacts/base
+      - run: python screen_tracker_kickout3/build_angle_previews.py --manifest artifacts/base/kickout3_event_manifest.json --out artifacts/previews
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kickout3-angle-previews
+          path: artifacts/previews/
+          if-no-files-found: error
+          retention-days: 30
