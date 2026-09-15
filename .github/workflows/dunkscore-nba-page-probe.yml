@@ -1,0 +1,48 @@
+name: Dunk Score NBA Page Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/dunkscore-nba-page-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: screen-tracker}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install requests beautifulsoup4
+      - name: Probe NBA.com server-rendered Dunk Score page
+        run: |
+          mkdir -p artifacts/pageprobe
+          python - <<'PY'
+          import requests, json, re
+          from pathlib import Path
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8','Accept-Language':'en-US,en;q=0.9'}
+          urls=[
+            'https://www.nba.com/stats/players/dunk-scores?Season=2025-26&CF=playerName*E*Steven%20Adams',
+            'https://www.nba.com/stats/players/dunk-scores?Season=2025-26&CF=PLAYER_NAME*E*Steven%20Adams',
+            'https://www.nba.com/stats/players/dunk-scores?Season=2025-26&CF=teamAbbreviation*E*HOU',
+            'https://www.nba.com/stats/players/dunk-scores?Season=2025-26&dir=D'
+          ]
+          out=[]
+          for i,u in enumerate(urls):
+            r=requests.get(u,headers=H,timeout=45)
+            txt=r.text
+            Path(f'artifacts/pageprobe/page_{i}.html').write_text(txt)
+            rec={'url':u,'status':r.status_code,'bytes':len(txt),'steven_count':txt.lower().count('steven adams'),'game_count':txt.count('0022501205'),'event505_count':txt.count('505'),'dunk_score_leaders_count':txt.lower().count('dunkscoreleaders')}
+            print(json.dumps(rec),flush=True); out.append(rec)
+          Path('artifacts/pageprobe/summary.json').write_text(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dunkscore-nba-page-probe
+          path: artifacts/pageprobe
+          retention-days: 7
