@@ -1,5 +1,11 @@
 {
-  "output_basename": "sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking",
+  "output_basename": "sheppard_adams_drop_coverage_universal_v2_event483",
+  "event": {
+    "game_id": "0022500131",
+    "event_num": 483,
+    "defensive_team": "TOR",
+    "role_manifest": "manifests/drop_coverage/game_0022500131_event_483_roles.json"
+  },
   "teams": {
     "HOU": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"},
     "TOR": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"}
@@ -7,9 +13,15 @@
   "players": [
     {"track_id": 10, "label": "ADAMS", "team": "HOU", "label_dx": 35, "label_dy": -4},
     {"track_id": 107, "label": "SHEPPARD", "team": "HOU", "label_dx": -54, "label_dy": 5, "distance_dx": -55, "distance_dy": -2},
-    {"track_id": 103, "label": "SHEAD", "team": "TOR", "label_dx": -8, "label_dy": -34}
+    {"track_id": 103, "label": "SHEAD", "team": "TOR", "label_dx": -8, "label_dy": -34},
+    {"track_id": 104, "label": "MAMUKELASHVILI", "team": "TOR", "label_dx": 100, "label_dy": -15}
   ],
-  "roles": {"shooter_track_id": 107, "primary_defender_track_id": 103},
+  "roles": {
+    "shooter_track_id": 107,
+    "primary_defender_track_id": 103,
+    "screener_track_id": 10,
+    "drop_coverage_defender_track_id": 104
+  },
   "identity_stitch": {
     "reason": "Raw tracker IDs 7 and 3 exchange player identity during the Adams screen occlusion. Use role-continuous virtual identities.",
     "swap_time_s": 7.10,
@@ -17,7 +29,21 @@
     "post": {"sheppard": 3, "shead": 7},
     "virtual_track_ids": {"sheppard": 107, "shead": 103},
     "defender_identity": "Jamal Shead",
-    "defender_identity_basis": "Toronto lineup at Q3 2:09 plus visual identity of the point-of-attack defender wearing the headband"
+    "defender_player_id": 1642347
+  },
+  "drop_big_stitch": {
+    "role_source": "validated screen-role QA field roles.adams_defender",
+    "role_source_track_id": 4,
+    "identity": "Sandro Mamukelashvili",
+    "player_id": 1630572,
+    "jersey": 54,
+    "virtual_track_id": 104,
+    "segments": [
+      {"raw_track_id": 4, "start_s": 3.5, "end_s_exclusive": 9.439266666666668},
+      {"raw_track_id": 8, "start_s": 9.439266666666668, "end_s_exclusive": 11.6}
+    ],
+    "identity_rule": "Exact PBP defensive lineup gate plus screener-defender role track; raw track 4 visibly carries jersey 54 and raw track 8 continues jersey 54 after re-identification.",
+    "forbidden_identity": "Jakob Poeltl"
   },
   "timing": {
     "start_s": 5.40,
