@@ -36,9 +36,9 @@ jobs:
       - name: Download tracking models
         run: |
           mkdir -p artifacts/models
-          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          curl -L --fail --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
           echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
-          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+          curl -L --fail --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
       - name: Lock visually and temporally validated roles
         run: |
           mkdir -p artifacts
@@ -56,8 +56,8 @@ jobs:
           JSON
       - name: Resolve exact official Sheppard xFG row
         run: |
-          curl -L --retry 3 -o artifacts/nba_xfg_pbp_fga_join_2025_26.csv.gz \
-            https://raw.githubusercontent.com/timeedmonds-maker/long-rebound-era/main/outputs/integration/nba_xfg_2025_26/nba_xfg_pbp_fga_join_2025_26.csv.gz
+          curl -L --fail --retry 3 -o artifacts/nba_xfg_pbp_fga_join_2025_26.csv.gz \
+            'https://raw.githubusercontent.com/timeedmonds-maker/long-rebound-era/main/outputs/integration/nba_xfg_2025_26/nba_xfg_pbp_fga_join_2025_26.csv.gz?token=B5MOWVEPVWYWYDSJQETQWGTKVCRW7AA'
           python - <<'PY'
           import json
           from pathlib import Path
