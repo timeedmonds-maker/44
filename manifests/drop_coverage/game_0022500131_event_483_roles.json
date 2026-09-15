@@ -1,0 +1,52 @@
+{
+  "game_id": "0022500131",
+  "event_num": 483,
+  "period": 3,
+  "clock": "02:09.00",
+  "offense": "HOU",
+  "defense": "TOR",
+  "source": "project exact 2025-26 PBP event row",
+  "defensive_lineup": [
+    {"player_id": 1629628, "name": "RJ Barrett"},
+    {"player_id": 1630572, "name": "Sandro Mamukelashvili", "jersey": 54},
+    {"player_id": 1641711, "name": "Gradey Dick"},
+    {"player_id": 1642266, "name": "Ja'Kobe Walter"},
+    {"player_id": 1642347, "name": "Jamal Shead"}
+  ],
+  "offensive_lineup": [
+    {"player_id": 1631095, "name": "Jabari Smith Jr."},
+    {"player_id": 1631106, "name": "Tari Eason"},
+    {"player_id": 1642263, "name": "Reed Sheppard"},
+    {"player_id": 201142, "name": "Kevin Durant"},
+    {"player_id": 203500, "name": "Steven Adams"}
+  ],
+  "screen_roles": {
+    "ballhandler": {"player_id": 1642263, "name": "Reed Sheppard", "virtual_track_id": 107},
+    "screener": {"player_id": 203500, "name": "Steven Adams", "track_id": 10},
+    "point_of_attack_defender": {"player_id": 1642347, "name": "Jamal Shead", "virtual_track_id": 103},
+    "screener_defender": {
+      "player_id": 1630572,
+      "name": "Sandro Mamukelashvili",
+      "jersey": 54,
+      "role": "drop_coverage_defender",
+      "source_role_track": 4,
+      "virtual_track_id": 104,
+      "identity_evidence": [
+        "exact PBP defensive lineup contains Sandro Mamukelashvili and excludes Jakob Poeltl",
+        "validated screen-role QA identifies raw track 4 as adams_defender",
+        "multi-frame visual QA resolves raw track 4 to jersey 54",
+        "late raw track 8 continues the same jersey-54 identity after tracker re-identification"
+      ],
+      "track_segments": [
+        {"raw_track_id": 4, "start_s": 3.5, "end_s_exclusive": 9.439266666666668},
+        {"raw_track_id": 8, "start_s": 9.439266666666668, "end_s_exclusive": 11.6}
+      ]
+    }
+  },
+  "universal_resolution_rule": {
+    "lineup_gate": "drop defender identity must be in the exact event defensive lineup",
+    "role_gate": "for a drop screen action, resolve the screener-defender role rather than choosing a nominal center or nearest-to-rim player",
+    "continuity_gate": "stitch raw tracker IDs when the same role identity is re-identified through occlusion",
+    "failure_policy": "fail QA rather than label an out-of-lineup or unverified player"
+  }
+}
