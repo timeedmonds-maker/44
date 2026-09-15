@@ -1,0 +1,175 @@
+name: Sheppard Adams V2 data/contact probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/sheppard-adams-locked-v2-similar-xfg-contact]
+    paths:
+      - '.github/workflows/sheppard-adams-v2-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic CV and data stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git fonts-dejavu-core zip
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow pyreadr
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --fail --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --fail --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Resolve Sheppard event xFG and 2025-26 similar-shot xFG
+        run: |
+          python - <<'PY'
+          import json, re, time
+          from pathlib import Path
+          import pandas as pd, requests
+          PLAYER_ID=1642263; EVENT_GAME='0022500131'; EVENT_NUM=483
+          PBP='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
+          XFG='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          HEADERS={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
+          def gid(v):
+            s=str(v); s=s[:-2] if s.endswith('.0') else s
+            return ''.join(c for c in s if c.isdigit()).zfill(10)
+          use=['game_id','event_num','player1_name','is_field_goal','shot_distance','action_type','area','area_detail','shot_result']
+          p=pd.read_csv(PBP,usecols=use,low_memory=False)
+          shooter=p.player1_name.astype(str).str.match(r'^\s*1642263(?:\.0)?\s+',na=False)
+          fg=pd.to_numeric(p.is_field_goal,errors='coerce').fillna(0).eq(1)
+          r=p[shooter&fg].copy(); r['game_id_norm']=r.game_id.map(gid); r['event_num']=pd.to_numeric(r.event_num,errors='coerce').astype('Int64')
+          s=requests.Session(); s.headers.update(HEADERS); shots=[]; errors=[]
+          games=sorted(r.game_id_norm.unique())
+          for i,g in enumerate(games,1):
+            last=None
+            for a in range(5):
+              try:
+                q=s.get(XFG,params={'GameID':g,'PlayerID':PLAYER_ID},timeout=(8,35))
+                if q.status_code==200:
+                  j=q.json()
+                  if int(j.get('playerId') or 0)==PLAYER_ID: break
+                last=f'{q.status_code} {q.text[:120]}'
+              except Exception as e: last=repr(e)
+              time.sleep(min(5,0.6*(2**a)))
+            else:
+              errors.append((g,last)); continue
+            for sh in j.get('shotList') or []:
+              shots.append({'game_id_norm':gid(sh.get('gameId') or g),'event_num':int(sh['eventNum']) if sh.get('eventNum') is not None else None,'xfg':pd.to_numeric(sh.get('shotQuality'),errors='coerce'),'xfg_action_type':str(sh.get('actionType') or '').strip(),'xfg_shot_type':str(sh.get('shotType') or '').strip()})
+            if i%10==0 or i==len(games): print('XFG_PROGRESS',i,len(games),len(shots),flush=True)
+          if errors: raise RuntimeError(errors[:5])
+          x=pd.DataFrame(shots).drop_duplicates(['game_id_norm','event_num']); x['event_num']=pd.to_numeric(x.event_num,errors='coerce').astype('Int64')
+          d=r.merge(x,on=['game_id_norm','event_num'],how='left',validate='one_to_one')
+          d['shot_distance_num']=pd.to_numeric(d.shot_distance,errors='coerce')
+          d['is_2pt']=d.action_type.astype(str).str.lower().ne('3pt')
+          d['is_pullup']=d.xfg_action_type.str.lower().eq('pullup jump shot')
+          event=d[(d.game_id_norm==EVENT_GAME)&(d.event_num==EVENT_NUM)]
+          assert len(event)==1, event[['game_id_norm','event_num']].to_dict('records')
+          er=event.iloc[0]; assert abs(float(er.xfg)-0.417)<1e-9; assert float(er.shot_distance_num)==17.0
+          bands={}
+          for lo,hi in [(16,18),(15,19),(14,20),(13,21)]:
+            q=d[d.is_2pt & d.is_pullup & d.shot_distance_num.between(lo,hi) & d.xfg.notna()].copy()
+            bands[f'{lo}-{hi}']={'n':int(len(q)),'mean_xfg_pct':float(q.xfg.mean()*100),'actual_fg_pct':float(q.shot_result.astype(str).str.lower().eq('made').mean()*100),'dist_mean':float(q.shot_distance_num.mean()) if len(q) else None}
+          chosen=d[d.is_2pt & d.is_pullup & d.shot_distance_num.between(14,20) & d.xfg.notna()].copy()
+          assert len(chosen)>=10, len(chosen)
+          out={'event':{'game_id':EVENT_GAME,'event_num':EVENT_NUM,'shot_distance_ft':17.0,'action_type':'Pullup Jump shot','shot_type':'2PT Field Goal','event_xfg_pct':41.7},'definition':{'season':'2025-26','player':'Reed Sheppard','shot_type':'2PT','action_type':'Pullup Jump shot','distance_ft_min':14,'distance_ft_max':20,'distance_basis':'±3 ft around event 483 17-foot attempt'},'chosen':{'n':int(len(chosen)),'xfg_pct':float(chosen.xfg.mean()*100),'actual_fg_pct':float(chosen.shot_result.astype(str).str.lower().eq('made').mean()*100),'mean_distance_ft':float(chosen.shot_distance_num.mean())},'sensitivity_bands':bands,'coverage':{'reed_fga':int(len(d)),'xfg_covered':int(d.xfg.notna().sum()),'games':int(len(games))}}
+          Path('artifacts').mkdir(exist_ok=True); Path('artifacts/sheppard_similar_xfg.json').write_text(json.dumps(out,indent=2))
+          chosen[['game_id_norm','event_num','shot_distance_num','xfg','xfg_action_type','xfg_shot_type','shot_result','area','area_detail']].to_csv('artifacts/sheppard_similar_shots.csv',index=False)
+          print('SIMILAR_XFG_RESULT='+json.dumps(out,sort_keys=True),flush=True)
+          PY
+      - name: Lock validated Toronto identities
+        run: |
+          cat > artifacts/event483_overrides.json <<'JSON'
+          {"adams":10,"ballhandler":7,"screened_defender":3,"adams_defender":4,"names":{"10":"ADAMS","7":"SHEPPARD"}}
+          JSON
+          python - <<'PY'
+          import json
+          x=json.load(open('artifacts/sheppard_similar_xfg.json'))
+          e={'xfg':{'game_id':'0022500131','event_num':483,'player_id':1642263,'player_name':'Reed Sheppard','xfg':0.417,'xfg_pct':41.7,'source_resource':'shotqualityvideologs'}}
+          open('artifacts/event483_xfg.json','w').write(json.dumps(e,indent=2))
+          PY
+      - name: Recreate official source and validated tracks
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022500131 --event 483 \
+            --start-s 3.5 --end-s 11.5 \
+            --analysis-fps 15 --number-fps 6 --court-fps 1 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --overrides artifacts/event483_overrides.json \
+            --xfg-row-json artifacts/event483_xfg.json \
+            --out artifacts/toronto_tracking
+      - name: Compute Adams-defender proximity/contact diagnostic
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          import cv2, numpy as np, pandas as pd
+          p=Path('artifacts/toronto_tracking'); qa=json.load(open(p/'qa.json')); roles=qa['roles']; assert roles['adams']==10 and roles['screened_defender']==3
+          d=pd.read_csv(p/'tracks.csv'); a=d[d.track_id.eq(10)].sort_values('time_s'); b=d[d.track_id.eq(3)].sort_values('time_s')
+          times=np.arange(6.5,9.01,1/15)
+          def ibox(g,t):
+            if g.empty or t<g.time_s.min() or t>g.time_s.max(): return None
+            return tuple(float(np.interp(t,g.time_s,g[c])) for c in ['x1','y1','x2','y2'])
+          def rect_gap(A,B):
+            dx=max(A[0]-B[2],B[0]-A[2],0); dy=max(A[1]-B[3],B[1]-A[3],0); return math.hypot(dx,dy)
+          rows=[]
+          for t in times:
+            A=ibox(a,t); B=ibox(b,t)
+            if A is None or B is None: continue
+            h=(max(1,A[3]-A[1])+max(1,B[3]-B[1]))/2
+            gap=rect_gap(A,B); rows.append({'time_s':t,'gap_px':gap,'gap_body_heights':gap/h,'overlap_or_touch':int(gap<=0.5),'near_3pct_height':int(gap/h<=0.03),'near_6pct_height':int(gap/h<=0.06)})
+          z=pd.DataFrame(rows); z.to_csv('artifacts/contact_gap_series.csv',index=False)
+          def intervals(mask,max_gap=0.12):
+            tt=z.loc[mask,'time_s'].to_list(); out=[]
+            if not tt:return out
+            s=pr=tt[0]
+            for t in tt[1:]:
+              if t-pr>max_gap: out.append([s,pr+1/15]); s=t
+              pr=t
+            out.append([s,pr+1/15]); return out
+          summary={'bbox_overlap':intervals(z.overlap_or_touch.eq(1)),'near_3pct_height':intervals(z.near_3pct_height.eq(1)),'near_6pct_height':intervals(z.near_6pct_height.eq(1))}
+          Path('artifacts/contact_gap_summary.json').write_text(json.dumps(summary,indent=2)); print('CONTACT_GAP_SUMMARY='+json.dumps(summary),flush=True)
+          # diagnostic contact sheet, 10 fps, with boxes and gap text
+          cap=cv2.VideoCapture(str(p/'source_native.mp4')); fps=cap.get(cv2.CAP_PROP_FPS) or 29.97; W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)); panels=[]
+          for t in np.arange(6.7,8.91,0.1):
+            cap.set(cv2.CAP_PROP_POS_MSEC,t*1000); ok,fr=cap.read();
+            if not ok: continue
+            A=ibox(a,t); B=ibox(b,t)
+            if A and B:
+              cv2.rectangle(fr,(int(A[0]),int(A[1])),(int(A[2]),int(A[3])),(255,255,255),2); cv2.rectangle(fr,(int(B[0]),int(B[1])),(int(B[2]),int(B[3])),(0,255,255),2)
+              g=rect_gap(A,B); cv2.putText(fr,f'{t:.2f}s gap {g:.1f}px',(12,30),cv2.FONT_HERSHEY_SIMPLEX,.7,(255,255,255),2,cv2.LINE_AA)
+            panels.append(cv2.resize(fr,(480,270),interpolation=cv2.INTER_AREA))
+          cap.release(); cols=4; nr=math.ceil(len(panels)/cols); sheet=np.zeros((nr*270,cols*480,3),np.uint8)
+          for i,im in enumerate(panels): sheet[(i//cols)*270:(i//cols+1)*270,(i%cols)*480:(i%cols+1)*480]=im
+          cv2.imwrite('artifacts/contact_gap_sheet.jpg',sheet,[cv2.IMWRITE_JPEG_QUALITY,92])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sheppard-adams-v2-probe
+          path: |
+            artifacts/sheppard_similar_xfg.json
+            artifacts/sheppard_similar_shots.csv
+            artifacts/contact_gap_series.csv
+            artifacts/contact_gap_summary.json
+            artifacts/contact_gap_sheet.jpg
+            artifacts/toronto_tracking/source_native.mp4
+            artifacts/toronto_tracking/tracks.csv
+            artifacts/toronto_tracking/qa.json
+          if-no-files-found: error
+          retention-days: 30
