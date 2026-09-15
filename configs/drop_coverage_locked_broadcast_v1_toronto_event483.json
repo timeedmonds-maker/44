@@ -14,7 +14,7 @@
     {"track_id": 10, "label": "ADAMS", "team": "HOU", "label_dx": 35, "label_dy": -4},
     {"track_id": 107, "label": "SHEPPARD", "team": "HOU", "label_dx": -54, "label_dy": 5, "distance_dx": -55, "distance_dy": -2},
     {"track_id": 103, "label": "SHEAD", "team": "TOR", "label_dx": -8, "label_dy": -34},
-    {"track_id": 104, "label": "MAMUKELASHVILI", "team": "TOR", "label_dx": 100, "label_dy": -15}
+    {"track_id": 104, "label": "MAMUKELASHVILI", "team": "TOR", "label_dx": 58, "label_dy": -18}
   ],
   "roles": {
     "shooter_track_id": 107,
@@ -39,10 +39,11 @@
     "jersey": 54,
     "virtual_track_id": 104,
     "segments": [
-      {"raw_track_id": 4, "start_s": 3.5, "end_s_exclusive": 9.439266666666668},
-      {"raw_track_id": 8, "start_s": 9.439266666666668, "end_s_exclusive": 11.6}
+      {"raw_track_id": 4, "start_s": 3.50, "end_s_exclusive": 9.50},
+      {"raw_track_id": 26, "start_s": 9.50, "end_s_exclusive": 10.635},
+      {"raw_track_id": 8, "start_s": 10.635, "end_s_exclusive": 11.60}
     ],
-    "identity_rule": "Exact PBP defensive lineup gate plus screener-defender role track; raw track 4 visibly carries jersey 54 and raw track 8 continues jersey 54 after re-identification.",
+    "identity_rule": "Exact PBP defensive lineup gate plus screener-defender role track; #54 is followed deterministically across raw tracker re-identifications 4 -> 26 -> 8.",
     "forbidden_identity": "Jakob Poeltl"
   },
   "timing": {
