@@ -1,5 +1,5 @@
 {
-  "output_basename": "adams_sheppard_toronto_locked_broadcast_v1",
+  "output_basename": "adams_sheppard_toronto_locked_broadcast_v1_xfg",
   "teams": {
     "HOU": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"},
     "TOR": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"}
@@ -23,6 +23,10 @@
   "shot": {
     "description": "R. Sheppard 17' pullup Jump Shot (5 PTS)",
     "description_source": "event-level shot description for game 0022500131 event 483",
-    "league_xfg_pct": null
+    "league_xfg_pct": 41.7,
+    "xfg_source": "official NBA shotqualityvideologs",
+    "xfg_game_id": "0022500131",
+    "xfg_event_num": 483,
+    "xfg_player_id": 1642263
   }
 }
