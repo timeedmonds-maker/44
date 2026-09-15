@@ -1,0 +1,37 @@
+name: Dunk Score Constant Probe
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths: ['.github/workflows/dunkscore-constant-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {contents: read}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: screen-tracker}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install requests
+      - name: Resolve module 18744 export bL and query HANA
+        run: |
+          python - <<'PY'
+          import requests,re,json,urllib.parse
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Accept':'application/json,text/plain,*/*','Referer':'https://www.nba.com/stats/players/dunk-scores?Season=2025-26','Origin':'https://www.nba.com'}
+          s=requests.Session(); s.headers.update(H)
+          u='https://www.nba.com/_next/static/chunks/pages/_app-1100f91c85e90799.js'
+          txt=s.get(u,timeout=45).text
+          m=txt.index('18744:function'); sn=txt[m:m+18000]
+          print('MODULE18744='+sn,flush=True)
+          # print assignment containing bL from export mapping context and probable constants
+          for mm in re.finditer(r'bL:function\(\)\{return ([A-Za-z0-9_$]+)\}',sn): print('BL_VAR',mm.group(1),flush=True)
+          # Try known likely HANA bases from constants, no stats.nba.com first.
+          params={'LeagueID':'00','Season':'2025-26','SeasonType':'Regular Season'}
+          for base in ['https://api-hub.nba.com/stats/','https://api-hub.nba.com/','https://stats.nba.com/stats/']:
+            url=base+'dunkscoreleaders?'+urllib.parse.urlencode(params)
+            try:
+              r=s.get(url,timeout=(8,20)); print('TRY',url,'STATUS',r.status_code,'LEN',len(r.text),'HEAD',r.text[:500],flush=True)
+            except Exception as e: print('TRYERR',url,repr(e),flush=True)
+          PY
