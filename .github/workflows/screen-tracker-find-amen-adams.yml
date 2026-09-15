@@ -1,0 +1,79 @@
+name: Screen Tracker - find Amen/Adams screen candidates
+
+on:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/screen-tracker-find-amen-adams.yml'
+  workflow_dispatch:
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Find Amen makes with Adams on court, excluding games already studied
+        run: |
+          python - <<'PY'
+          import csv, io, json, urllib.request
+          from pathlib import Path
+
+          URL='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
+          SHOOTER_ID='1641708'
+          SCREENER_ID='203500'
+          EXCLUDE={'0022500001','0022500012','0022500131'}
+          rows=[]
+          req=urllib.request.Request(URL,headers={'User-Agent':'Mozilla/5.0'})
+          with urllib.request.urlopen(req,timeout=240) as resp:
+              reader=csv.DictReader(io.TextIOWrapper(resp,encoding='utf-8-sig',newline=''))
+              for r in reader:
+                  p1=str(r.get('player1_name') or '')
+                  if not p1.startswith(SHOOTER_ID+' '):
+                      continue
+                  try: pts=float(r.get('shot_pts') or 0)
+                  except: pts=0
+                  if pts <= 0:
+                      continue
+                  gid=str(r.get('game_id') or '').replace('.0','').zfill(10)
+                  if gid in EXCLUDE:
+                      continue
+                  lh=str(r.get('lineup_home') or '')
+                  la=str(r.get('lineup_away') or '')
+                  if SCREENER_ID not in lh and SCREENER_ID not in la:
+                      continue
+                  desc=str(r.get('description') or '')
+                  sub=str(r.get('sub_type') or '')
+                  act=str(r.get('action_type') or '')
+                  # Discovery-only heuristic: prioritize half-court attacks where a screen is plausible.
+                  text=(desc+' '+sub+' '+act).lower()
+                  score=0
+                  for term,w in [('pullup',5),('driving',4),('layup',3),('finger roll',3),('jump shot',2),('fadeaway',1),('running',-2),('dunk',-1),('cutting',-3),('alley oop',-4),('putback',-5)]:
+                      if term in text: score+=w
+                  rows.append({
+                    'game_date':r.get('game_date'),'game_id':gid,'event_num':int(float(r.get('event_num') or -1)),
+                    'period':r.get('period'),'clock':r.get('clock'),'description':desc,'sub_type':sub,
+                    'action_type':act,'shot_distance':r.get('shot_distance'),'team_home':r.get('team_home'),
+                    'team_away':r.get('team_away'),'lineup_home':lh,'lineup_away':la,'screen_likelihood_score':score
+                  })
+          rows.sort(key=lambda x:(-x['screen_likelihood_score'],x['game_date'],x['event_num']))
+          out=Path('artifacts/amen_adams_candidates'); out.mkdir(parents=True,exist_ok=True)
+          (out/'candidates.json').write_text(json.dumps(rows,indent=2))
+          with (out/'candidates.csv').open('w',newline='') as f:
+              if rows:
+                  w=csv.DictWriter(f,fieldnames=rows[0].keys()); w.writeheader(); w.writerows(rows)
+          print('TOTAL',len(rows))
+          for i,r in enumerate(rows[:40],1):
+              print(f"CANDIDATE {i:02d} score={r['screen_likelihood_score']} {r['game_date']} {r['team_away']}@{r['team_home']} game={r['game_id']} event={r['event_num']} Q{r['period']} {r['clock']} | {r['description']}")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screen-tracker-amen-adams-candidates
+          path: artifacts/amen_adams_candidates/
+          if-no-files-found: error
+          retention-days: 30
