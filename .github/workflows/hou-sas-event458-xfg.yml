@@ -1,0 +1,55 @@
+name: HOU SAS event 458 exact xFG
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/hou-sas-event458-xfg.yml'
+
+jobs:
+  xfg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Resolve exact official xFG shot by game player event
+        run: |
+          python - <<'PY'
+          import json, time
+          from pathlib import Path
+          import requests
+          GAME_ID='0022500032'; PLAYER_ID=1641708; EVENT_NUM=458
+          URL='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
+          s=requests.Session(); s.headers.update(H); payload=None; last=None
+          for n in range(1,6):
+              try:
+                  r=s.get(URL,params={'GameID':GAME_ID,'PlayerID':PLAYER_ID},timeout=(8,35))
+                  if r.status_code==200:
+                      j=r.json()
+                      if str(j.get('gameId') or '').zfill(10)==GAME_ID and int(j.get('playerId') or 0)==PLAYER_ID: payload=j; break
+                      last=f'unexpected payload {r.text[:200]}'
+                  else: last=f'HTTP {r.status_code}: {r.text[:200]}'
+              except Exception as e: last=repr(e)
+              if n<5: time.sleep(min(6,0.7*(2**(n-1))))
+          if payload is None: raise RuntimeError(f'xFG fetch failed: {last}')
+          hits=[sh for sh in (payload.get('shotList') or []) if str(sh.get('eventNum'))==str(EVENT_NUM)]
+          if len(hits)!=1: raise RuntimeError(f'expected one event {EVENT_NUM}, got {len(hits)}')
+          sh=hits[0]; q=float(sh.get('shotQuality'))
+          rec={'game_id':GAME_ID,'player_id':PLAYER_ID,'player':'Amen Thompson','event_num':EVENT_NUM,'xfg':q,'xfg_pct':q*100 if q<=1.5 else q,'period':sh.get('period'),'game_clock':sh.get('gameClock'),'action_type':sh.get('actionType'),'shot_type':sh.get('shotType'),'made':int(sh.get('success') or 0),'loc_x':sh.get('locX'),'loc_y':sh.get('locY'),'guid':sh.get('guid'),'source':URL,'join':'exact game_id + player_id + event_num'}
+          out=Path('artifacts/hou_sas_event458_xfg'); out.mkdir(parents=True,exist_ok=True)
+          (out/'event458_xfg.json').write_text(json.dumps(rec,indent=2)); print('EXACT_XFG='+json.dumps(rec))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hou-sas-event458-xfg
+          path: artifacts/hou_sas_event458_xfg/event458_xfg.json
+          if-no-files-found: error
+          retention-days: 30
