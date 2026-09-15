@@ -4,7 +4,7 @@ on:
   push:
     branches: [screen-tracker-kickout-3]
     paths:
-      - 'screen_tracker_kickout3/**'
+      - 'screen_tracker_kickout3/discover_events.py'
       - '.github/workflows/kickout3-discovery.yml'
   workflow_dispatch:
 
