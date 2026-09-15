@@ -1,0 +1,21 @@
+{
+  "tool_id": "LOCKED_BROADCAST_SCREEN_V1",
+  "tool_path": "tools/locked_broadcast_screen_v1.py",
+  "tool_commit": "bda2af3106497e0675616d99a11dad1a4e25ae27",
+  "production_branch": "production/locked-broadcast-screen-v1",
+  "baseline": {
+    "name": "Christmas Day HOU@LAL event 94 V7",
+    "historical_branch": "codex/adams-screen-okc-opener",
+    "historical_commit": "40d0ed3974ecbd0fcd433670cddd462c26f9e397",
+    "workflow_run_id": 34826047210,
+    "artifact_id": 10340088768,
+    "artifact_name": "adams-lal-christmas-broadcast-v7-authoritative-distance-grey-panels"
+  },
+  "immutability_rule": "Do not silently modify presentation behavior under this tool_id. Any presentation change requires a new durable tool identifier.",
+  "forbidden_substitutions": [
+    "tools/adams_screen_prod_v3.py as final presentation renderer",
+    "Toronto experimental V8 renderer",
+    "V9 multiview",
+    "free-view / virtual-camera experiments"
+  ]
+}
