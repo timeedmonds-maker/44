@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,7 +33,7 @@ jobs:
           import requests
           from urllib.parse import urljoin, urlsplit, urlunsplit
           from fetch_official_nba_event_clip import parse, UA
-          from PIL import Image, ImageOps, ImageDraw
+          from PIL import Image, ImageDraw
 
           out=Path('artifacts/angle_audit'); out.mkdir(parents=True,exist_ok=True)
           page,angles,chosen=parse('0012500014',301)
@@ -82,6 +82,15 @@ jobs:
           (out/'angles.json').write_text(json.dumps(manifest,indent=2))
           print(json.dumps(manifest,indent=2))
           PY
+      - name: Persist audit manifest
+        run: |
+          mkdir -p screen_tracker/audits
+          cp artifacts/angle_audit/angles.json screen_tracker/audits/hou_atl_event301_angles.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add screen_tracker/audits/hou_atl_event301_angles.json
+          git diff --cached --quiet || git commit -m 'Persist HOU ATL event 301 angle audit'
+          git push origin HEAD:screen-tracker
       - uses: actions/upload-artifact@v4
         with:
           name: hou-atl-event301-angle-audit
