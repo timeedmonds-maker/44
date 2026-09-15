@@ -1,0 +1,78 @@
+name: HOU ATL event 301 screen probe
+
+on:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/hou-atl-event301-screen-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic CV stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git fonts-dejavu-core zip
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow pyreadr
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download deterministic tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --fail --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --fail --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Track only exact event 301 without preseason PBP bulk download or UHD probe encode
+        run: |
+          PYTHONPATH=tools python - <<'PY'
+          import json, shutil, sys
+          from pathlib import Path
+          import adams_screen_prod_v3 as v3
+          def preseason_context(game,event,outdir,xfg_row_json=None):
+              return {
+                'pbp': {'description': 'Steven Adams cutting dunk (Amen Thompson assists)'},
+                'xfg': {},
+                'xfg_status': 'not_available_preseason'
+              }
+          v3.base.load_context=preseason_context
+          # Probe only: preserve native tracking outputs but skip the expensive UHD presentation encode.
+          v3.base.render_presentation=lambda src,dst,profile: shutil.copyfile(src,dst)
+          sys.argv=['adams_screen_prod_v3.py',
+            '--game','0012500014','--event','301',
+            '--start-s','2.0','--end-s','14.5',
+            '--analysis-fps','15','--number-fps','8','--court-fps','1',
+            '--detector-onnx','artifacts/models/rfdetr_m_640.onnx',
+            '--object-eval-src','/tmp/object-detection-eval/src',
+            '--court-model','artifacts/models/court_yolo11m_pose.pt',
+            '--nbacv-src','/tmp/nbacv/src',
+            '--out','artifacts/hou_atl_event301_tracking']
+          v3.main()
+          PY
+      - name: Package probe essentials
+        run: |
+          mkdir -p artifacts/delivery
+          for f in source_native.mp4 tracks.csv qa.json roles.json number_evidence.csv number_contact_sheet.jpg track_contact_sheet.jpg context.json court_frames.json court_scale_attempts.csv; do
+            test -f "artifacts/hou_atl_event301_tracking/$f" && cp "artifacts/hou_atl_event301_tracking/$f" artifacts/delivery/ || true
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hou-atl-event301-screen-probe
+          path: artifacts/delivery/
+          if-no-files-found: error
+          retention-days: 30
