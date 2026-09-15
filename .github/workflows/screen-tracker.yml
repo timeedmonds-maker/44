@@ -15,14 +15,17 @@ on:
       - 'configs/**'
       - 'manifests/**'
       - 'tools/drop_coverage_universal_v2.py'
+      - 'tools/drop_coverage_universal_v3.py'
       - 'tools/drop_coverage_locked_broadcast_v1_fixed_tracking.py'
       - 'tools/locked_broadcast_screen_v2.py'
+      - 'tools/locked_broadcast_screen_v4.py'
+      - 'tools/fetch_official_nba_event_clip.py'
       - '.github/workflows/screen-tracker.yml'
 
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
@@ -45,14 +48,38 @@ jobs:
           APP_PATH: ${{ inputs.application_path || 'screen_tracker/applications/0022500131_483.json' }}
         run: |
           python - <<'PY'
-          import json, os
-          p=os.environ['APP_PATH']; a=json.load(open(p)); ia=a['input_artifact']; out=a['output']
-          vals={'application_path':p,'application_id':a['application_id'],'repository':ia['repository'],'run_id':ia['run_id'],'artifact_name':ia['name'],'output_basename':out['basename']}
+          import json, os, sys
+          sys.path.insert(0, 'screen_tracker')
+          from angle_policy import mode_for_application, DEFAULT_MODE, LEGACY_MODE
+          p=os.environ['APP_PATH']; a=json.load(open(p)); out=a['output']; mode=mode_for_application(a)
+          vals={
+            'application_path':p,
+            'application_id':a['application_id'],
+            'output_basename':out['basename'],
+            'mode':mode,
+          }
+          if mode == LEGACY_MODE:
+            ia=a['input_artifact']
+            vals.update({'repository':ia['repository'],'run_id':ia['run_id'],'artifact_name':ia['name']})
+          elif mode == DEFAULT_MODE:
+            angles=a.get('angles') or []
+            assert len(angles)==2, angles
+            for i,ang in enumerate(angles):
+              ia=ang['input_artifact']
+              vals.update({
+                f'angle_{i}_label':ang['label'],
+                f'angle_{i}_repository':ia['repository'],
+                f'angle_{i}_run_id':ia['run_id'],
+                f'angle_{i}_artifact_name':ia['name'],
+              })
+          else:
+            raise SystemExit(f'unsupported angle mode {mode}')
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:
             for k,v in vals.items(): f.write(f'{k}={v}\n')
           print(json.dumps(a,indent=2))
           PY
-      - name: Download play-specific source/tracking artifact
+      - name: Download legacy single-angle source/tracking artifact
+        if: steps.app.outputs.mode == 'legacy_single_angle'
         uses: actions/download-artifact@v4
         with:
           name: ${{ steps.app.outputs.artifact_name }}
@@ -60,40 +87,89 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ steps.app.outputs.repository }}
           run-id: ${{ steps.app.outputs.run_id }}
+      - name: Download two-angle source/tracking artifact 1
+        if: steps.app.outputs.mode == 'two_angle_default'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.app.outputs.angle_0_artifact_name }}
+          path: artifacts/source/angle_0
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ steps.app.outputs.angle_0_repository }}
+          run-id: ${{ steps.app.outputs.angle_0_run_id }}
+      - name: Download two-angle source/tracking artifact 2
+        if: steps.app.outputs.mode == 'two_angle_default'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.app.outputs.angle_1_artifact_name }}
+          path: artifacts/source/angle_1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ steps.app.outputs.angle_1_repository }}
+          run-id: ${{ steps.app.outputs.angle_1_run_id }}
       - name: Run Screen Tracker application
         run: |
-          PYTHONPATH=tools python screen_tracker/run_application.py \
+          PYTHONPATH=tools:screen_tracker python screen_tracker/run_application.py \
             --application '${{ steps.app.outputs.application_path }}' \
             --artifact-root artifacts/source \
             --out artifacts/screen_tracker
-      - name: Validate Screen Tracker QA and UHD
+      - name: Validate Screen Tracker QA, two-angle length and UHD
         run: |
           python - <<'PY'
           import json, pathlib, subprocess
           p=pathlib.Path('artifacts/screen_tracker'); q=json.load(open(p/'qa.json'))
           assert q['tool_id']=='SCREEN_TRACKER' and q['tool_name']=='screen tracker'
-          assert q['screen_tracker_version']=='1.0.0' and q['deterministic_only'] is True
-          assert q['ai_image_generation'] is False
-          c=q['team_colour_resolution']
-          assert c['rule']=='defense_keeps_primary_offense_switches_secondary_when_primaries_similar'
-          assert float(c['rgb_distance_threshold'])==80.0
-          uhd=pathlib.Path(q['uhd']); assert uhd.exists()
+          assert q['screen_tracker_version'] in ('1.0.0','1.1.0')
+          assert q['deterministic_only'] is True and q['ai_image_generation'] is False
+          mode=q.get('angle_policy',{}).get('mode')
+          if mode=='two_angle_default':
+            ap=q['angle_policy']; lq=q['length_qa']
+            assert ap['angle_count']==2 and ap['require_distinct_angles'] is True
+            assert lq['second_angle_full_length'] is True, lq
+            assert len(lq['angle_video_durations_s'])==2 and min(lq['angle_video_durations_s'])>0
+            assert abs(lq['actual_combined_video_duration_s']-lq['expected_combined_video_duration_s']) <= float(lq['tolerance_s'])
+            assert len(q.get('angle_qa',[]))==2
+            for aq in q['angle_qa']:
+              ring=aq['floor_ring_policy_v2']
+              assert ring['mode']=='camera_scale_at_screen_action_constant_within_angle'
+              assert ring['never_smaller_than_canonical_broadcast'] is True
+              assert float(ring['resolved_scale'])>=1.0
+          else:
+            c=q['team_colour_resolution']
+            assert c['rule']=='defense_keeps_primary_offense_switches_secondary_when_primaries_similar'
+            assert float(c['rgb_distance_threshold'])==80.0
+          uhd=pathlib.Path(q['uhd']); assert uhd.exists(), uhd
           v=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=codec_name,width,height,r_frame_rate','-of','json',str(uhd)],text=True))['streams'][0]
           assert v['codec_name']=='h264' and v['width']==3840 and v['height']==2160 and v['r_frame_rate']=='30/1', v
+          subprocess.run(['ffmpeg','-v','error','-i',str(uhd),'-f','null','-'],check=True)
           PY
       - name: Build canonical Screen Tracker delivery
         env:
           B: ${{ steps.app.outputs.output_basename }}
+          APP_PATH: ${{ steps.app.outputs.application_path }}
         run: |
           mkdir -p artifacts/delivery
-          UHD=$(find artifacts/screen_tracker -maxdepth 1 -name '*_UHD.mp4' -print -quit); test -n "$UHD"
-          cp "$UHD" "artifacts/delivery/${B}_UHD.mp4"
-          ffmpeg -y -hide_banner -loglevel warning -i "$UHD" -c:v libx264 -preset veryfast -crf 20 -maxrate 14M -bufsize 28M -profile:v high -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 -c:a aac -b:a 160k -movflags +faststart "artifacts/delivery/${B}_4k_streamable.mp4"
+          python - <<'PY'
+          import json, os, pathlib, shutil, subprocess
+          root=pathlib.Path('artifacts/screen_tracker'); dst=pathlib.Path('artifacts/delivery'); b=os.environ['B']
+          q=json.load(open(root/'qa.json'))
+          uhd=pathlib.Path(q['uhd']); shutil.copy2(uhd,dst/f'{b}_UHD.mp4')
+          native=pathlib.Path(q.get('native','')) if q.get('native') else None
+          if native and native.exists(): shutil.copy2(native,dst/f'{b}_native.mp4')
+          stream=pathlib.Path(q.get('streamable_4k','')) if q.get('streamable_4k') else None
+          if stream and stream.exists():
+            shutil.copy2(stream,dst/f'{b}_4k_streamable.mp4')
+          else:
+            subprocess.run(['ffmpeg','-y','-hide_banner','-loglevel','warning','-i',str(uhd),'-c:v','libx264','-preset','veryfast','-crf','20','-maxrate','14M','-bufsize','28M','-profile:v','high','-pix_fmt','yuv420p','-g','60','-keyint_min','60','-sc_threshold','0','-c:a','aac','-b:a','160k','-movflags','+faststart',str(dst/f'{b}_4k_streamable.mp4')],check=True)
+          shutil.copy2(root/'qa.json',dst/'screen_tracker_qa.json')
+          shutil.copy2(root/'SCREEN_TRACKER_TOOL_ID.txt',dst/'SCREEN_TRACKER_TOOL_ID.txt')
+          shutil.copy2(os.environ['APP_PATH'],dst/'application.json')
+          for i in (0,1):
+            aq=root/f'angle_{i}'/'qa.json'
+            if aq.exists(): shutil.copy2(aq,dst/f'angle_{i+1}_qa.json')
+          PY
           ffmpeg -v error -i "artifacts/delivery/${B}_4k_streamable.mp4" -f null -
-          cp artifacts/screen_tracker/qa.json artifacts/delivery/screen_tracker_qa.json
-          cp artifacts/screen_tracker/SCREEN_TRACKER_TOOL_ID.txt artifacts/delivery/
-          cp '${{ steps.app.outputs.application_path }}' artifacts/delivery/application.json
-          cd artifacts && zip -9 -r "delivery/${B}_package.zip" screen_tracker delivery/application.json delivery/screen_tracker_qa.json delivery/SCREEN_TRACKER_TOOL_ID.txt
+          cd artifacts/delivery
+          zip -9 "${B}_package.zip" "${B}_UHD.mp4" "${B}_4k_streamable.mp4" screen_tracker_qa.json SCREEN_TRACKER_TOOL_ID.txt application.json angle_*_qa.json 2>/dev/null || \
+            zip -9 "${B}_package.zip" "${B}_UHD.mp4" "${B}_4k_streamable.mp4" screen_tracker_qa.json SCREEN_TRACKER_TOOL_ID.txt application.json
       - name: Upload Screen Tracker output
         uses: actions/upload-artifact@v4
         with:
