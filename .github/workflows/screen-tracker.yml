@@ -1,0 +1,135 @@
+name: Screen Tracker
+
+on:
+  workflow_dispatch:
+    inputs:
+      application_path:
+        description: 'Path to Screen Tracker application JSON'
+        required: true
+        default: 'screen_tracker/applications/0022500131_483.json'
+        type: string
+  push:
+    branches: [screen-tracker]
+    paths:
+      - 'screen_tracker/**'
+      - 'configs/**'
+      - 'manifests/**'
+      - 'tools/drop_coverage_universal_v2.py'
+      - 'tools/drop_coverage_locked_broadcast_v1_fixed_tracking.py'
+      - 'tools/locked_broadcast_screen_v2.py'
+      - '.github/workflows/screen-tracker.yml'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout public Screen Tracker runtime
+        uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deterministic stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core zip
+          pip install 'numpy<2' pandas pillow opencv-python-headless
+
+      - name: Resolve application
+        id: app
+        env:
+          APP_PATH: ${{ inputs.application_path || 'screen_tracker/applications/0022500131_483.json' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          p=os.environ['APP_PATH']
+          a=json.load(open(p))
+          ia=a['input_artifact']; out=a['output']
+          vals={
+            'application_path':p,
+            'application_id':a['application_id'],
+            'repository':ia['repository'],
+            'run_id':ia['run_id'],
+            'artifact_name':ia['name'],
+            'output_basename':out['basename'],
+          }
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+            for k,v in vals.items(): f.write(f'{k}={v}\n')
+          print(json.dumps(a,indent=2))
+          PY
+
+      - name: Download play-specific source/tracking artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.app.outputs.artifact_name }}
+          path: artifacts/source
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ steps.app.outputs.repository }}
+          run-id: ${{ steps.app.outputs.run_id }}
+
+      - name: Run Screen Tracker application
+        run: |
+          PYTHONPATH=tools python screen_tracker/run_application.py \
+            --application '${{ steps.app.outputs.application_path }}' \
+            --artifact-root artifacts/source \
+            --out artifacts/screen_tracker
+
+      - name: Validate Screen Tracker QA and UHD
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          p=pathlib.Path('artifacts/screen_tracker')
+          q=json.load(open(p/'qa.json'))
+          assert q['tool_id']=='SCREEN_TRACKER', q
+          assert q['tool_name']=='screen tracker', q
+          assert q['screen_tracker_version']=='1.0.0', q
+          assert q['deterministic_only'] is True and q['ai_image_generation'] is False
+          assert q['team_colour_resolution']['policy']=='primary_collision_aware_v1'
+          uhd=pathlib.Path(q['uhd'])
+          assert uhd.exists(), uhd
+          v=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=codec_name,width,height,r_frame_rate','-of','json',str(uhd)],text=True))['streams'][0]
+          assert v['codec_name']=='h264' and v['width']==3840 and v['height']==2160 and v['r_frame_rate']=='30/1', v
+          print(json.dumps(q,indent=2))
+          PY
+
+      - name: Build canonical Screen Tracker delivery
+        env:
+          B: ${{ steps.app.outputs.output_basename }}
+        run: |
+          mkdir -p artifacts/delivery
+          UHD=$(find artifacts/screen_tracker -maxdepth 1 -name '*_UHD.mp4' -print -quit)
+          test -n "$UHD"
+          cp "$UHD" "artifacts/delivery/${B}_UHD.mp4"
+          ffmpeg -y -hide_banner -loglevel warning -i "$UHD" \
+            -c:v libx264 -preset veryfast -crf 20 -maxrate 14M -bufsize 28M \
+            -profile:v high -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 \
+            -c:a aac -b:a 160k -movflags +faststart \
+            "artifacts/delivery/${B}_4k_streamable.mp4"
+          ffmpeg -v error -i "artifacts/delivery/${B}_4k_streamable.mp4" -f null -
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path('artifacts/delivery')/(os.environ['B']+'_4k_streamable.mp4')
+          b=p.read_bytes()
+          assert b.find(b'moov') < b.find(b'mdat'), 'faststart failed'
+          PY
+          cp artifacts/screen_tracker/qa.json artifacts/delivery/screen_tracker_qa.json
+          cp artifacts/screen_tracker/SCREEN_TRACKER_TOOL_ID.txt artifacts/delivery/
+          cp '${{ steps.app.outputs.application_path }}' artifacts/delivery/application.json
+          cd artifacts
+          zip -9 -r "delivery/${B}_package.zip" screen_tracker delivery/application.json delivery/screen_tracker_qa.json delivery/SCREEN_TRACKER_TOOL_ID.txt
+
+      - name: Upload Screen Tracker output
+        uses: actions/upload-artifact@v4
+        with:
+          name: screen-tracker-${{ steps.app.outputs.application_id }}
+          path: artifacts/delivery/
+          if-no-files-found: error
+          retention-days: 30
