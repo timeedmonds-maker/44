@@ -3,10 +3,6 @@ name: Adams Toronto event483 V8 final
 
 on:
   workflow_dispatch:
-  push:
-    branches: [codex/adams-screen-v8-toronto]
-    paths:
-      - '.github/workflows/adams-toronto-event483-v8-final.yml'
   pull_request:
     branches: [codex/adams-screen-v8-toronto]
     paths:
@@ -88,7 +84,8 @@ jobs:
                       last=f'HTTP {r.status_code}: {r.text[:300]}'
               except Exception as exc:
                   last=repr(exc)
-              if attempt<5: time.sleep(min(6.0,0.7*(2**(attempt-1))))
+              if attempt<5:
+                  time.sleep(min(6.0,0.7*(2**(attempt-1))))
           else:
               raise RuntimeError(f'Official xFG fetch failed: {last}')
 
@@ -99,6 +96,7 @@ jobs:
           xfg=float(sh['shotQuality'])
           if not (0.0 <= xfg <= 1.0):
               raise RuntimeError(f'Invalid shotQuality: {xfg}')
+          shot_value=float(sh.get('shotValue') or (3 if '3' in str(sh.get('shotType')) else 2))
           exact={
               'game_date': payload.get('gameDate'),
               'game_id': GAME_ID,
@@ -120,9 +118,9 @@ jobs:
               'xfg_period': sh.get('period'),
               'xfg_game_clock': sh.get('gameClock'),
               'xfg_xfg': xfg,
-              'xfg_xfg_pct': xfg*100.0,
-              'xfg_expected_points': xfg*float(sh.get('shotValue') or (3 if '3' in str(sh.get('shotType')) else 2)),
-              'xfg_actual_points': float(sh.get('shotValue') or (3 if '3' in str(sh.get('shotType')) else 2)) if int(sh.get('success') or 0)==1 else 0.0,
+              'xfg_xfg_pct': f'{xfg*100.0:.1f}',
+              'xfg_expected_points': xfg*shot_value,
+              'xfg_actual_points': shot_value if int(sh.get('success') or 0)==1 else 0.0,
               'xfg_source_host': 'stats.gleague.nba.com',
               'xfg_source_resource': 'shotqualityvideologs',
               'xfg_available': True,
@@ -136,25 +134,8 @@ jobs:
           exact['xfg_fg_over_expected_shot']=float(exact['xfg_made'])-xfg
           out={'xfg':exact}
           Path('artifacts/event483_xfg.json').write_text(json.dumps(out,indent=2,default=str))
-          print('OFFICIAL_XFG_PCT',round(exact['xfg_xfg_pct'],4))
+          print('OFFICIAL_XFG_PCT', exact['xfg_xfg_pct'])
           print(json.dumps(out,indent=2,default=str))
-          PY
-      - name: Patch display formatting for broadcast xFG label
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('tools/adams_screen_prod_poc.py')
-          s=p.read_text()
-          old="    pct=xfg.get('xfg_xfg_pct','--')\n    lines=["
-          new="""    raw_pct=xfg.get('xfg_xfg_pct','--')
-    try:
-        pct=f'{float(raw_pct):.1f}'
-    except (TypeError, ValueError):
-        pct=str(raw_pct)
-    lines=["""
-          if old not in s:
-              raise RuntimeError('draw_panel xFG formatting anchor not found')
-          p.write_text(s.replace(old,new,1))
           PY
       - name: Render final V8 Adams screen clip with official xFG
         run: |
@@ -190,7 +171,7 @@ jobs:
           assert x['xfg_source_resource']=='shotqualityvideologs', x
           assert 0.0 <= float(x['xfg_xfg']) <= 1.0, x
           assert abs(float(x['xfg_xfg_pct']) - 100.0*float(x['xfg_xfg'])) < 0.11, x
-          assert f"{float(x['xfg_xfg_pct']):.1f}" == '41.7'
+          assert x['xfg_xfg_pct']=='41.7', x
           print('OFFICIAL_XFG_PCT', x['xfg_xfg_pct'])
           print(json.dumps(qa,indent=2))
           print(json.dumps(ctx,indent=2))
