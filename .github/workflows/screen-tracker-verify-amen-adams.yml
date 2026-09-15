@@ -22,7 +22,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
-          pip install requests
+          pip install requests 'numpy<2' opencv-python-headless
       - name: Fetch official Broadcast clips for top new-game candidates
         run: |
           mkdir -p artifacts/amen_adams_verify
@@ -32,13 +32,12 @@ jobs:
       - name: Build dense visual contact sheets
         run: |
           python - <<'PY'
-          import cv2, json, math
+          import cv2, math, numpy as np
           from pathlib import Path
           root=Path('artifacts/amen_adams_verify')
           for mp4 in sorted(root.glob('*.mp4')):
               cap=cv2.VideoCapture(str(mp4)); fps=cap.get(cv2.CAP_PROP_FPS) or 30; n=int(cap.get(cv2.CAP_PROP_FRAME_COUNT)); W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-              # 24 evenly-spaced frames gives ~0.3-0.5s resolution for typical event clips.
-              idxs=[int(round(x)) for x in __import__('numpy').linspace(0,max(n-1,0),24)] if n else []
+              idxs=[int(round(x)) for x in np.linspace(0,max(n-1,0),24)] if n else []
               panels=[]
               for target in idxs:
                   cap.set(cv2.CAP_PROP_POS_FRAMES,target); ok,fr=cap.read()
@@ -50,12 +49,13 @@ jobs:
               cap.release()
               if not panels: continue
               ph,pw=panels[0].shape[:2]; cols=4; rows=math.ceil(len(panels)/cols)
-              sheet=__import__('numpy').zeros((rows*ph,cols*pw,3),dtype='uint8')
+              sheet=np.zeros((rows*ph,cols*pw,3),dtype='uint8')
               for i,im in enumerate(panels): sheet[(i//cols)*ph:(i//cols+1)*ph,(i%cols)*pw:(i%cols+1)*pw]=im
               cv2.imwrite(str(root/(mp4.stem+'_contact_sheet.jpg')),sheet,[int(cv2.IMWRITE_JPEG_QUALITY),94])
               print(mp4.name,{'fps':fps,'frames':n,'size':[W,H]})
           PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: screen-tracker-amen-adams-verification-clips
           path: artifacts/amen_adams_verify/
