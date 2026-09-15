@@ -1,0 +1,40 @@
+name: Dunk Score JS Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths: ['.github/workflows/dunkscore-js-probe.yml']
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {contents: read}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: screen-tracker}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install requests
+      - name: Inspect NBA Dunk Score client bundle
+        run: |
+          mkdir -p artifacts/jsprobe
+          python - <<'PY'
+          import requests,re,json
+          from pathlib import Path
+          u='https://www.nba.com/_next/static/chunks/pages/stats/players/dunk-scores-632ca946ba7e5f4b.js'
+          h={'User-Agent':'Mozilla/5.0'}
+          r=requests.get(u,headers=h,timeout=45); print('HTTP',r.status_code,len(r.text)); r.raise_for_status()
+          s=r.text; Path('artifacts/jsprobe/dunk-scores.js').write_text(s)
+          needles=['dunkscoreleaders','DunkScore','dunkScore','stats.nba.com','nba_api','SeasonType','playerName','LeagueID','fetch','axios']
+          for n in needles:
+            print('\n===',n,'===')
+            for m in list(re.finditer(re.escape(n),s,re.I))[:8]:
+              print(s[max(0,m.start()-700):m.start()+1600])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dunkscore-js-probe
+          path: artifacts/jsprobe
+          retention-days: 7
