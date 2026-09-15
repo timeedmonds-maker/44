@@ -1,0 +1,66 @@
+name: Drop Coverage Event 483 Lineup Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/drop-coverage-universal-v2]
+    paths:
+      - '.github/workflows/drop-coverage-lineup-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas requests
+      - name: Inspect exact project PBP event and lineup fields
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          from pathlib import Path
+          PBP='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
+          GAME='0022500131'; EVENT=483
+          hdr=pd.read_csv(PBP,nrows=0)
+          cols=list(hdr.columns)
+          print('ALL_COLUMNS='+json.dumps(cols))
+          wanted=[]
+          keys=('game','event','period','clock','time','player','team','lineup','on_court','oncourt','home','away','jersey','number','description')
+          for c in cols:
+            lc=c.lower()
+            if any(k in lc for k in keys): wanted.append(c)
+          # Always keep common event fields if present.
+          for c in ['game_id','event_num','period','remaining_period_time','player1_name','player2_name','player3_name','description']:
+            if c in cols and c not in wanted: wanted.append(c)
+          print('WANTED_COLUMNS='+json.dumps(wanted))
+          p=pd.read_csv(PBP,usecols=wanted,low_memory=False)
+          def gid(v):
+            s=str(v); s=s[:-2] if s.endswith('.0') else s
+            return ''.join(ch for ch in s if ch.isdigit()).zfill(10)
+          if 'game_id' not in p.columns: raise RuntimeError('game_id missing')
+          p['game_id_norm']=p.game_id.map(gid)
+          g=p[p.game_id_norm.eq(GAME)].copy()
+          if 'event_num' in g.columns:
+            g['event_num_num']=pd.to_numeric(g.event_num,errors='coerce')
+            near=g[g.event_num_num.between(EVENT-20,EVENT+20)].copy()
+            exact=g[g.event_num_num.eq(EVENT)].copy()
+          else:
+            near=g.copy(); exact=g.iloc[0:0]
+          print('GAME_ROWS',len(g),'NEAR_ROWS',len(near),'EXACT_ROWS',len(exact))
+          print('EXACT_RECORDS='+json.dumps(exact.fillna('').to_dict('records'),default=str))
+          print('NEAR_RECORDS='+json.dumps(near.fillna('').to_dict('records'),default=str))
+          out={'all_columns':cols,'wanted_columns':wanted,'exact':exact.fillna('').to_dict('records'),'near':near.fillna('').to_dict('records')}
+          Path('artifacts').mkdir(exist_ok=True)
+          Path('artifacts/event483_pbp_probe.json').write_text(json.dumps(out,indent=2,default=str))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event483-pbp-probe
+          path: artifacts/event483_pbp_probe.json
+          if-no-files-found: error
+          retention-days: 7
