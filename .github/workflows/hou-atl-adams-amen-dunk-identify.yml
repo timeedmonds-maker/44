@@ -1,0 +1,80 @@
+name: HOU ATL Adams Amen dunk identify
+
+on:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/hou-atl-adams-amen-dunk-identify.yml'
+  workflow_dispatch:
+
+jobs:
+  identify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install lightweight dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install requests
+      - name: Resolve exact NBA liveData event
+        run: |
+          python - <<'PY'
+          import json, requests
+          from pathlib import Path
+          game='0012500014'
+          adams=203500
+          amen=1641708
+          url=f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game}.json'
+          r=requests.get(url,timeout=30); r.raise_for_status(); j=r.json()
+          actions=j['game']['actions']
+          rows=[]
+          for a in actions:
+              desc=str(a.get('description') or '')
+              aid=a.get('personId')
+              assist=a.get('assistPersonId')
+              subtype=str(a.get('subType') or '')
+              atype=str(a.get('actionType') or '')
+              if int(aid or 0)==adams and ('dunk' in subtype.lower() or 'dunk' in desc.lower()):
+                  rows.append({k:a.get(k) for k in ['actionNumber','orderNumber','period','clock','timeActual','actionType','subType','descriptor','description','personId','playerName','teamTricode','shotResult','pointsTotal','assistPersonId','assistPlayerNameInitial','assistPlayerName','assistTotal']})
+          print('ADAMS_DUNKS='+json.dumps(rows,indent=2),flush=True)
+          exact=[x for x in rows if int(x.get('assistPersonId') or 0)==amen or 'Thompson' in str(x.get('description') or '')]
+          if not exact:
+              # Print all Adams made FGs plus all Amen assists for deterministic diagnosis.
+              af=[a for a in actions if int(a.get('personId') or 0)==adams and str(a.get('shotResult') or '').lower()=='made']
+              aa=[a for a in actions if int(a.get('assistPersonId') or 0)==amen]
+              print('ADAMS_MAKES='+json.dumps(af,indent=2),flush=True)
+              print('AMEN_ASSISTS='+json.dumps(aa,indent=2),flush=True)
+              raise SystemExit('No Adams dunk assisted by Amen in liveData')
+          Path('artifacts').mkdir(exist_ok=True)
+          Path('artifacts/exact_event.json').write_text(json.dumps(exact,indent=2))
+          # actionNumber is the liveData exact play identifier; verify clip resolution before accepting as clips eventNum.
+          for x in exact:
+              print('EXACT_CANDIDATE='+json.dumps(x),flush=True)
+          PY
+      - name: Resolve official NBA clip and make contact sheet
+        run: |
+          EVENT=$(python - <<'PY'
+          import json
+          x=json.load(open('artifacts/exact_event.json'))[0]
+          print(int(x['actionNumber']))
+          PY
+          )
+          mkdir -p artifacts/clip
+          python tools/fetch_official_nba_event_clip.py --game 0012500014 --event "$EVENT" --out artifacts/clip/source_native.mp4
+          ffmpeg -y -v error -i artifacts/clip/source_native.mp4 -vf "fps=2,scale=480:-2,tile=4x5" -frames:v 1 artifacts/contact_sheet.jpg
+          ffprobe -v error -show_entries stream=codec_name,width,height,avg_frame_rate:format=duration -of json artifacts/clip/source_native.mp4 > artifacts/clip_probe.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hou-atl-adams-amen-dunk-identify
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
