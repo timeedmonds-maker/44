@@ -28,29 +28,30 @@ No generated imagery. No AI super-resolution. No synthetic player/ball/court fra
 
 ## Screen Tracker Search
 
-Game-level discovery uses the separate public workflow:
+Game-level discovery uses **Screen Tracker Search 1.0.1** through:
 
 `.github/workflows/screen-tracker-search.yml`
 
 The required search method is:
 
 1. input one exact `game_id`, screener player ID and target player ID;
-2. use the exact 2025-26 PBP join to enumerate **every offensive possession where both players are on court together**;
-3. retain every event number in every retained possession;
-4. resolve every event independently through `clips.nba.com` to fresh signed `lrmedia.nba.com` HLS;
-5. scan every resolvable event video using deterministic frame sampling and temporal screen geometry;
-6. aggregate event evidence to possession-level candidates;
-7. rank by visual screen evidence, with exact-PBP target/screener actor signals used only as ranking features;
-8. fetch native official preview clips and dense contact sheets for the top candidates;
-9. pass the selected candidate through the full Screen Tracker role/identity QA before rendering.
+2. query the 2025-26 possession table and retain **every offensive possession whose `lineup_team` contains both players**;
+3. join exact PBP events to each possession using exact game, period and possession start/end clock window;
+4. retain every exact PBP event number in every retained possession;
+5. resolve every event independently through `clips.nba.com` to fresh signed `lrmedia.nba.com` HLS;
+6. scan every resolvable event video using deterministic frame sampling and temporal screen geometry;
+7. aggregate event evidence to possession-level candidates;
+8. rank by visual screen evidence, with exact-PBP target/screener actor signals used only as ranking features;
+9. fetch native official preview clips and dense contact sheets for the top candidates;
+10. pass the selected candidate through the full Screen Tracker role/identity QA before rendering.
 
 There is deliberately **no pre-filter for target scoring, shot type, assist credit or manually guessed screen events**. Those can improve rank but cannot define the scan universe.
 
 Public implementation:
 
-- `screen_tracker/search_game.py` — exact joint-possession manifest + candidate ranking.
+- `screen_tracker/search_game.py` — authoritative shared-possession/PBP event join + candidate ranking.
 - `screen_tracker/search_previews.py` — official native top-candidate previews/contact sheets.
-- existing deterministic temporal screen detector is reused as the visual scan engine.
+- the existing deterministic temporal screen detector is reused internally as the visual scan engine.
 
 Default search pair is Steven Adams (`203500`) as screener and Amen Thompson (`1641708`) as target, but the workflow accepts any pair.
 
