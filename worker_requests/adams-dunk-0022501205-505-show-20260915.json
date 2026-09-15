@@ -1,0 +1,11 @@
+{
+  "label": "Steven Adams dunk event 505 — show clip only",
+  "expected_count": 1,
+  "events": [
+    {
+      "rank": 1,
+      "game_id": "0022501205",
+      "event_id": 505
+    }
+  ]
+}
