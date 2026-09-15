@@ -1,0 +1,149 @@
+name: Drop Coverage Universal V2 Event 483
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/drop-coverage-universal-v2]
+    paths:
+      - '.github/workflows/drop-coverage-universal-v2-event483.yml'
+      - 'tools/drop_coverage_universal_v2.py'
+      - 'configs/drop_coverage_locked_broadcast_v1_toronto_event483.json'
+      - 'manifests/drop_coverage/game_0022500131_event_483_roles.json'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic render stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core zip
+          pip install 'numpy<2' pandas pillow opencv-python-headless
+      - name: Download validated event-483 source and role tracks
+        uses: actions/download-artifact@v4
+        with:
+          name: sheppard-adams-v2-probe
+          path: artifacts/probe
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 34923420312
+      - name: Validate exact PBP lineup and source role
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('artifacts/probe/toronto_tracking/qa.json'))
+          m=json.load(open('manifests/drop_coverage/game_0022500131_event_483_roles.json'))
+          c=json.load(open('configs/drop_coverage_locked_broadcast_v1_toronto_event483.json'))
+          assert q['game_id']=='0022500131' and q['event_num']==483
+          assert q['roles']['adams_defender']==4, q['roles']
+          names={p['name'] for p in m['defensive_lineup']}
+          ids={int(p['player_id']) for p in m['defensive_lineup']}
+          assert names=={'RJ Barrett','Sandro Mamukelashvili','Gradey Dick',"Ja'Kobe Walter",'Jamal Shead'}, names
+          assert 1630572 in ids and 'Jakob Poeltl' not in names
+          d=m['screen_roles']['screener_defender']
+          assert d['name']=='Sandro Mamukelashvili' and d['player_id']==1630572 and d['jersey']==54 and d['source_role_track']==4
+          assert c['drop_big_stitch']['role_source_track_id']==4 and c['drop_big_stitch']['virtual_track_id']==104
+          print('EXACT EVENT DEFENSIVE LINEUP:', sorted(names))
+          print('DROP DEFENDER:', d)
+          PY
+      - name: Render universal lineup-gated drop coverage model
+        run: |
+          PYTHONPATH=tools python tools/drop_coverage_universal_v2.py \
+            --source artifacts/probe/toronto_tracking/source_native.mp4 \
+            --tracks artifacts/probe/toronto_tracking/tracks.csv \
+            --source-qa artifacts/probe/toronto_tracking/qa.json \
+            --config configs/drop_coverage_locked_broadcast_v1_toronto_event483.json \
+            --role-manifest manifests/drop_coverage/game_0022500131_event_483_roles.json \
+            --out artifacts/drop_coverage_universal_v2
+      - name: Validate identity, roles and UHD
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          p=pathlib.Path('artifacts/drop_coverage_universal_v2')
+          q=json.load(open(p/'qa.json'))
+          assert q['tool_id']=='DROP_COVERAGE_UNIVERSAL_V2', q
+          assert q['universal_role_resolution_v2'] is True
+          assert q['drop_coverage_role']['identity']=='Sandro Mamukelashvili'
+          assert q['drop_coverage_role']['player_id']==1630572
+          assert q['drop_coverage_role']['jersey']==54
+          assert q['drop_coverage_role']['source_track_id']==4
+          assert q['drop_coverage_role']['virtual_track_id']==104
+          assert q['name_lock']['drop_coverage_defender']=='MAMUKELASHVILI'
+          assert q['visual_lock']=={'drop_defender_name_bar':True,'drop_defender_floor_ring':True}
+          assert all(p['name']!='Jakob Poeltl' for p in q['exact_defensive_lineup'])
+          assert abs(q['screen_contact_total_s']-1.8018)<0.002
+          assert q['event_xfg_pct']==41.7
+          assert q['similar_xfg']['n']==8 and abs(q['similar_xfg']['xfg_pct']-40.9375)<1e-12
+          jumps=q['drop_big_identity_stitch_qa']['boundary_center_jumps_px']
+          assert jumps and max(jumps)<80, jumps
+          uhd=pathlib.Path(q['uhd']); assert uhd.exists()
+          v=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=codec_name,width,height,r_frame_rate','-of','json',str(uhd)],text=True))['streams'][0]
+          assert v['codec_name']=='h264' and v['width']==3840 and v['height']==2160 and v['r_frame_rate']=='30/1', v
+          print(json.dumps(q,indent=2))
+          PY
+      - name: Create streamable 4K and full-decode QA
+        run: |
+          ffmpeg -y -hide_banner -loglevel warning \
+            -i artifacts/drop_coverage_universal_v2/sheppard_adams_drop_coverage_universal_v2_event483_UHD.mp4 \
+            -c:v libx264 -preset veryfast -crf 20 -maxrate 14M -bufsize 28M -profile:v high -pix_fmt yuv420p \
+            -g 60 -keyint_min 60 -sc_threshold 0 \
+            -c:a aac -b:a 160k -movflags +faststart \
+            artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4
+          ffmpeg -v error -i artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4 -f null -
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4')
+          b=p.read_bytes()
+          assert b.find(b'moov') < b.find(b'mdat'), 'faststart/moov not before mdat'
+          print('streamable bytes',p.stat().st_size)
+          PY
+      - name: Generate deterministic visual QA frames
+        run: |
+          mkdir -p artifacts/drop_coverage_universal_v2_qa
+          V=artifacts/drop_coverage_universal_v2/sheppard_adams_drop_coverage_universal_v2_event483_native.mp4
+          ffmpeg -y -v error -ss 0.30 -i "$V" -frames:v 1 artifacts/drop_coverage_universal_v2_qa/pre_screen.jpg
+          ffmpeg -y -v error -ss 1.70 -i "$V" -frames:v 1 artifacts/drop_coverage_universal_v2_qa/contact.jpg
+          ffmpeg -y -v error -ss 3.54 -i "$V" -frames:v 1 artifacts/drop_coverage_universal_v2_qa/release.jpg
+          ffmpeg -y -v error -ss 6.20 -i "$V" -frames:v 1 artifacts/drop_coverage_universal_v2_qa/late_reid.jpg
+          cp artifacts/drop_coverage_universal_v2/release_freeze.jpg artifacts/drop_coverage_universal_v2_qa/release_freeze.jpg
+          ffmpeg -y -v error \
+            -i artifacts/drop_coverage_universal_v2_qa/pre_screen.jpg \
+            -i artifacts/drop_coverage_universal_v2_qa/contact.jpg \
+            -i artifacts/drop_coverage_universal_v2_qa/release.jpg \
+            -i artifacts/drop_coverage_universal_v2_qa/late_reid.jpg \
+            -filter_complex '[0:v][1:v]hstack=inputs=2[top];[2:v][3:v]hstack=inputs=2[bot];[top][bot]vstack=inputs=2' \
+            -frames:v 1 artifacts/drop_coverage_universal_v2_qa/contact_sheet.jpg
+      - name: Build delivery package
+        run: |
+          cd artifacts
+          zip -9 -r sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_package.zip \
+            drop_coverage_universal_v2 \
+            drop_coverage_universal_v2_qa \
+            sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4 \
+            ../configs/drop_coverage_locked_broadcast_v1_toronto_event483.json \
+            ../manifests/drop_coverage/game_0022500131_event_483_roles.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drop-coverage-universal-v2-event483
+          path: |
+            artifacts/drop_coverage_universal_v2/sheppard_adams_drop_coverage_universal_v2_event483_UHD.mp4
+            artifacts/drop_coverage_universal_v2/sheppard_adams_drop_coverage_universal_v2_event483_native.mp4
+            artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4
+            artifacts/drop_coverage_universal_v2/qa.json
+            artifacts/drop_coverage_universal_v2/identity_stitched_all_roles.csv
+            artifacts/drop_coverage_universal_v2_qa/contact_sheet.jpg
+            artifacts/drop_coverage_universal_v2_qa/release.jpg
+            artifacts/drop_coverage_universal_v2_qa/late_reid.jpg
+            configs/drop_coverage_locked_broadcast_v1_toronto_event483.json
+            manifests/drop_coverage/game_0022500131_event_483_roles.json
+            artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_package.zip
+          if-no-files-found: error
+          retention-days: 30
