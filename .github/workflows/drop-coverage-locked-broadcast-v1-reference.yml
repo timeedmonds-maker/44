@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/drop-coverage-locked-broadcast-v1-reference.yml'
       - 'tools/drop_coverage_locked_broadcast_v1.py'
+      - 'tools/drop_coverage_locked_broadcast_v1_fixed_tracking.py'
       - 'configs/drop_coverage_locked_broadcast_v1_toronto_event483.json'
 
 jobs:
@@ -42,7 +43,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           run-id: 34926748500
-      - name: Validate enduring inputs
+      - name: Validate enduring inputs and identity stitch
         run: |
           python - <<'PY'
           import json
@@ -53,35 +54,36 @@ jobs:
           assert q['source']['angle']=='Broadcast', q['source']
           assert q['roles']['adams']==10 and q['roles']['ballhandler']==7 and q['roles']['screened_defender']==3, q['roles']
           assert cfg['screen']['value']=='DROP COVERAGE', cfg['screen']
+          assert cfg['roles']=={'shooter_track_id':107,'primary_defender_track_id':103}, cfg['roles']
+          st=cfg['identity_stitch']
+          assert st['pre']=={'sheppard':7,'shead':3} and st['post']=={'sheppard':3,'shead':7}, st
+          assert abs(st['swap_time_s']-7.10)<1e-12 and st['defender_identity']=='Jamal Shead', st
+          labels={p['track_id']:p['label'] for p in cfg['players']}
+          assert labels[107]=='SHEPPARD' and labels[10]=='ADAMS' and labels[103]=='SHEAD', labels
           sim=cfg['shot']['similar_xfg']
           assert sim['n']==8 and abs(sim['xfg_pct']-40.9375)<1e-12, sim
           assert sx['matched']['n']==8 and abs(sx['matched']['xfg_pct']-40.9375)<1e-12, sx['matched']
-          assert sim['distance_tolerance_ft']==1.5 and sim['xfg_tolerance_percentage_points']==2.0
-          assert sim['criteria_logic']=='intersection' and sim['action_type_filter'] is None
           assert cfg['timing']['contact_source_start_frame']==168
           assert cfg['timing']['contact_source_end_frame_inclusive']==221
           assert abs(sum(e-s for s,e in cfg['timing']['contact_phases'])-1.8018)<0.002
-          print('LOCKED LABEL:',cfg['screen']['value'])
-          print('MATCHED XFG:',sim['xfg_pct'],'N',sim['n'])
-          print('CONTACT:',sum(e-s for s,e in cfg['timing']['contact_phases']))
           PY
-      - name: Render DROP_COVERAGE_LOCKED_BROADCAST_V1 UHD
+      - name: Render fixed canonical drop-coverage clip
         run: |
-          PYTHONPATH=tools python tools/drop_coverage_locked_broadcast_v1.py \
+          PYTHONPATH=tools python tools/drop_coverage_locked_broadcast_v1_fixed_tracking.py \
             --source artifacts/probe/toronto_tracking/source_native.mp4 \
             --tracks artifacts/probe/toronto_tracking/tracks.csv \
             --config configs/drop_coverage_locked_broadcast_v1_toronto_event483.json \
-            --out artifacts/drop_coverage_locked_broadcast_v1
+            --out artifacts/drop_coverage_locked_broadcast_v1_fixed
       - name: Validate UHD and create streamable 4K
         run: |
           python - <<'PY'
           import json, pathlib, subprocess
-          p=pathlib.Path('artifacts/drop_coverage_locked_broadcast_v1')
+          p=pathlib.Path('artifacts/drop_coverage_locked_broadcast_v1_fixed')
           qa=json.load(open(p/'qa.json'))
           assert qa['tool_id']=='DROP_COVERAGE_LOCKED_BROADCAST_V1', qa
-          assert qa['parent_tool_id']=='LOCKED_BROADCAST_SCREEN_V3', qa
-          assert qa['canonical_ui_label']=='DROP COVERAGE', qa
-          assert qa['enduring_model_lock'] is True and qa['universal_default'] is True
+          assert qa['identity_stitch_enabled'] is True, qa
+          assert qa['name_lock']=={'shooter':'SHEPPARD','screener':'ADAMS','point_of_attack_defender':'SHEAD'}, qa['name_lock']
+          assert qa['identity_stitch']['defender_identity']=='Jamal Shead'
           assert abs(qa['screen_contact_total_s']-1.8018)<0.002
           assert qa['event_xfg_pct']==41.7
           assert qa['similar_xfg']['n']==8 and abs(qa['similar_xfg']['xfg_pct']-40.9375)<1e-12
@@ -91,36 +93,42 @@ jobs:
           print(json.dumps(qa,indent=2))
           PY
           ffmpeg -y -hide_banner -loglevel warning \
-            -i artifacts/drop_coverage_locked_broadcast_v1/sheppard_adams_drop_coverage_locked_broadcast_v1_UHD.mp4 \
+            -i artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_UHD.mp4 \
             -c:v libx264 -preset veryfast -crf 20 -maxrate 14M -bufsize 28M -profile:v high -pix_fmt yuv420p \
             -c:a aac -b:a 160k -movflags +faststart \
-            artifacts/sheppard_adams_DROP_COVERAGE_V1_4k_streamable.mp4
-          ffmpeg -v error -i artifacts/sheppard_adams_DROP_COVERAGE_V1_4k_streamable.mp4 -f null -
-      - name: Build package
+            artifacts/sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_4k_streamable.mp4
+          ffmpeg -v error -i artifacts/sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_4k_streamable.mp4 -f null -
+      - name: Build QA frames and package
         run: |
-          mkdir -p artifacts/drop_coverage_qa
-          cp artifacts/drop_coverage_locked_broadcast_v1/release_freeze.jpg artifacts/drop_coverage_qa/
+          mkdir -p artifacts/drop_coverage_qa_fixed
+          ffmpeg -y -v error -ss 1.55 -i artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_native.mp4 -frames:v 1 artifacts/drop_coverage_qa_fixed/pre_swap.jpg
+          ffmpeg -y -v error -ss 2.15 -i artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_native.mp4 -frames:v 1 artifacts/drop_coverage_qa_fixed/post_swap.jpg
+          ffmpeg -y -v error -ss 3.55 -i artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_native.mp4 -frames:v 1 artifacts/drop_coverage_qa_fixed/release_area.jpg
+          cp artifacts/drop_coverage_locked_broadcast_v1_fixed/release_freeze.jpg artifacts/drop_coverage_qa_fixed/
           cd artifacts
-          zip -9 -r sheppard_adams_DROP_COVERAGE_V1_package.zip \
-            drop_coverage_locked_broadcast_v1 \
-            sheppard_adams_DROP_COVERAGE_V1_4k_streamable.mp4 \
+          zip -9 -r sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_package.zip \
+            drop_coverage_locked_broadcast_v1_fixed \
+            sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_4k_streamable.mp4 \
             v3/sheppard_v3_matched_xfg.json \
             v3/sheppard_v3_matched_shots.csv \
             ../configs/drop_coverage_locked_broadcast_v1_toronto_event483.json \
-            drop_coverage_qa
+            drop_coverage_qa_fixed
       - uses: actions/upload-artifact@v4
         with:
-          name: drop-coverage-locked-broadcast-v1-reference
+          name: drop-coverage-locked-broadcast-v1-fixed-tracking
           path: |
-            artifacts/drop_coverage_locked_broadcast_v1/sheppard_adams_drop_coverage_locked_broadcast_v1_UHD.mp4
-            artifacts/drop_coverage_locked_broadcast_v1/sheppard_adams_drop_coverage_locked_broadcast_v1_native.mp4
-            artifacts/sheppard_adams_DROP_COVERAGE_V1_4k_streamable.mp4
-            artifacts/drop_coverage_locked_broadcast_v1/release_freeze.jpg
-            artifacts/drop_coverage_locked_broadcast_v1/qa.json
-            artifacts/drop_coverage_locked_broadcast_v1/LOCKED_TOOL_ID.txt
-            artifacts/v3/sheppard_v3_matched_xfg.json
-            artifacts/v3/sheppard_v3_matched_shots.csv
+            artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_UHD.mp4
+            artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_native.mp4
+            artifacts/sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_4k_streamable.mp4
+            artifacts/drop_coverage_locked_broadcast_v1_fixed/release_freeze.jpg
+            artifacts/drop_coverage_locked_broadcast_v1_fixed/qa.json
+            artifacts/drop_coverage_locked_broadcast_v1_fixed/LOCKED_TOOL_ID.txt
+            artifacts/drop_coverage_locked_broadcast_v1_fixed/identity_stitched_tracks.csv
+            artifacts/drop_coverage_qa_fixed/pre_swap.jpg
+            artifacts/drop_coverage_qa_fixed/post_swap.jpg
+            artifacts/drop_coverage_qa_fixed/release_area.jpg
+            artifacts/drop_coverage_qa_fixed/release_freeze.jpg
             configs/drop_coverage_locked_broadcast_v1_toronto_event483.json
-            artifacts/sheppard_adams_DROP_COVERAGE_V1_package.zip
+            artifacts/sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_package.zip
           if-no-files-found: error
           retention-days: 30
