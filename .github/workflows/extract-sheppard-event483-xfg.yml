@@ -1,0 +1,35 @@
+name: Extract Sheppard event483 xFG
+
+on:
+  pull_request:
+    branches: [codex/adams-screen-v8-toronto]
+    paths:
+      - '.github/workflows/extract-sheppard-event483-xfg.yml'
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -q pandas
+      - name: Extract exact official row
+        run: |
+          curl -L --fail --retry 3 -o /tmp/xfg.csv.gz 'https://raw.githubusercontent.com/timeedmonds-maker/long-rebound-era/main/outputs/integration/nba_xfg_2025_26/nba_xfg_pbp_fga_join_2025_26.csv.gz?token=B5MOWVEPVWYWYDSJQETQWGTKVCRW7AA'
+          python - <<'PY'
+          import pandas as pd, json
+          df=pd.read_csv('/tmp/xfg.csv.gz',low_memory=False)
+          gid=pd.to_numeric(df['game_id'],errors='coerce')
+          ev=pd.to_numeric(df['event_num'],errors='coerce')
+          pid=pd.to_numeric(df['player_id'],errors='coerce')
+          q=df[gid.eq(22500131)&ev.eq(483)&pid.eq(1642263)]
+          print('MATCH_COUNT',len(q))
+          if len(q)!=1: raise SystemExit(2)
+          cols=['game_id','event_num','player_id','player_name_pbp','description','period','clock','shot_distance','xfg_player_name','xfg_action_type','xfg_shot_type','xfg_xfg','xfg_xfg_pct','xfg_expected_points','xfg_points_over_expected','xfg_source_resource']
+          out={c:(None if pd.isna(q.iloc[0][c]) else q.iloc[0][c].item() if hasattr(q.iloc[0][c],'item') else q.iloc[0][c]) for c in cols if c in q.columns}
+          print('EXACT_XFG_JSON',json.dumps(out,default=str,sort_keys=True))
+          assert out['xfg_source_resource']=='shotqualityvideologs'
+          PY

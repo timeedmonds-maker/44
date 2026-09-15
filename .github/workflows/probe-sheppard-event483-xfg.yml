@@ -1,0 +1,25 @@
+name: Probe Sheppard event483 official xFG
+
+on:
+  pull_request:
+    branches: [codex/adams-screen-v8-toronto]
+    paths:
+      - '.github/workflows/probe-sheppard-event483-xfg.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact NBA Inside the Game page
+        run: |
+          curl -L --fail --retry 2 \
+            -A 'Mozilla/5.0' \
+            -H 'Accept: text/html,application/xhtml+xml' \
+            -H 'Referer: https://www.nba.com/' \
+            -o /tmp/page.html \
+            'https://www.nba.com/inside-the-game/video-detail?GameID=0022500131&PlayerID=1642263&eventNum=483'
+          wc -c /tmp/page.html
+          grep -oiE '.{0,150}(xFG|Shot Difficulty|shotquality|0022500131|1642263|eventNum).{0,400}' /tmp/page.html | head -100 || true
+          grep -oiE '<script[^>]+src="[^"]+' /tmp/page.html | tail -30 || true
