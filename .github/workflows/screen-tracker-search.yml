@@ -1,0 +1,230 @@
+name: Screen Tracker Search
+
+on:
+  workflow_dispatch:
+    inputs:
+      game_id:
+        description: 'NBA game ID'
+        required: true
+        default: '0022500054'
+        type: string
+      screener_id:
+        description: 'Screener player ID'
+        required: true
+        default: '203500'
+        type: string
+      target_id:
+        description: 'Target player ID / intended ballhandler'
+        required: true
+        default: '1641708'
+        type: string
+      screener_name:
+        description: 'Screener display name'
+        required: true
+        default: 'Steven Adams'
+        type: string
+      target_name:
+        description: 'Target display name'
+        required: true
+        default: 'Amen Thompson'
+        type: string
+      top_n:
+        description: 'Native preview clips/contact sheets to retain'
+        required: true
+        default: '12'
+        type: string
+  push:
+    branches: [screen-tracker]
+    paths:
+      - 'screen_tracker/search_game.py'
+      - 'screen_tracker/search_previews.py'
+      - '.github/workflows/screen-tracker-search.yml'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      game_id: ${{ steps.params.outputs.game_id }}
+      screener_id: ${{ steps.params.outputs.screener_id }}
+      target_id: ${{ steps.params.outputs.target_id }}
+      top_n: ${{ steps.params.outputs.top_n }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - id: params
+        name: Resolve search parameters
+        env:
+          GAME: ${{ inputs.game_id || '0022500054' }}
+          SCREENER: ${{ inputs.screener_id || '203500' }}
+          TARGET: ${{ inputs.target_id || '1641708' }}
+          SNAME: ${{ inputs.screener_name || 'Steven Adams' }}
+          TNAME: ${{ inputs.target_name || 'Amen Thompson' }}
+          TOPN: ${{ inputs.top_n || '12' }}
+        run: |
+          echo "game_id=$GAME" >> "$GITHUB_OUTPUT"
+          echo "screener_id=$SCREENER" >> "$GITHUB_OUTPUT"
+          echo "target_id=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "top_n=$TOPN" >> "$GITHUB_OUTPUT"
+          echo "screener_name=$SNAME" >> "$GITHUB_OUTPUT"
+          echo "target_name=$TNAME" >> "$GITHUB_OUTPUT"
+      - name: Build exact joint-possession and all-event HLS scan manifest
+        env:
+          GAME: ${{ steps.params.outputs.game_id }}
+          SCREENER: ${{ steps.params.outputs.screener_id }}
+          TARGET: ${{ steps.params.outputs.target_id }}
+          SNAME: ${{ steps.params.outputs.screener_name }}
+          TNAME: ${{ steps.params.outputs.target_name }}
+        run: |
+          pip install pandas
+          python screen_tracker/search_game.py manifest \
+            --game-id "$GAME" \
+            --screener-id "$SCREENER" \
+            --target-id "$TARGET" \
+            --screener-name "$SNAME" \
+            --target-name "$TNAME" \
+            --out artifacts/search_plan
+          mkdir -p artifacts/search_plan/shards
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          p=Path('artifacts/search_plan/event_scan_manifest.csv')
+          d=pd.read_csv(p,dtype={'game_id':str,'screener_id':str,'target_id':str})
+          out=Path('artifacts/search_plan/shards')
+          for s in range(4):
+              d.iloc[s::4].to_csv(out/f'shard_{s:02d}.csv',index=False)
+          print({'event_rows':len(d),'shards':[len(d.iloc[s::4]) for s in range(4)]})
+          PY
+      - name: Export deterministic lightweight detector
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install ultralytics onnx onnxslim
+          mkdir -p artifacts/models
+          python - <<'PY'
+          from ultralytics import YOLO
+          from pathlib import Path
+          p=Path(YOLO('yolo11n.pt').export(format='onnx',imgsz=640,opset=12,dynamic=False,simplify=True,nms=False))
+          Path('artifacts/models/yolo11n.onnx').write_bytes(p.read_bytes())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screen-tracker-search-bundle
+          path: |
+            artifacts/search_plan
+            artifacts/models/yolo11n.onnx
+          if-no-files-found: error
+          retention-days: 7
+
+  scan:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0,1,2,3]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic scan stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install pandas requests opencv-python-headless 'numpy<2'
+      - uses: actions/download-artifact@v4
+        with:
+          name: screen-tracker-search-bundle
+          path: artifacts/bundle
+      - name: Scan every submitted HLS event for temporal screen geometry
+        run: |
+          S=$(printf '%02d' '${{ matrix.shard }}')
+          python tools/adams_screen_temporal_onnx.py \
+            --input "artifacts/bundle/search_plan/shards/shard_${S}.csv" \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --out "artifacts/search_scan/shard_${S}" \
+            --sample-fps 4.0 \
+            --max-seconds 24 \
+            --target-hls-width 640
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screen-tracker-search-scan-${{ matrix.shard }}
+          path: artifacts/search_scan/
+          if-no-files-found: warn
+          retention-days: 7
+
+  rank_and_preview:
+    needs: [prepare, scan]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic ranking/preview stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install pandas requests opencv-python-headless 'numpy<2'
+      - uses: actions/download-artifact@v4
+        with:
+          name: screen-tracker-search-bundle
+          path: artifacts/bundle
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: screen-tracker-search-scan-*
+          path: artifacts/all_scans
+          merge-multiple: false
+      - name: Rank Screen Tracker candidates
+        run: |
+          python screen_tracker/search_game.py rank \
+            --event-manifest artifacts/bundle/search_plan/event_scan_manifest.csv \
+            --scan-root artifacts/all_scans \
+            --top-n '${{ needs.prepare.outputs.top_n }}' \
+            --out artifacts/search_results
+      - name: Fetch native official previews for top candidates
+        run: |
+          python screen_tracker/search_previews.py \
+            --candidates artifacts/search_results/top_candidates.csv \
+            --limit '${{ needs.prepare.outputs.top_n }}' \
+            --out artifacts/search_results/previews
+      - name: Final QA
+        run: |
+          python - <<'PY'
+          import json, pathlib, pandas as pd
+          p=pathlib.Path('artifacts/search_results')
+          q=json.load(open(p/'search_qa.json'))
+          plan=json.load(open('artifacts/bundle/search_plan/search_manifest.json'))
+          assert q['tool_id']=='SCREEN_TRACKER_SEARCH'
+          assert q['search_contract_version']=='1.0.0'
+          assert plan['game_id']=='${{ needs.prepare.outputs.game_id }}'
+          assert plan['possession_count'] > 0 and plan['event_scan_count'] > 0
+          ranked=pd.read_csv(p/'ranked_events.csv')
+          assert len(ranked)==plan['event_scan_count'], (len(ranked),plan['event_scan_count'])
+          print(json.dumps({'plan':plan,'result_qa':q},indent=2))
+          PY
+      - name: Package search result
+        run: |
+          cp artifacts/bundle/search_plan/joint_possessions.csv artifacts/search_results/
+          cp artifacts/bundle/search_plan/event_scan_manifest.csv artifacts/search_results/
+          cp artifacts/bundle/search_plan/search_manifest.json artifacts/search_results/
+          printf 'SCREEN_TRACKER_SEARCH\n1.0.0\n' > artifacts/search_results/SCREEN_TRACKER_SEARCH_TOOL_ID.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screen-tracker-search-${{ needs.prepare.outputs.game_id }}
+          path: artifacts/search_results/
+          if-no-files-found: error
+          retention-days: 30
