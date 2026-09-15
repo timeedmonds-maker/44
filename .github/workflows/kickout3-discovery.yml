@@ -1,0 +1,83 @@
+name: Screen Tracker - Kickout 3 discovery
+
+on:
+  push:
+    branches: [screen-tracker-kickout-3]
+    paths:
+      - 'screen_tracker_kickout3/**'
+      - '.github/workflows/kickout3-discovery.yml'
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install data stack
+        run: pip install pandas pyreadr requests
+      - name: Discover exact Adams to Durant kickout threes
+        run: python screen_tracker_kickout3/discover_events.py --out artifacts/kickout3
+      - name: Resolve official event xFG, official shot distance, and Durant similar-shot xFG
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess, sys
+          p=pathlib.Path('artifacts/kickout3')
+          m=json.load(open(p/'kickout3_event_manifest.json'))
+          for i,e in enumerate(m['selected_events'],1):
+              out=p/f'xfg_event_{i}'
+              subprocess.run([
+                  sys.executable,'tools/player_conditioned_xfg_v2.py',
+                  '--player-id','201142',
+                  '--game-id',str(e['game_id']),
+                  '--event-num',str(e['shot_event_num']),
+                  '--distance-window-ft','1.0',
+                  '--xfg-window-pp','2.5',
+                  '--workers','6',
+                  '--out',str(out),
+              ],check=True)
+              x=json.load(open(out/'player_conditioned_xfg.json'))
+              e['shot_quality']={
+                  'official_event_xfg_pct':x['target']['league_xfg_pct'],
+                  'official_shot_distance_ft':x['target']['shot_distance_ft'],
+                  'durant_similar_xfg_pct':x['player_conditioned_xfg_pct'],
+                  'durant_similar_sample_fga':x['sample_fga'],
+                  'durant_similar_sample_fgm':x['sample_fgm'],
+                  'similar_rule':x['comparison_rule'],
+                  'definition_version':x['definition_version'],
+              }
+          (p/'kickout3_event_manifest_enriched.json').write_text(json.dumps(m,indent=2))
+          print(json.dumps(m,indent=2))
+          PY
+      - name: QA protected base and selected events
+        run: |
+          python - <<'PY'
+          import json
+          m=json.load(open('artifacts/kickout3/kickout3_event_manifest_enriched.json'))
+          b=m['base_screen_tracker']
+          assert b['version']=='1.1.0'
+          assert b['protected_branch']=='screen-tracker'
+          assert b['protected_source_sha']=='15cde6374333c1956299c2355183549298a466db'
+          assert b['mutation_allowed'] is False
+          e=m['selected_events']
+          assert len(e)==2 and len({x['game_id'] for x in e})==2
+          for x in e:
+              assert x['shooter_id']==201142 and x['rebounder_id']==203500
+              assert x['elapsed_seconds'] <= 3.0 + 1e-9
+              assert x['shot_quality']['official_event_xfg_pct'] is not None
+              assert x['shot_quality']['official_shot_distance_ft'] is not None
+              assert x['shot_quality']['durant_similar_sample_fga'] >= 0
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kickout3-discovery
+          path: artifacts/kickout3/
+          if-no-files-found: error
+          retention-days: 30
