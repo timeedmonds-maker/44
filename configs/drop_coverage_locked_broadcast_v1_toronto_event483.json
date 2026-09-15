@@ -1,15 +1,24 @@
 {
-  "output_basename": "sheppard_adams_drop_coverage_locked_broadcast_v1",
+  "output_basename": "sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking",
   "teams": {
     "HOU": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"},
     "TOR": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"}
   },
   "players": [
     {"track_id": 10, "label": "ADAMS", "team": "HOU", "label_dx": 35, "label_dy": -4},
-    {"track_id": 7, "label": "SHEPPARD", "team": "HOU", "label_dx": -54, "label_dy": 5, "distance_dx": -55, "distance_dy": -2},
-    {"track_id": 3, "label": "DEFENDER", "team": "TOR", "label_dx": -8, "label_dy": -34}
+    {"track_id": 107, "label": "SHEPPARD", "team": "HOU", "label_dx": -54, "label_dy": 5, "distance_dx": -55, "distance_dy": -2},
+    {"track_id": 103, "label": "SHEAD", "team": "TOR", "label_dx": -8, "label_dy": -34}
   ],
-  "roles": {"shooter_track_id": 7, "primary_defender_track_id": 3},
+  "roles": {"shooter_track_id": 107, "primary_defender_track_id": 103},
+  "identity_stitch": {
+    "reason": "Raw tracker IDs 7 and 3 exchange player identity during the Adams screen occlusion. Use role-continuous virtual identities.",
+    "swap_time_s": 7.10,
+    "pre": {"sheppard": 7, "shead": 3},
+    "post": {"sheppard": 3, "shead": 7},
+    "virtual_track_ids": {"sheppard": 107, "shead": 103},
+    "defender_identity": "Jamal Shead",
+    "defender_identity_basis": "Toronto lineup at Q3 2:09 plus visual identity of the point-of-attack defender wearing the headband"
+  },
   "timing": {
     "start_s": 5.40,
     "end_s": 11.40,
