@@ -1,0 +1,32 @@
+name: HOU SAS event 458 preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/hou-sas-event458-preview.yml'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install requests
+          mkdir -p artifacts/event458
+          python tools/fetch_official_nba_event_clip.py --game 0022500032 --event 458 --out artifacts/event458/event458_broadcast.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hou-sas-event458-preview
+          path: artifacts/event458/
+          if-no-files-found: error
+          retention-days: 7
