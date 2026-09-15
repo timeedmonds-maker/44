@@ -1,0 +1,85 @@
+{
+  "screen_tracker_version": "1.1.0",
+  "application_id": "replace_with_game_event_id",
+  "angle_policy": {
+    "mode": "two_angle_default",
+    "primary_label": "Broadcast",
+    "secondary_priority": [
+      "High Tight",
+      "Other Broadcast",
+      "Mobile Broadcast",
+      "Play by Play",
+      "Left Slash",
+      "Right Slash",
+      "Left HandHeld",
+      "Right HandHeld",
+      "In Arena"
+    ],
+    "require_distinct_angles": true,
+    "require_full_length_each_angle": true
+  },
+  "event": {
+    "game_id": "0000000000",
+    "event_num": 1,
+    "coverage_label": "REPLACE_WITH_VALIDATED_COVERAGE"
+  },
+  "angles": [
+    {
+      "label": "Broadcast",
+      "input_artifact": {
+        "repository": "timeedmonds-maker/44",
+        "run_id": 1,
+        "name": "replace-broadcast-tracking-artifact",
+        "source_path": "source_native.mp4",
+        "tracks_path": "tracks.csv",
+        "source_qa_path": "qa.json"
+      },
+      "backend": {
+        "engine": "drop_coverage_universal_v2",
+        "config_path": "configs/replace_broadcast_config.json",
+        "role_manifest_path": "manifests/replace_broadcast_roles.json"
+      }
+    },
+    {
+      "label": "High Tight",
+      "input_artifact": {
+        "repository": "timeedmonds-maker/44",
+        "run_id": 1,
+        "name": "replace-secondary-angle-tracking-artifact",
+        "source_path": "source_native.mp4",
+        "tracks_path": "tracks.csv",
+        "source_qa_path": "qa.json"
+      },
+      "backend": {
+        "engine": "drop_coverage_universal_v2",
+        "config_path": "configs/replace_secondary_config.json",
+        "role_manifest_path": "manifests/replace_secondary_roles.json"
+      }
+    }
+  ],
+  "tracking_contract": {
+    "resolve_ballhandler": true,
+    "resolve_screener": true,
+    "resolve_poa_defender": true,
+    "resolve_coverage_defender": true,
+    "lineup_gate": true,
+    "identity_stitching": true,
+    "bar_and_ring_same_track": true,
+    "independent_tracking_per_angle": true
+  },
+  "graphics_contract": {
+    "coverage_label_from_application": true,
+    "perspective_normalized_floor_rings": true,
+    "ring_size_constant_within_each_angle": true,
+    "rings_never_smaller_than_canonical_broadcast": true,
+    "team_colours": "collision-aware",
+    "deterministic_only": true
+  },
+  "output": {
+    "basename": "screen_tracker_replace_game_event",
+    "require_native": true,
+    "require_uhd": true,
+    "require_streamable_4k": true,
+    "require_qa_package": true
+  }
+}
