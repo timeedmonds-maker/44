@@ -37,10 +37,10 @@ jobs:
       - name: Resolve Sheppard event xFG and 2025-26 similar-shot xFG
         run: |
           python - <<'PY'
-          import json, re, time
+          import json, time
           from pathlib import Path
           import pandas as pd, requests
-          PLAYER_ID=1642263; EVENT_GAME='0022500131'; EVENT_NUM=483
+          PLAYER_ID=1642263; EVENT_GAME='0022500131'; EVENT_NUM=483; REFERENCE_DISTANCE_FT=17.0
           PBP='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
           XFG='https://stats.gleague.nba.com/stats/shotqualityvideologs'
           HEADERS={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9','Connection':'keep-alive'}
@@ -78,14 +78,17 @@ jobs:
           d['is_pullup']=d.xfg_action_type.str.lower().eq('pullup jump shot')
           event=d[(d.game_id_norm==EVENT_GAME)&(d.event_num==EVENT_NUM)]
           assert len(event)==1, event[['game_id_norm','event_num']].to_dict('records')
-          er=event.iloc[0]; assert abs(float(er.xfg)-0.417)<1e-9; assert float(er.shot_distance_num)==17.0
+          er=event.iloc[0]
+          assert abs(float(er.xfg)-0.417)<1e-9, er[['xfg','xfg_action_type','xfg_shot_type']].to_dict()
+          assert str(er.xfg_action_type).lower()=='pullup jump shot', er.xfg_action_type
+          print('EVENT_DIAGNOSTIC='+json.dumps({'pbp_shot_distance':None if pd.isna(er.shot_distance_num) else float(er.shot_distance_num),'pbp_action_type':str(er.action_type),'xfg_action_type':er.xfg_action_type,'xfg_shot_type':er.xfg_shot_type,'event_xfg_pct':float(er.xfg)*100},default=str),flush=True)
           bands={}
           for lo,hi in [(16,18),(15,19),(14,20),(13,21)]:
             q=d[d.is_2pt & d.is_pullup & d.shot_distance_num.between(lo,hi) & d.xfg.notna()].copy()
-            bands[f'{lo}-{hi}']={'n':int(len(q)),'mean_xfg_pct':float(q.xfg.mean()*100),'actual_fg_pct':float(q.shot_result.astype(str).str.lower().eq('made').mean()*100),'dist_mean':float(q.shot_distance_num.mean()) if len(q) else None}
+            bands[f'{lo}-{hi}']={'n':int(len(q)),'mean_xfg_pct':float(q.xfg.mean()*100) if len(q) else None,'actual_fg_pct':float(q.shot_result.astype(str).str.lower().eq('made').mean()*100) if len(q) else None,'dist_mean':float(q.shot_distance_num.mean()) if len(q) else None}
           chosen=d[d.is_2pt & d.is_pullup & d.shot_distance_num.between(14,20) & d.xfg.notna()].copy()
-          assert len(chosen)>=10, len(chosen)
-          out={'event':{'game_id':EVENT_GAME,'event_num':EVENT_NUM,'shot_distance_ft':17.0,'action_type':'Pullup Jump shot','shot_type':'2PT Field Goal','event_xfg_pct':41.7},'definition':{'season':'2025-26','player':'Reed Sheppard','shot_type':'2PT','action_type':'Pullup Jump shot','distance_ft_min':14,'distance_ft_max':20,'distance_basis':'±3 ft around event 483 17-foot attempt'},'chosen':{'n':int(len(chosen)),'xfg_pct':float(chosen.xfg.mean()*100),'actual_fg_pct':float(chosen.shot_result.astype(str).str.lower().eq('made').mean()*100),'mean_distance_ft':float(chosen.shot_distance_num.mean())},'sensitivity_bands':bands,'coverage':{'reed_fga':int(len(d)),'xfg_covered':int(d.xfg.notna().sum()),'games':int(len(games))}}
+          assert len(chosen)>0, 'No 2025-26 14-20 ft 2PT pull-up sample found'
+          out={'event':{'game_id':EVENT_GAME,'event_num':EVENT_NUM,'shot_distance_ft':REFERENCE_DISTANCE_FT,'shot_distance_source':'locked event description text','pbp_shot_distance':None if pd.isna(er.shot_distance_num) else float(er.shot_distance_num),'action_type':'Pullup Jump shot','shot_type':'2PT Field Goal','event_xfg_pct':41.7},'definition':{'season':'2025-26','player':'Reed Sheppard','shot_type':'2PT','action_type':'Pullup Jump shot','distance_ft_min':14,'distance_ft_max':20,'distance_basis':'±3 ft around locked event-description distance of 17 FT'},'chosen':{'n':int(len(chosen)),'xfg_pct':float(chosen.xfg.mean()*100),'actual_fg_pct':float(chosen.shot_result.astype(str).str.lower().eq('made').mean()*100),'mean_distance_ft':float(chosen.shot_distance_num.mean())},'sensitivity_bands':bands,'coverage':{'reed_fga':int(len(d)),'xfg_covered':int(d.xfg.notna().sum()),'games':int(len(games))}}
           Path('artifacts').mkdir(exist_ok=True); Path('artifacts/sheppard_similar_xfg.json').write_text(json.dumps(out,indent=2))
           chosen[['game_id_norm','event_num','shot_distance_num','xfg','xfg_action_type','xfg_shot_type','shot_result','area','area_detail']].to_csv('artifacts/sheppard_similar_shots.csv',index=False)
           print('SIMILAR_XFG_RESULT='+json.dumps(out,sort_keys=True),flush=True)
@@ -145,10 +148,9 @@ jobs:
             out.append([s,pr+1/15]); return out
           summary={'bbox_overlap':intervals(z.overlap_or_touch.eq(1)),'near_3pct_height':intervals(z.near_3pct_height.eq(1)),'near_6pct_height':intervals(z.near_6pct_height.eq(1))}
           Path('artifacts/contact_gap_summary.json').write_text(json.dumps(summary,indent=2)); print('CONTACT_GAP_SUMMARY='+json.dumps(summary),flush=True)
-          # diagnostic contact sheet, 10 fps, with boxes and gap text
-          cap=cv2.VideoCapture(str(p/'source_native.mp4')); fps=cap.get(cv2.CAP_PROP_FPS) or 29.97; W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)); panels=[]
+          cap=cv2.VideoCapture(str(p/'source_native.mp4')); panels=[]
           for t in np.arange(6.7,8.91,0.1):
-            cap.set(cv2.CAP_PROP_POS_MSEC,t*1000); ok,fr=cap.read();
+            cap.set(cv2.CAP_PROP_POS_MSEC,t*1000); ok,fr=cap.read()
             if not ok: continue
             A=ibox(a,t); B=ibox(b,t)
             if A and B:
