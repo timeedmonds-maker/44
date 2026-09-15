@@ -1,0 +1,94 @@
+name: Adams Clippers Dunk Tracking
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/adams-clippers-dunk-tracking.yml'
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic CV stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git fonts-dejavu-core zip
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow pyreadr
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download deterministic models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --fail --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --fail --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Track official event 505 broadcast
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022501205 --event 505 \
+            --analysis-fps 15 --number-fps 6 --court-fps 1 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/tracking
+      - name: Build deterministic track-ID QA sheets
+        run: |
+          python - <<'PY'
+          import cv2, pandas as pd, numpy as np, math, json
+          from pathlib import Path
+          p=Path('artifacts/tracking'); d=pd.read_csv(p/'tracks.csv')
+          v=str(p/'source_native.mp4'); cap=cv2.VideoCapture(v)
+          fps=cap.get(cv2.CAP_PROP_FPS) or 29.97; dur=cap.get(cv2.CAP_PROP_FRAME_COUNT)/fps
+          # late action focus plus broad context
+          times=list(np.linspace(max(0,dur-7),max(0,dur-.2),28))
+          thumbs=[]
+          for t in times:
+            cap.set(cv2.CAP_PROP_POS_MSEC,float(t)*1000); ok,fr=cap.read()
+            if not ok: continue
+            rows=d.iloc[(d.time_s-float(t)).abs().argsort()[:20]].copy()
+            rows=rows[(rows.time_s-float(t)).abs()<0.10]
+            for _,r in rows.iterrows():
+              x1,y1,x2,y2=[int(round(r[c])) for c in ['x1','y1','x2','y2']]
+              cv2.rectangle(fr,(x1,y1),(x2,y2),(255,255,255),2)
+              cv2.putText(fr,f'T{int(r.track_id)}',(x1,max(18,y1-5)),cv2.FONT_HERSHEY_SIMPLEX,.58,(255,255,255),2,cv2.LINE_AA)
+            cv2.putText(fr,f'{t:.3f}s',(12,28),cv2.FONT_HERSHEY_SIMPLEX,.7,(255,255,255),2,cv2.LINE_AA)
+            thumbs.append(cv2.resize(fr,(480,270),interpolation=cv2.INTER_AREA))
+          cap.release(); cols=4; nr=math.ceil(len(thumbs)/cols); sheet=np.zeros((nr*270,cols*480,3),np.uint8)
+          for i,im in enumerate(thumbs): sheet[(i//cols)*270:(i//cols+1)*270,(i%cols)*480:(i%cols+1)*480]=im
+          cv2.imwrite(str(p/'late_track_ids.jpg'),sheet,[cv2.IMWRITE_JPEG_QUALITY,94])
+          stats=d.groupby('track_id').agg(rows=('time_s','size'),start_s=('time_s','min'),end_s=('time_s','max'),median_h=('y1',lambda x:0)).reset_index()
+          # replace median_h robustly
+          stats['median_h']=[float((d[d.track_id.eq(t)].y2-d[d.track_id.eq(t)].y1).median()) for t in stats.track_id]
+          stats.to_csv(p/'track_stats.csv',index=False)
+          print(stats.sort_values('rows',ascending=False).to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-clippers-dunk-tracking
+          path: |
+            artifacts/tracking/source_native.mp4
+            artifacts/tracking/context.json
+            artifacts/tracking/tracks.csv
+            artifacts/tracking/roles.json
+            artifacts/tracking/qa.json
+            artifacts/tracking/late_track_ids.jpg
+            artifacts/tracking/track_stats.csv
+          if-no-files-found: error
+          retention-days: 14
