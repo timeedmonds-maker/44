@@ -1,0 +1,71 @@
+name: Clip page metadata probe
+
+on:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/clip-page-metadata-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Inspect official clip-page metadata and narrow Atlanta event
+        run: |
+          python - <<'PY'
+          import concurrent.futures, html, json, re, urllib.request
+          from pathlib import Path
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          H={'User-Agent':UA,'Referer':'https://clips.nba.com/','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
+          def get(game,event):
+            u=f'https://clips.nba.com/?gameNo={game}&eventNum={event}&source=grs'
+            try:
+              req=urllib.request.Request(u,headers=H)
+              with urllib.request.urlopen(req,timeout=12) as r: text=r.read().decode('utf-8','ignore')
+              plain=re.sub(r'\s+',' ',re.sub(r'<[^>]+>',' ',html.unescape(text)))
+              opts=re.findall(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',text,flags=re.I|re.S)
+              meta={
+                'event':event,'status':200,'bytes':len(text),'options':len(opts),
+                'title':(re.search(r'<title[^>]*>(.*?)</title>',text,re.I|re.S).group(1).strip() if re.search(r'<title[^>]*>(.*?)</title>',text,re.I|re.S) else ''),
+                'has_adams':'adams' in text.lower(),'has_thompson':'thompson' in text.lower(),'has_1104':'11:04' in text,
+                'plain_head':plain[:500]
+              }
+              # retain compact interesting snippets from raw source
+              pats=['Adams','Thompson','11:04','description','eventNum','gameNo']
+              sn=[]
+              low=text.lower()
+              for p in pats:
+                pos=low.find(p.lower())
+                if pos>=0: sn.append(text[max(0,pos-160):pos+260])
+              meta['snippets']=sn[:8]
+              return meta
+            except Exception as e:
+              return {'event':event,'error':repr(e)}
+          known=get('0022500032',458)
+          print('KNOWN='+json.dumps(known,default=str),flush=True)
+          # Q3 11:04 is early in the third; broad but metadata-only scan.
+          with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+            rows=list(ex.map(lambda e:get('0012500014',e),range(240,421)))
+          valid=[r for r in rows if r.get('options',0)>0]
+          interesting=[r for r in valid if r.get('has_adams') or r.get('has_thompson') or r.get('has_1104')]
+          print('VALID_COUNT',len(valid),'RANGE',([valid[0]['event'],valid[-1]['event']] if valid else None),flush=True)
+          print('INTERESTING='+json.dumps(interesting,default=str),flush=True)
+          Path('artifacts').mkdir(exist_ok=True)
+          Path('artifacts/known.json').write_text(json.dumps(known,indent=2))
+          Path('artifacts/valid.json').write_text(json.dumps(valid,indent=2))
+          Path('artifacts/interesting.json').write_text(json.dumps(interesting,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clip-page-metadata-probe
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
