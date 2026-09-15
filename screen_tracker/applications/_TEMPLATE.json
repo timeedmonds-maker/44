@@ -1,0 +1,55 @@
+{
+  "screen_tracker_version": "1.0.0",
+  "application_id": "REPLACE_WITH_UNIQUE_PLAY_ID",
+  "event": {
+    "game_id": "0000000000",
+    "event_num": 1,
+    "coverage_label": "REPLACE_WITH_PLAY_COVERAGE_LABEL"
+  },
+  "input_artifact": {
+    "repository": "timeedmonds-maker/44",
+    "run_id": 0,
+    "name": "REPLACE_WITH_VALIDATED_TRACKING_ARTIFACT",
+    "source_path": "REPLACE/source_native.mp4",
+    "tracks_path": "REPLACE/tracks.csv",
+    "source_qa_path": "REPLACE/qa.json"
+  },
+  "backend": {
+    "engine": "drop_coverage_universal_v2",
+    "config_path": "configs/REPLACE_PLAY_CONFIG.json",
+    "role_manifest_path": "manifests/screen_tracker/REPLACE_ROLE_MANIFEST.json"
+  },
+  "data_contract": {
+    "pbp": "exact event/lineup state",
+    "event_xfg": "official shotqualityvideologs exact event when shot event",
+    "matched_xfg": {
+      "enabled": true,
+      "criteria": "application-specific; must be explicit and sample size shown"
+    }
+  },
+  "tracking_contract": {
+    "resolve_ballhandler": true,
+    "resolve_screener": true,
+    "resolve_poa_defender": true,
+    "resolve_coverage_defender": true,
+    "lineup_gate": true,
+    "identity_stitching": true,
+    "bar_and_ring_same_track": true,
+    "contact_window_source_frame_anchors": true
+  },
+  "graphics_contract": {
+    "coverage_label_from_application": true,
+    "team_colours": "collision-aware",
+    "primary_colour_collision_threshold_rgb": 80,
+    "defense_keeps_primary": true,
+    "offense_uses_secondary_on_collision": true,
+    "deterministic_only": true
+  },
+  "output": {
+    "basename": "screen_tracker_REPLACE",
+    "require_native": true,
+    "require_uhd": true,
+    "require_streamable_4k": true,
+    "require_qa_package": true
+  }
+}
