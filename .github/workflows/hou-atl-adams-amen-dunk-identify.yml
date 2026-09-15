@@ -10,7 +10,7 @@ on:
 jobs:
   identify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     permissions:
       contents: read
     steps:
@@ -20,52 +20,74 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install lightweight dependencies
+      - name: Resolve exact NBA event number cheaply
+        run: |
+          python - <<'PY'
+          import json, urllib.parse, urllib.request
+          from pathlib import Path
+          game='0012500014'; adams=203500; amen=1641708
+          headers={
+            'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+            'Referer':'https://www.nba.com/', 'Origin':'https://www.nba.com',
+            'Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9'
+          }
+          def get_json(url):
+            req=urllib.request.Request(url,headers=headers)
+            with urllib.request.urlopen(req,timeout=35) as r: return json.load(r)
+          exact=[]; diagnostics=[]
+          # First try official liveData with browser headers.
+          try:
+            j=get_json(f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game}.json')
+            for a in j.get('game',{}).get('actions',[]):
+              if int(a.get('period') or 0)==3 and str(a.get('clock') or '').startswith('PT11M04'):
+                diagnostics.append({'source':'liveData','row':a})
+                if int(a.get('personId') or 0)==adams:
+                  exact.append({'event_num':int(a['actionNumber']),'source':'liveData','row':a})
+          except Exception as e:
+            diagnostics.append({'source':'liveData_error','error':repr(e)})
+          # Fallback to stats.nba.com playbyplayv3.
+          if not exact:
+            params=urllib.parse.urlencode({'GameID':game,'StartPeriod':0,'EndPeriod':14})
+            try:
+              j=get_json('https://stats.nba.com/stats/playbyplayv3?'+params)
+              # v3 can return actions directly or a resultSets envelope depending backend.
+              acts=[]
+              if isinstance(j,dict) and isinstance(j.get('game'),dict): acts=j['game'].get('actions',[]) or []
+              if not acts and isinstance(j,dict):
+                rs=j.get('resultSets') or j.get('resultSet') or []
+                if isinstance(rs,dict): rs=[rs]
+                for s in rs:
+                  h=s.get('headers') or []; rows=s.get('rowSet') or []
+                  for row in rows: acts.append(dict(zip(h,row)))
+              for a in acts:
+                text=' '.join(str(a.get(k) or '') for k in ['description','actionType','subType','PLAYER1_NAME','HOMEDESCRIPTION','VISITORDESCRIPTION'])
+                period=int(a.get('period') or a.get('PERIOD') or 0)
+                clock=str(a.get('clock') or a.get('PCTIMESTRING') or '')
+                if period==3 and ('11:04' in clock or clock.startswith('PT11M04')):
+                  diagnostics.append({'source':'playbyplayv3','row':a})
+                  if 'Adams' in text and ('dunk' in text.lower() or 'DUNK' in text):
+                    ev=a.get('actionNumber') or a.get('EVENTNUM') or a.get('eventNum')
+                    if ev is not None: exact.append({'event_num':int(ev),'source':'playbyplayv3','row':a})
+            except Exception as e:
+              diagnostics.append({'source':'playbyplayv3_error','error':repr(e)})
+          Path('artifacts').mkdir(exist_ok=True)
+          Path('artifacts/diagnostics.json').write_text(json.dumps(diagnostics,indent=2,default=str))
+          print('DIAGNOSTICS='+json.dumps(diagnostics,default=str),flush=True)
+          if not exact: raise SystemExit('Could not resolve NBA eventNum for Q3 11:04 Adams dunk')
+          # Require unique event identity.
+          nums=sorted(set(int(x['event_num']) for x in exact)); assert len(nums)==1, nums
+          Path('artifacts/exact_event.json').write_text(json.dumps(exact,indent=2,default=str))
+          print('EXACT_EVENT_NUM='+str(nums[0]),flush=True)
+          PY
+      - name: Install ffmpeg only after event is locked
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
-          pip install requests
-      - name: Resolve exact NBA liveData event
-        run: |
-          python - <<'PY'
-          import json, requests
-          from pathlib import Path
-          game='0012500014'
-          adams=203500
-          amen=1641708
-          url=f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game}.json'
-          r=requests.get(url,timeout=30); r.raise_for_status(); j=r.json()
-          actions=j['game']['actions']
-          rows=[]
-          for a in actions:
-              desc=str(a.get('description') or '')
-              aid=a.get('personId')
-              assist=a.get('assistPersonId')
-              subtype=str(a.get('subType') or '')
-              atype=str(a.get('actionType') or '')
-              if int(aid or 0)==adams and ('dunk' in subtype.lower() or 'dunk' in desc.lower()):
-                  rows.append({k:a.get(k) for k in ['actionNumber','orderNumber','period','clock','timeActual','actionType','subType','descriptor','description','personId','playerName','teamTricode','shotResult','pointsTotal','assistPersonId','assistPlayerNameInitial','assistPlayerName','assistTotal']})
-          print('ADAMS_DUNKS='+json.dumps(rows,indent=2),flush=True)
-          exact=[x for x in rows if int(x.get('assistPersonId') or 0)==amen or 'Thompson' in str(x.get('description') or '')]
-          if not exact:
-              # Print all Adams made FGs plus all Amen assists for deterministic diagnosis.
-              af=[a for a in actions if int(a.get('personId') or 0)==adams and str(a.get('shotResult') or '').lower()=='made']
-              aa=[a for a in actions if int(a.get('assistPersonId') or 0)==amen]
-              print('ADAMS_MAKES='+json.dumps(af,indent=2),flush=True)
-              print('AMEN_ASSISTS='+json.dumps(aa,indent=2),flush=True)
-              raise SystemExit('No Adams dunk assisted by Amen in liveData')
-          Path('artifacts').mkdir(exist_ok=True)
-          Path('artifacts/exact_event.json').write_text(json.dumps(exact,indent=2))
-          # actionNumber is the liveData exact play identifier; verify clip resolution before accepting as clips eventNum.
-          for x in exact:
-              print('EXACT_CANDIDATE='+json.dumps(x),flush=True)
-          PY
       - name: Resolve official NBA clip and make contact sheet
         run: |
           EVENT=$(python - <<'PY'
           import json
-          x=json.load(open('artifacts/exact_event.json'))[0]
-          print(int(x['actionNumber']))
+          print(int(json.load(open('artifacts/exact_event.json'))[0]['event_num']))
           PY
           )
           mkdir -p artifacts/clip
