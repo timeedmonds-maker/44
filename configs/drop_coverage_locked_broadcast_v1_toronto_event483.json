@@ -7,8 +7,16 @@
     "role_manifest": "manifests/drop_coverage/game_0022500131_event_483_roles.json"
   },
   "teams": {
-    "HOU": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"},
-    "TOR": {"primary_rgb": [206, 17, 65], "hex": "#CE1141"}
+    "HOU": {"primary_rgb": [206, 17, 65], "primary_hex": "#CE1141", "secondary_rgb": [0, 0, 0], "secondary_hex": "#000000", "hex": "#CE1141"},
+    "TOR": {"primary_rgb": [206, 17, 65], "primary_hex": "#CE1141", "secondary_rgb": [0, 0, 0], "secondary_hex": "#000000", "hex": "#CE1141"}
+  },
+  "team_colour_collision_policy": {
+    "enabled": true,
+    "rgb_distance_threshold": 80.0,
+    "preserve_team_role": "defense",
+    "switch_team_role": "offense",
+    "switch_to": "secondary",
+    "fail_if_secondary_collision": true
   },
   "players": [
     {"track_id": 10, "label": "ADAMS", "team": "HOU", "label_dx": 35, "label_dy": -4},

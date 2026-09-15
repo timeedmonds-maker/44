@@ -12,10 +12,17 @@ Universal role identity order:
 6. stitch raw tracker re-identifications into one durable role identity;
 7. render both name bar and floor ring from that identity-stable role track.
 
+Universal team-colour rule:
+- use each team's declared primary colour by default;
+- if the two primary colours are too similar, preserve the defensive team's
+  primary colour and switch the offensive team to its declared secondary;
+- fail QA rather than guess a colour when a required secondary is absent or
+  remains too similar.
+
 No generated imagery and no AI super-resolution.
 """
 from pathlib import Path
-import argparse, json
+import argparse, copy, json, math
 import pandas as pd
 import locked_broadcast_screen_v2 as core
 import drop_coverage_locked_broadcast_v1_fixed_tracking as fixed
@@ -29,6 +36,74 @@ def _player_ids(lineup):
 
 def _player_names(lineup):
     return {str(p['name']) for p in lineup}
+
+
+def _rgb_distance(a,b):
+    aa=[int(x) for x in a]; bb=[int(x) for x in b]
+    if len(aa)!=3 or len(bb)!=3:
+        raise ValueError((a,b))
+    return math.sqrt(sum((x-y)**2 for x,y in zip(aa,bb)))
+
+
+def _hex_from_rgb(rgb):
+    return '#%02X%02X%02X' % tuple(int(x) for x in rgb)
+
+
+def resolve_team_colours(cfg, manifest):
+    runtime=copy.deepcopy(cfg)
+    policy=runtime.get('team_colour_collision_policy',{})
+    enabled=bool(policy.get('enabled',True))
+    threshold=float(policy.get('rgb_distance_threshold',80.0))
+    offense=str(manifest['offense']); defense=str(manifest['defense'])
+    if offense not in runtime['teams'] or defense not in runtime['teams']:
+        raise RuntimeError(f'Missing team palette for offense={offense} defense={defense}')
+
+    op=runtime['teams'][offense]; de=runtime['teams'][defense]
+    op_primary=[int(x) for x in op['primary_rgb']]
+    de_primary=[int(x) for x in de['primary_rgb']]
+    primary_distance=_rgb_distance(op_primary,de_primary)
+    collision=enabled and primary_distance < threshold
+
+    qa={
+        'enabled':enabled,
+        'rule':'defense_keeps_primary_offense_switches_secondary_when_primaries_similar',
+        'rgb_distance_threshold':threshold,
+        'offense':offense,
+        'defense':defense,
+        'offense_primary_rgb':op_primary,
+        'defense_primary_rgb':de_primary,
+        'primary_rgb_distance':primary_distance,
+        'collision_detected':collision,
+        'offense_render_rgb':op_primary,
+        'defense_render_rgb':de_primary,
+        'offense_render_source':'primary',
+        'defense_render_source':'primary'
+    }
+
+    if collision:
+        if 'secondary_rgb' not in op:
+            raise RuntimeError(f'Primary-colour collision but {offense} has no secondary_rgb')
+        secondary=[int(x) for x in op['secondary_rgb']]
+        secondary_distance=_rgb_distance(secondary,de_primary)
+        if bool(policy.get('fail_if_secondary_collision',True)) and secondary_distance < threshold:
+            raise RuntimeError(
+                f'Primary-colour collision and {offense} secondary remains too similar: '
+                f'distance={secondary_distance:.2f} threshold={threshold:.2f}'
+            )
+        runtime['teams'][offense]['primary_rgb']=secondary
+        runtime['teams'][offense]['hex']=_hex_from_rgb(secondary)
+        qa.update({
+            'offense_render_rgb':secondary,
+            'offense_render_hex':_hex_from_rgb(secondary),
+            'offense_render_source':'secondary',
+            'secondary_vs_defense_primary_rgb_distance':secondary_distance,
+            'collision_resolution':'offense_secondary'
+        })
+    else:
+        qa['offense_render_hex']=_hex_from_rgb(op_primary)
+        qa['collision_resolution']='none'
+    qa['defense_render_hex']=_hex_from_rgb(de_primary)
+    return runtime, qa
 
 
 def add_drop_identity_track(stitched_csv, cfg, out_csv):
@@ -50,12 +125,10 @@ def add_drop_identity_track(stitched_csv, cfg, out_csv):
             'last_center':[float((g.iloc[-1].x1+g.iloc[-1].x2)/2),float((g.iloc[-1].y1+g.iloc[-1].y2)/2)]
         })
     drop=pd.concat(pieces,ignore_index=True).sort_values('time_s')
-    # Prefer the later segment on a duplicate timestamp at a re-identification boundary.
     drop=drop.drop_duplicates(subset=['time_s'],keep='last')
     out=pd.concat([df,drop],ignore_index=True).sort_values(['track_id','time_s'])
     out.to_csv(out_csv,index=False)
 
-    # Boundary continuity gate. A re-ID may change box shape but cannot teleport.
     jumps=[]
     for a,b in zip(segment_qa,segment_qa[1:]):
         ax,ay=a['last_center']; bx,by=b['first_center']
@@ -79,7 +152,6 @@ def main():
     cfg=json.load(open(a.config)); manifest=json.load(open(a.role_manifest)); source_qa=json.load(open(a.source_qa))
     out=Path(a.out); out.mkdir(parents=True,exist_ok=True)
 
-    # Exact event gates.
     assert str(cfg['event']['game_id'])==str(manifest['game_id'])==str(source_qa['game_id'])
     assert int(cfg['event']['event_num'])==int(manifest['event_num'])==int(source_qa['event_num'])
     assert source_qa['source']['angle']=='Broadcast', source_qa['source']
@@ -87,7 +159,6 @@ def main():
     defense=manifest['defensive_lineup']; def_ids=_player_ids(defense); def_names=_player_names(defense)
     drop=manifest['screen_roles']['screener_defender']; drop_cfg=cfg['drop_big_stitch']
 
-    # Universal lineup + role gates. Never infer from a nominal center name.
     assert int(drop['player_id']) in def_ids, (drop,defense)
     assert str(drop['name']) in def_names, (drop,defense)
     assert int(drop_cfg['player_id'])==int(drop['player_id'])
@@ -96,10 +167,8 @@ def main():
     assert str(drop_cfg['forbidden_identity']) not in def_names, (drop_cfg['forbidden_identity'],defense)
     assert int(drop_cfg['jersey'])==54 and int(drop_cfg['role_source_track_id'])==4
 
-    # First preserve the already-validated Sheppard/Shead identity stitch.
     stage1=out/'identity_stitched_primary_tracks.csv'
     primary_qa=fixed.stitch_tracks(a.tracks,cfg,stage1)
-    # Then create a durable drop-defender identity track through its own re-ID.
     final_tracks=out/'identity_stitched_all_roles.csv'
     drop_qa=add_drop_identity_track(stage1,cfg,final_tracks)
 
@@ -108,14 +177,20 @@ def main():
     assert players[drop_virtual]=='MAMUKELASHVILI'
     assert cfg['roles']['drop_coverage_defender_track_id']==drop_virtual
 
+    runtime_cfg, colour_qa=resolve_team_colours(cfg,manifest)
+    runtime_cfg_path=out/'runtime_resolved_config.json'
+    runtime_cfg_path.write_text(json.dumps(runtime_cfg,indent=2))
+
     core.TOOL_ID=TOOL_ID
-    core.render(a.source,str(final_tracks),a.config,a.out)
+    core.render(a.source,str(final_tracks),str(runtime_cfg_path),a.out)
 
     qa=json.load(open(out/'qa.json'))
     qa.update({
         'tool_id':TOOL_ID,
         'canonical_tool_family':'DROP_COVERAGE_LOCKED_BROADCAST',
         'universal_role_resolution_v2':True,
+        'universal_team_colour_collision_rule_v1':True,
+        'team_colour_resolution':colour_qa,
         'exact_event':{'game_id':manifest['game_id'],'event_num':manifest['event_num'],'period':manifest['period'],'clock':manifest['clock']},
         'exact_defensive_lineup':defense,
         'drop_coverage_role':{
@@ -134,7 +209,7 @@ def main():
         },
         'visual_lock':{'drop_defender_name_bar':True,'drop_defender_floor_ring':True},
         'forbidden_identity_assertion':'Jakob Poeltl is not in the exact event defensive lineup and cannot pass QA',
-        'universal_failure_policy':'fail if drop role cannot be reconciled to an exact-lineup identity; never substitute a plausible big'
+        'universal_failure_policy':'fail if role identity or colour contrast cannot be reconciled; never guess'
     })
     (out/'qa.json').write_text(json.dumps(qa,indent=2))
     (out/'LOCKED_TOOL_ID.txt').write_text(TOOL_ID+'\n')
