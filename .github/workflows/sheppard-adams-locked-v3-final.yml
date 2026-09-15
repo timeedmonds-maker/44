@@ -1,0 +1,289 @@
+name: Sheppard Adams locked V3 final
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/sheppard-adams-locked-v3-user-contact-matched-xfg]
+    paths:
+      - '.github/workflows/sheppard-adams-locked-v3-final.yml'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deterministic render and data stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core zip
+          python -m pip install --upgrade pip
+          pip install 'numpy<2' pandas pillow opencv-python-headless requests
+
+      - name: Download validated Toronto source and tracks
+        uses: actions/download-artifact@v4
+        with:
+          name: sheppard-adams-v2-probe
+          path: artifacts/probe
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 34923420312
+
+      - name: Compute requested Sheppard 2025-26 matched-shot xFG
+        run: |
+          python - <<'PY'
+          import json, time
+          from pathlib import Path
+          import pandas as pd, requests
+
+          PLAYER_ID=1642263
+          EVENT_GAME='0022500131'
+          EVENT_NUM=483
+          EVENT_XFG=0.417
+          DIST_REF=17.0
+          DIST_TOL=1.5
+          XFG_TOL=0.02
+          PBP='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
+          XFG='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          HEADERS={
+              'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
+              'Referer':'https://www.nba.com/',
+              'Origin':'https://www.nba.com',
+              'Accept':'application/json, text/plain, */*',
+              'Accept-Language':'en-US,en;q=0.9',
+              'Connection':'keep-alive'
+          }
+          def gid(v):
+              s=str(v); s=s[:-2] if s.endswith('.0') else s
+              return ''.join(c for c in s if c.isdigit()).zfill(10)
+
+          use=['game_id','event_num','player1_name','is_field_goal','shot_distance','action_type','area','area_detail','shot_result']
+          p=pd.read_csv(PBP,usecols=use,low_memory=False)
+          shooter=p.player1_name.astype(str).str.match(r'^\s*1642263(?:\.0)?\s+',na=False)
+          fg=pd.to_numeric(p.is_field_goal,errors='coerce').fillna(0).eq(1)
+          r=p[shooter&fg].copy()
+          r['game_id_norm']=r.game_id.map(gid)
+          r['event_num']=pd.to_numeric(r.event_num,errors='coerce').astype('Int64')
+          r['shot_distance_num']=pd.to_numeric(r.shot_distance,errors='coerce')
+
+          s=requests.Session(); s.headers.update(HEADERS)
+          shots=[]; errors=[]; games=sorted(r.game_id_norm.unique())
+          for i,g in enumerate(games,1):
+              last=None
+              for attempt in range(5):
+                  try:
+                      q=s.get(XFG,params={'GameID':g,'PlayerID':PLAYER_ID},timeout=(8,35))
+                      if q.status_code==200:
+                          j=q.json()
+                          if int(j.get('playerId') or 0)==PLAYER_ID:
+                              break
+                      last=f'{q.status_code} {q.text[:120]}'
+                  except Exception as e:
+                      last=repr(e)
+                  time.sleep(min(5,0.6*(2**attempt)))
+              else:
+                  errors.append((g,last)); continue
+              for sh in j.get('shotList') or []:
+                  shots.append({
+                      'game_id_norm':gid(sh.get('gameId') or g),
+                      'event_num':int(sh['eventNum']) if sh.get('eventNum') is not None else None,
+                      'xfg':pd.to_numeric(sh.get('shotQuality'),errors='coerce'),
+                      'xfg_action_type':str(sh.get('actionType') or '').strip(),
+                      'xfg_shot_type':str(sh.get('shotType') or '').strip()
+                  })
+              if i%10==0 or i==len(games):
+                  print('XFG_PROGRESS',i,len(games),len(shots),flush=True)
+          if errors:
+              raise RuntimeError(errors[:5])
+
+          x=pd.DataFrame(shots).drop_duplicates(['game_id_norm','event_num'])
+          x['event_num']=pd.to_numeric(x.event_num,errors='coerce').astype('Int64')
+          d=r.merge(x,on=['game_id_norm','event_num'],how='left',validate='one_to_one')
+          event=d[(d.game_id_norm==EVENT_GAME)&(d.event_num==EVENT_NUM)]
+          assert len(event)==1, event[['game_id_norm','event_num']].to_dict('records')
+          er=event.iloc[0]
+          assert abs(float(er.xfg)-EVENT_XFG)<1e-9, er[['xfg','xfg_action_type','xfg_shot_type']].to_dict()
+
+          lo_d,hi_d=DIST_REF-DIST_TOL,DIST_REF+DIST_TOL
+          lo_x,hi_x=EVENT_XFG-XFG_TOL,EVENT_XFG+XFG_TOL
+          matched=d[
+              d.shot_distance_num.between(lo_d,hi_d,inclusive='both') &
+              d.xfg.between(lo_x,hi_x,inclusive='both')
+          ].copy()
+          assert len(matched)>0, 'No matched Reed Sheppard shots found'
+          assert matched.shot_distance_num.between(lo_d,hi_d).all()
+          assert matched.xfg.between(lo_x,hi_x).all()
+
+          # Sensitivity only: exact numeric PBP event distance, retained for QA but not used on screen.
+          pbp_event_distance=float(er.shot_distance_num)
+          matched_pbp_ref=d[
+              d.shot_distance_num.between(pbp_event_distance-DIST_TOL,pbp_event_distance+DIST_TOL,inclusive='both') &
+              d.xfg.between(lo_x,hi_x,inclusive='both')
+          ].copy()
+
+          out={
+              'event':{
+                  'game_id':EVENT_GAME,'event_num':EVENT_NUM,
+                  'display_distance_ft':DIST_REF,
+                  'pbp_shot_distance_ft':pbp_event_distance,
+                  'event_xfg_pct':EVENT_XFG*100,
+                  'xfg_action_type':str(er.xfg_action_type),
+                  'xfg_shot_type':str(er.xfg_shot_type)
+              },
+              'criteria':{
+                  'season':'2025-26','player':'Reed Sheppard',
+                  'distance_reference_ft':DIST_REF,
+                  'distance_tolerance_ft':DIST_TOL,
+                  'distance_ft_min':lo_d,'distance_ft_max':hi_d,
+                  'event_xfg_pct':EVENT_XFG*100,
+                  'xfg_tolerance_percentage_points':XFG_TOL*100,
+                  'xfg_pct_min':lo_x*100,'xfg_pct_max':hi_x*100,
+                  'logic':'intersection',
+                  'action_type_filter':None
+              },
+              'matched':{
+                  'n':int(len(matched)),
+                  'xfg_pct':float(matched.xfg.mean()*100),
+                  'actual_fg_pct':float(matched.shot_result.astype(str).str.lower().eq('made').mean()*100),
+                  'mean_distance_ft':float(matched.shot_distance_num.mean()),
+                  'xfg_min_pct':float(matched.xfg.min()*100),
+                  'xfg_max_pct':float(matched.xfg.max()*100)
+              },
+              'sensitivity_pbp_event_distance_reference':{
+                  'distance_reference_ft':pbp_event_distance,
+                  'n':int(len(matched_pbp_ref)),
+                  'xfg_pct':float(matched_pbp_ref.xfg.mean()*100) if len(matched_pbp_ref) else None,
+                  'actual_fg_pct':float(matched_pbp_ref.shot_result.astype(str).str.lower().eq('made').mean()*100) if len(matched_pbp_ref) else None
+              },
+              'coverage':{
+                  'reed_fga':int(len(d)),
+                  'xfg_covered':int(d.xfg.notna().sum()),
+                  'games':int(len(games))
+              }
+          }
+          Path('artifacts').mkdir(exist_ok=True)
+          Path('artifacts/sheppard_v3_matched_xfg.json').write_text(json.dumps(out,indent=2))
+          matched[['game_id_norm','event_num','shot_distance_num','xfg','xfg_action_type','xfg_shot_type','shot_result','action_type','area','area_detail']].to_csv('artifacts/sheppard_v3_matched_shots.csv',index=False)
+          print('MATCHED_XFG_RESULT='+json.dumps(out,sort_keys=True),flush=True)
+          PY
+
+      - name: Build and validate runtime V3 config
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          cfg=json.load(open('configs/locked_broadcast_screen_v3_toronto_event483.json'))
+          sx=json.load(open('artifacts/sheppard_v3_matched_xfg.json'))
+          q=json.load(open('artifacts/probe/toronto_tracking/qa.json'))
+          assert q['game_id']=='0022500131' and q['event_num']==483, q
+          assert q['source']['angle']=='Broadcast', q['source']
+          assert q['source']['variant']['width']==960 and q['source']['variant']['height']==540, q['source']
+          assert q['roles']['adams']==10 and q['roles']['ballhandler']==7 and q['roles']['screened_defender']==3, q['roles']
+          assert sx['criteria']['distance_ft_min']==15.5 and sx['criteria']['distance_ft_max']==18.5, sx['criteria']
+          assert abs(sx['criteria']['xfg_pct_min']-39.7)<1e-9 and abs(sx['criteria']['xfg_pct_max']-43.7)<1e-9, sx['criteria']
+          assert sx['criteria']['logic']=='intersection' and sx['criteria']['action_type_filter'] is None
+          sim=cfg['shot']['similar_xfg']
+          sim['xfg_pct']=sx['matched']['xfg_pct']
+          sim['n']=sx['matched']['n']
+          sim['actual_fg_pct']=sx['matched']['actual_fg_pct']
+          sim['mean_distance_ft']=sx['matched']['mean_distance_ft']
+          sim['criteria_logic']='intersection'
+          sim['action_type_filter']=None
+          cfg['shot']['similar_xfg']=sim
+          # User-supplied start/end frames: source 168 through 221 inclusive at 30000/1001 fps.
+          fps=30000/1001
+          expected_start=168/fps
+          expected_end_exclusive=222/fps
+          got=cfg['timing']['contact_phases'][0]
+          assert abs(got[0]-expected_start)<0.0001, (got,expected_start)
+          assert abs(got[1]-expected_end_exclusive)<0.0001, (got,expected_end_exclusive)
+          total=got[1]-got[0]
+          assert abs(total-(54/fps))<0.0002, total
+          Path('artifacts/runtime_v3_config.json').write_text(json.dumps(cfg,indent=2))
+          print('V3_MATCHED_XFG',round(sim['xfg_pct'],1),'N',sim['n'])
+          print('V3_CONTACT_WINDOW',got,'TOTAL_SECONDS',total,'DISPLAY',round(total,1))
+          PY
+
+      - name: Render LOCKED_BROADCAST_SCREEN_V3 UHD
+        run: |
+          PYTHONPATH=tools python tools/locked_broadcast_screen_v3.py \
+            --source artifacts/probe/toronto_tracking/source_native.mp4 \
+            --tracks artifacts/probe/toronto_tracking/tracks.csv \
+            --config artifacts/runtime_v3_config.json \
+            --out artifacts/sheppard_adams_locked_v3
+
+      - name: Validate final UHD and make streamable 4K
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          p=pathlib.Path('artifacts/sheppard_adams_locked_v3')
+          qa=json.load(open(p/'qa.json'))
+          sx=json.load(open('artifacts/sheppard_v3_matched_xfg.json'))
+          assert qa['tool_id']=='LOCKED_BROADCAST_SCREEN_V3', qa
+          assert qa['parent_tool_id']=='LOCKED_BROADCAST_SCREEN_V2', qa
+          assert qa['contact_anchor_provenance']['matched_source_start_frame']==168
+          assert qa['contact_anchor_provenance']['matched_source_end_frame_inclusive']==221
+          assert abs(qa['screen_contact_total_s']-1.8018)<0.002, qa['screen_contact_total_s']
+          assert qa['event_xfg_pct']==41.7
+          assert qa['similar_xfg']['n']==sx['matched']['n']
+          assert abs(qa['similar_xfg']['xfg_pct']-sx['matched']['xfg_pct'])<1e-10
+          assert qa['matched_xfg_criteria']['distance_ft_min']==15.5
+          assert qa['matched_xfg_criteria']['distance_ft_max']==18.5
+          assert abs(qa['matched_xfg_criteria']['xfg_pct_min']-39.7)<1e-9
+          assert abs(qa['matched_xfg_criteria']['xfg_pct_max']-43.7)<1e-9
+          uhd=pathlib.Path(qa['uhd']); assert uhd.exists()
+          probe=subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=codec_name,width,height,r_frame_rate','-of','json',str(uhd)],text=True)
+          s=json.loads(probe)['streams'][0]
+          assert s['codec_name']=='h264' and s['width']==3840 and s['height']==2160 and s['r_frame_rate']=='30/1', s
+          print(json.dumps({'qa':qa,'video':s,'matched':sx['matched']},indent=2))
+          PY
+          ffmpeg -y -hide_banner -loglevel warning \
+            -i artifacts/sheppard_adams_locked_v3/adams_sheppard_toronto_locked_broadcast_v3_matched_xfg_contact_UHD.mp4 \
+            -c:v libx264 -preset veryfast -crf 20 -maxrate 14M -bufsize 28M -profile:v high -pix_fmt yuv420p \
+            -c:a aac -b:a 160k -movflags +faststart \
+            artifacts/sheppard_adams_LOCKED_V3_matched_xfg_contact_4k_streamable.mp4
+          ffmpeg -v error -i artifacts/sheppard_adams_LOCKED_V3_matched_xfg_contact_4k_streamable.mp4 -f null -
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate,duration -of json \
+            artifacts/sheppard_adams_LOCKED_V3_matched_xfg_contact_4k_streamable.mp4
+
+      - name: Build QA frames and package
+        run: |
+          mkdir -p artifacts/v3_qa_frames
+          ffmpeg -y -v error -ss 0.20 -i artifacts/sheppard_adams_locked_v3/adams_sheppard_toronto_locked_broadcast_v3_matched_xfg_contact_native.mp4 -frames:v 1 artifacts/v3_qa_frames/contact_start.jpg
+          ffmpeg -y -v error -ss 1.97 -i artifacts/sheppard_adams_locked_v3/adams_sheppard_toronto_locked_broadcast_v3_matched_xfg_contact_native.mp4 -frames:v 1 artifacts/v3_qa_frames/contact_end.jpg
+          cp artifacts/sheppard_adams_locked_v3/release_freeze.jpg artifacts/v3_qa_frames/release_freeze.jpg
+          cd artifacts
+          zip -9 -r sheppard_adams_LOCKED_V3_matched_xfg_contact_package.zip \
+            sheppard_adams_locked_v3 \
+            sheppard_adams_LOCKED_V3_matched_xfg_contact_4k_streamable.mp4 \
+            sheppard_v3_matched_xfg.json \
+            sheppard_v3_matched_shots.csv \
+            runtime_v3_config.json \
+            v3_qa_frames
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sheppard-adams-locked-v3-matched-xfg-contact
+          path: |
+            artifacts/sheppard_adams_locked_v3/adams_sheppard_toronto_locked_broadcast_v3_matched_xfg_contact_UHD.mp4
+            artifacts/sheppard_adams_locked_v3/adams_sheppard_toronto_locked_broadcast_v3_matched_xfg_contact_native.mp4
+            artifacts/sheppard_adams_LOCKED_V3_matched_xfg_contact_4k_streamable.mp4
+            artifacts/sheppard_adams_locked_v3/release_freeze.jpg
+            artifacts/sheppard_adams_locked_v3/qa.json
+            artifacts/sheppard_adams_locked_v3/LOCKED_TOOL_ID.txt
+            artifacts/sheppard_v3_matched_xfg.json
+            artifacts/sheppard_v3_matched_shots.csv
+            artifacts/runtime_v3_config.json
+            artifacts/v3_qa_frames/contact_start.jpg
+            artifacts/v3_qa_frames/contact_end.jpg
+            artifacts/v3_qa_frames/release_freeze.jpg
+            artifacts/sheppard_adams_LOCKED_V3_matched_xfg_contact_package.zip
+          if-no-files-found: error
+          retention-days: 30
