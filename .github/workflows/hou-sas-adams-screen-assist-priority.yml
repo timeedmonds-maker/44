@@ -1,0 +1,88 @@
+name: HOU SAS Adams screen assist priority
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/hou-sas-adams-screen-assist-priority.yml'
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic scan stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install pandas requests opencv-python-headless 'numpy<2'
+      - name: Download exhaustive search bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: screen-tracker-search-bundle
+          path: artifacts/bundle
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 34969474090
+      - name: Keep Houston made two-point outcome candidates
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          d=pd.read_csv('artifacts/bundle/search_plan/event_scan_manifest.csv',dtype={'game_id':str})
+          # Exact HOU made-2 event numbers in Adams offensive possessions from the exhaustive manifest.
+          events={123,136,139,260,458,492,514,526,563}
+          q=d[d.event_num.isin(events)].copy()
+          assert set(q.event_num.astype(int))==events, (set(q.event_num.astype(int)),events)
+          Path('artifacts/priority').mkdir(parents=True,exist_ok=True)
+          q.to_csv('artifacts/priority/events.csv',index=False)
+          print(q[['period','event_clock','event_num','event_description','possession_uid']].to_string(index=False))
+          PY
+      - name: Scan priority candidates for temporal screen geometry
+        run: |
+          python tools/adams_screen_temporal_onnx.py \
+            --input artifacts/priority/events.csv \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --out artifacts/priority/scan \
+            --sample-fps 6.0 \
+            --max-seconds 24 \
+            --target-hls-width 640
+      - name: Merge geometry with exact-event manifest and rank
+        run: |
+          python - <<'PY'
+          import pandas as pd, json
+          from pathlib import Path
+          m=pd.read_csv('artifacts/priority/events.csv')
+          c=pd.read_csv('artifacts/priority/scan/temporal_candidates.csv')
+          s=pd.read_csv('artifacts/priority/scan/screen_sequences.csv') if Path('artifacts/priority/scan/screen_sequences.csv').stat().st_size>1 else pd.DataFrame()
+          c['event_num']=pd.to_numeric(c['best_event_num'],errors='coerce').astype('Int64')
+          z=m.merge(c[['possession_uid','event_num','temporal_screen_sequences','temporal_candidate','best_start_s','best_end_s','best_screen_score','errors']],on=['possession_uid','event_num'],how='left')
+          z=z.sort_values(['temporal_candidate','best_screen_score'],ascending=[False,False])
+          z.to_csv('artifacts/priority/ranked_priority.csv',index=False)
+          print(z[['period','event_clock','event_num','event_description','temporal_candidate','temporal_screen_sequences','best_screen_score','best_start_s','best_end_s']].to_string(index=False))
+          if not s.empty:
+            s.to_csv('artifacts/priority/screen_sequences.csv',index=False)
+          Path('artifacts/priority/qa.json').write_text(json.dumps({'game_id':'0022500032','screener':'Steven Adams','hustle_anchor':'1 screen assist / 2 screen-assist points','candidate_events':sorted(map(int,set(m.event_num))),'visual_candidates':z[z.temporal_candidate.fillna(False)].event_num.dropna().astype(int).tolist()},indent=2))
+          PY
+      - name: Fetch official native previews for all priority events
+        run: |
+          python screen_tracker/search_previews.py \
+            --candidates artifacts/priority/ranked_priority.csv \
+            --limit 9 \
+            --out artifacts/priority/previews
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hou-sas-adams-screen-assist-priority
+          path: artifacts/priority/
+          if-no-files-found: error
+          retention-days: 30
