@@ -72,7 +72,7 @@ jobs:
           echo "top_n=$TOPN" >> "$GITHUB_OUTPUT"
           echo "screener_name=$SNAME" >> "$GITHUB_OUTPUT"
           echo "target_name=$TNAME" >> "$GITHUB_OUTPUT"
-      - name: Build exact joint-possession and all-event HLS scan manifest
+      - name: Build exact shared-possession and all-event HLS scan manifest
         env:
           GAME: ${{ steps.params.outputs.game_id }}
           SCREENER: ${{ steps.params.outputs.screener_id }}
@@ -80,7 +80,7 @@ jobs:
           SNAME: ${{ steps.params.outputs.screener_name }}
           TNAME: ${{ steps.params.outputs.target_name }}
         run: |
-          pip install pandas
+          pip install pandas pyreadr requests
           python screen_tracker/search_game.py manifest \
             --game-id "$GAME" \
             --screener-id "$SCREENER" \
@@ -178,7 +178,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
-          pip install pandas requests opencv-python-headless 'numpy<2'
+          pip install pandas pyreadr requests opencv-python-headless 'numpy<2'
       - uses: actions/download-artifact@v4
         with:
           name: screen-tracker-search-bundle
@@ -209,9 +209,11 @@ jobs:
           q=json.load(open(p/'search_qa.json'))
           plan=json.load(open('artifacts/bundle/search_plan/search_manifest.json'))
           assert q['tool_id']=='SCREEN_TRACKER_SEARCH'
-          assert q['search_contract_version']=='1.0.0'
+          assert q['search_contract_version']=='1.0.1'
+          assert plan['search_contract_version']=='1.0.1'
           assert plan['game_id']=='${{ needs.prepare.outputs.game_id }}'
           assert plan['possession_count'] > 0 and plan['event_scan_count'] > 0
+          assert plan['possessions_with_pbp_events']==plan['possession_count']
           ranked=pd.read_csv(p/'ranked_events.csv')
           assert len(ranked)==plan['event_scan_count'], (len(ranked),plan['event_scan_count'])
           print(json.dumps({'plan':plan,'result_qa':q},indent=2))
@@ -221,7 +223,8 @@ jobs:
           cp artifacts/bundle/search_plan/joint_possessions.csv artifacts/search_results/
           cp artifacts/bundle/search_plan/event_scan_manifest.csv artifacts/search_results/
           cp artifacts/bundle/search_plan/search_manifest.json artifacts/search_results/
-          printf 'SCREEN_TRACKER_SEARCH\n1.0.0\n' > artifacts/search_results/SCREEN_TRACKER_SEARCH_TOOL_ID.txt
+          cp artifacts/bundle/search_plan/pbp_windows.json artifacts/search_results/
+          printf 'SCREEN_TRACKER_SEARCH\n1.0.1\n' > artifacts/search_results/SCREEN_TRACKER_SEARCH_TOOL_ID.txt
       - uses: actions/upload-artifact@v4
         with:
           name: screen-tracker-search-${{ needs.prepare.outputs.game_id }}
