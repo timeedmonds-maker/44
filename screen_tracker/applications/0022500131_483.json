@@ -1,0 +1,56 @@
+{
+  "screen_tracker_version": "1.0.0",
+  "application_id": "hou_tor_0022500131_event483",
+  "event": {
+    "game_id": "0022500131",
+    "event_num": 483,
+    "coverage_label": "DROP COVERAGE"
+  },
+  "input_artifact": {
+    "repository": "timeedmonds-maker/44",
+    "run_id": 34923420312,
+    "name": "sheppard-adams-v2-probe",
+    "source_path": "toronto_tracking/source_native.mp4",
+    "tracks_path": "toronto_tracking/tracks.csv",
+    "source_qa_path": "toronto_tracking/qa.json"
+  },
+  "backend": {
+    "engine": "drop_coverage_universal_v2",
+    "config_path": "configs/drop_coverage_locked_broadcast_v1_toronto_event483.json",
+    "role_manifest_path": "manifests/drop_coverage/game_0022500131_event_483_roles.json"
+  },
+  "data_contract": {
+    "pbp": "exact event/lineup state",
+    "event_xfg": "official shotqualityvideologs exact event",
+    "matched_xfg": {
+      "player_season": true,
+      "distance_tolerance_ft": 1.5,
+      "difficulty_tolerance_percentage_points": 2.0,
+      "logic": "intersection"
+    }
+  },
+  "tracking_contract": {
+    "resolve_ballhandler": true,
+    "resolve_screener": true,
+    "resolve_poa_defender": true,
+    "resolve_coverage_defender": true,
+    "lineup_gate": true,
+    "identity_stitching": true,
+    "bar_and_ring_same_track": true
+  },
+  "graphics_contract": {
+    "coverage_label_from_application": true,
+    "team_colours": "collision-aware",
+    "primary_colour_collision_threshold_rgb": 80,
+    "defense_keeps_primary": true,
+    "offense_uses_secondary_on_collision": true,
+    "deterministic_only": true
+  },
+  "output": {
+    "basename": "screen_tracker_0022500131_483",
+    "require_native": true,
+    "require_uhd": true,
+    "require_streamable_4k": true,
+    "require_qa_package": true
+  }
+}
