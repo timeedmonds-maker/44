@@ -26,6 +26,34 @@ For a specified NBA screen play, the application must deterministically resolve 
 
 No generated imagery. No AI super-resolution. No synthetic player/ball/court frames.
 
+## Screen Tracker Search
+
+Game-level discovery uses the separate public workflow:
+
+`.github/workflows/screen-tracker-search.yml`
+
+The required search method is:
+
+1. input one exact `game_id`, screener player ID and target player ID;
+2. use the exact 2025-26 PBP join to enumerate **every offensive possession where both players are on court together**;
+3. retain every event number in every retained possession;
+4. resolve every event independently through `clips.nba.com` to fresh signed `lrmedia.nba.com` HLS;
+5. scan every resolvable event video using deterministic frame sampling and temporal screen geometry;
+6. aggregate event evidence to possession-level candidates;
+7. rank by visual screen evidence, with exact-PBP target/screener actor signals used only as ranking features;
+8. fetch native official preview clips and dense contact sheets for the top candidates;
+9. pass the selected candidate through the full Screen Tracker role/identity QA before rendering.
+
+There is deliberately **no pre-filter for target scoring, shot type, assist credit or manually guessed screen events**. Those can improve rank but cannot define the scan universe.
+
+Public implementation:
+
+- `screen_tracker/search_game.py` — exact joint-possession manifest + candidate ranking.
+- `screen_tracker/search_previews.py` — official native top-candidate previews/contact sheets.
+- existing deterministic temporal screen detector is reused as the visual scan engine.
+
+Default search pair is Steven Adams (`203500`) as screener and Amen Thompson (`1641708`) as target, but the workflow accepts any pair.
+
 ## Application model
 
 Every play lives under `screen_tracker/applications/` and points to:
@@ -60,4 +88,4 @@ The workflow downloads the application-declared source artifact, runs `screen_tr
 
 ## Adding a new play
 
-Do **not** fork the renderer. Add a new application manifest and play-specific config/role manifest, then run the same workflow. If a genuinely new screen/coverage behavior requires engine work, update the generic engine first and version the contract.
+Use Screen Tracker Search first when a game rather than an exact event is supplied. Once a candidate is selected, do **not** fork the renderer. Add a new application manifest and play-specific config/role manifest, then run the same workflow. If a genuinely new screen/coverage behavior requires engine work, update the generic engine first and version the contract.
