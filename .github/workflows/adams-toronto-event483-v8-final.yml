@@ -49,7 +49,49 @@ jobs:
             }
           }
           JSON
-      - name: Render final V8 Adams screen clip
+      - name: Resolve exact official Sheppard xFG row
+        run: |
+          curl -L --retry 3 -o artifacts/nba_xfg_pbp_fga_join_2025_26.csv.gz \
+            https://raw.githubusercontent.com/timeedmonds-maker/long-rebound-era/main/outputs/integration/nba_xfg_2025_26/nba_xfg_pbp_fga_join_2025_26.csv.gz
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+
+          src = Path('artifacts/nba_xfg_pbp_fga_join_2025_26.csv.gz')
+          df = pd.read_csv(src, low_memory=False)
+          gid = pd.to_numeric(df['game_id'], errors='coerce')
+          ev = pd.to_numeric(df['event_num'], errors='coerce')
+          pid = pd.to_numeric(df['player_id'], errors='coerce')
+          q = df[gid.eq(22500131) & ev.eq(483) & pid.eq(1642263)].copy()
+          if len(q) != 1:
+              raise RuntimeError(f'Expected exactly one xFG row for 0022500131/event 483/Reed Sheppard; found {len(q)}')
+          row = q.iloc[0]
+          required = ['xfg_xfg', 'xfg_xfg_pct', 'xfg_shot_type', 'xfg_action_type', 'xfg_source_resource']
+          missing = [c for c in required if c not in q.columns or pd.isna(row[c])]
+          if missing:
+              raise RuntimeError(f'Missing required official xFG fields: {missing}')
+          if str(row['xfg_source_resource']) != 'shotqualityvideologs':
+              raise RuntimeError(f"Unexpected xFG source: {row['xfg_source_resource']}")
+          keep = [
+              'game_date','game_id','event_num','player_id','player_name_pbp','description','period','clock',
+              'shot_distance','xfg_matchup','xfg_team_abbr','xfg_player_name','xfg_event_type','xfg_action_type',
+              'xfg_shot_type','xfg_shot_value','xfg_made','xfg_period','xfg_game_clock','xfg_xfg','xfg_xfg_pct',
+              'xfg_expected_points','xfg_actual_points','xfg_points_over_expected','xfg_fg_over_expected_shot',
+              'xfg_source_host','xfg_source_resource','xfg_available'
+          ]
+          def clean(v):
+              if pd.isna(v):
+                  return None
+              if hasattr(v, 'item'):
+                  v = v.item()
+              return v
+          exact = {c: clean(row[c]) for c in keep if c in q.columns}
+          payload = {'xfg': exact}
+          Path('artifacts/event483_xfg.json').write_text(json.dumps(payload, indent=2, default=str))
+          print(json.dumps(payload, indent=2, default=str))
+          PY
+      - name: Render final V8 Adams screen clip with official xFG
         run: |
           python tools/adams_screen_prod_v3.py \
             --game 0022500131 --event 483 \
@@ -60,12 +102,13 @@ jobs:
             --court-model artifacts/models/court_yolo11m_pose.pt \
             --nbacv-src /tmp/nbacv/src \
             --overrides artifacts/event483_overrides.json \
-            --out artifacts/toronto_event483_v8_final
-      - name: Validate identities and package
+            --xfg-row-json artifacts/event483_xfg.json \
+            --out artifacts/toronto_event483_v8_final_xfg
+      - name: Validate identities, xFG provenance and package
         run: |
           python - <<'PY'
           import json, pathlib
-          p=pathlib.Path('artifacts/toronto_event483_v8_final')
+          p=pathlib.Path('artifacts/toronto_event483_v8_final_xfg')
           qa=json.loads((p/'qa.json').read_text())
           r=qa['roles']
           assert r['adams']==10, r
@@ -74,21 +117,32 @@ jobs:
           assert qa['game_id']=='0022500131' and qa['event_num']==483
           assert qa['source']['angle']=='Broadcast'
           assert qa['source']['variant']['width']==960 and qa['source']['variant']['height']==540
+          ctx=json.loads((p/'context.json').read_text())
+          assert ctx['xfg_status']=='provided', ctx
+          x=ctx['xfg']
+          assert int(float(x['event_num']))==483, x
+          assert int(float(x['player_id']))==1642263, x
+          assert x['xfg_source_resource']=='shotqualityvideologs', x
+          assert 0.0 <= float(x['xfg_xfg']) <= 1.0, x
+          assert abs(float(x['xfg_xfg_pct']) - 100.0*float(x['xfg_xfg'])) < 0.11, x
+          print('OFFICIAL_XFG_PCT', x['xfg_xfg_pct'])
           print(json.dumps(qa,indent=2))
+          print(json.dumps(ctx,indent=2))
           PY
-          cd artifacts/toronto_event483_v8_final
-          zip -j -9 ../adams_toronto_event483_v8_uhd.zip adams_screen_overlay_2160p.mp4 qa.json roles.json context.json
+          cd artifacts/toronto_event483_v8_final_xfg
+          zip -j -9 ../sheppard_adams_event483_v8_xfg_uhd.zip adams_screen_overlay_2160p.mp4 qa.json roles.json context.json ../event483_xfg.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: adams-toronto-event483-v8-final
+          name: sheppard-adams-event483-v8-xfg-final
           path: |
-            artifacts/toronto_event483_v8_final/adams_screen_overlay_h264.mp4
-            artifacts/toronto_event483_v8_final/adams_screen_overlay_2160p.mp4
-            artifacts/toronto_event483_v8_final/qa.json
-            artifacts/toronto_event483_v8_final/roles.json
-            artifacts/toronto_event483_v8_final/context.json
-            artifacts/toronto_event483_v8_final/track_contact_sheet.jpg
-            artifacts/adams_toronto_event483_v8_uhd.zip
+            artifacts/toronto_event483_v8_final_xfg/adams_screen_overlay_h264.mp4
+            artifacts/toronto_event483_v8_final_xfg/adams_screen_overlay_2160p.mp4
+            artifacts/toronto_event483_v8_final_xfg/qa.json
+            artifacts/toronto_event483_v8_final_xfg/roles.json
+            artifacts/toronto_event483_v8_final_xfg/context.json
+            artifacts/toronto_event483_v8_final_xfg/track_contact_sheet.jpg
+            artifacts/event483_xfg.json
+            artifacts/sheppard_adams_event483_v8_xfg_uhd.zip
           if-no-files-found: error
           retention-days: 30
