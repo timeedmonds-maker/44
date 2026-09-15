@@ -1,14 +1,15 @@
-name: Drop Coverage locked broadcast V1 reference
+name: Drop Coverage universal V2 reference
 
 on:
   workflow_dispatch:
   push:
-    branches: [codex/drop-coverage-locked-broadcast-v1]
+    branches: [codex/drop-coverage-universal-v2]
     paths:
       - '.github/workflows/drop-coverage-locked-broadcast-v1-reference.yml'
       - 'tools/drop_coverage_locked_broadcast_v1.py'
       - 'tools/drop_coverage_locked_broadcast_v1_fixed_tracking.py'
       - 'configs/drop_coverage_locked_broadcast_v1_toronto_event483.json'
+      - 'manifests/drop_coverage/game_0022500131_event_483_roles.json'
 
 jobs:
   render:
@@ -43,47 +44,58 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           run-id: 34926748500
-      - name: Validate enduring inputs and identity stitch
+      - name: Validate exact lineup and universal role identity
         run: |
           python - <<'PY'
           import json
           cfg=json.load(open('configs/drop_coverage_locked_broadcast_v1_toronto_event483.json'))
+          m=json.load(open('manifests/drop_coverage/game_0022500131_event_483_roles.json'))
           q=json.load(open('artifacts/probe/toronto_tracking/qa.json'))
           sx=json.load(open('artifacts/v3/sheppard_v3_matched_xfg.json'))
           assert q['game_id']=='0022500131' and q['event_num']==483, q
           assert q['source']['angle']=='Broadcast', q['source']
-          assert q['roles']['adams']==10 and q['roles']['ballhandler']==7 and q['roles']['screened_defender']==3, q['roles']
-          assert cfg['screen']['value']=='DROP COVERAGE', cfg['screen']
-          assert cfg['roles']=={'shooter_track_id':107,'primary_defender_track_id':103}, cfg['roles']
-          st=cfg['identity_stitch']
-          assert st['pre']=={'sheppard':7,'shead':3} and st['post']=={'sheppard':3,'shead':7}, st
-          assert abs(st['swap_time_s']-7.10)<1e-12 and st['defender_identity']=='Jamal Shead', st
+          assert q['roles']['adams']==10 and q['roles']['ballhandler']==7 and q['roles']['screened_defender']==3 and q['roles']['adams_defender']==4, q['roles']
+          assert m['game_id']=='0022500131' and m['event_num']==483
+          ids={p['player_id'] for p in m['defensive_lineup']}
+          assert 1630572 in ids, m['defensive_lineup']
+          assert all(p['name']!='Jakob Poeltl' for p in m['defensive_lineup'])
+          drop=m['screen_roles']['screener_defender']
+          assert drop['player_id']==1630572 and drop['name']=='Sandro Mamukelashvili' and drop['jersey']==54
+          assert drop['source_role_track']==4 and drop['virtual_track_id']==104
+          seg=[x['raw_track_id'] for x in drop['track_segments']]
+          assert seg==[4,26,8], seg
+          assert cfg['roles']['drop_coverage_defender_track_id']==104
+          assert cfg['drop_big_stitch']['player_id']==1630572 and cfg['drop_big_stitch']['jersey']==54
+          assert [x['raw_track_id'] for x in cfg['drop_big_stitch']['segments']]==[4,26,8]
           labels={p['track_id']:p['label'] for p in cfg['players']}
-          assert labels[107]=='SHEPPARD' and labels[10]=='ADAMS' and labels[103]=='SHEAD', labels
+          assert labels=={10:'ADAMS',107:'SHEPPARD',103:'SHEAD',104:'MAMUKELASHVILI'}, labels
           sim=cfg['shot']['similar_xfg']
-          assert sim['n']==8 and abs(sim['xfg_pct']-40.9375)<1e-12, sim
-          assert sx['matched']['n']==8 and abs(sx['matched']['xfg_pct']-40.9375)<1e-12, sx['matched']
-          assert cfg['timing']['contact_source_start_frame']==168
-          assert cfg['timing']['contact_source_end_frame_inclusive']==221
+          assert sim['n']==8 and abs(sim['xfg_pct']-40.9375)<1e-12
+          assert sx['matched']['n']==8 and abs(sx['matched']['xfg_pct']-40.9375)<1e-12
           assert abs(sum(e-s for s,e in cfg['timing']['contact_phases'])-1.8018)<0.002
+          print('DROP DEFENDER: Sandro Mamukelashvili #54, virtual track 104, raw continuity 4 -> 26 -> 8')
           PY
-      - name: Render fixed canonical drop-coverage clip
+      - name: Render universal deterministic drop-coverage clip
         run: |
           PYTHONPATH=tools python tools/drop_coverage_locked_broadcast_v1_fixed_tracking.py \
             --source artifacts/probe/toronto_tracking/source_native.mp4 \
             --tracks artifacts/probe/toronto_tracking/tracks.csv \
             --config configs/drop_coverage_locked_broadcast_v1_toronto_event483.json \
-            --out artifacts/drop_coverage_locked_broadcast_v1_fixed
+            --out artifacts/drop_coverage_universal_v2
       - name: Validate UHD and create streamable 4K
         run: |
           python - <<'PY'
           import json, pathlib, subprocess
-          p=pathlib.Path('artifacts/drop_coverage_locked_broadcast_v1_fixed')
+          p=pathlib.Path('artifacts/drop_coverage_universal_v2')
           qa=json.load(open(p/'qa.json'))
-          assert qa['tool_id']=='DROP_COVERAGE_LOCKED_BROADCAST_V1', qa
-          assert qa['identity_stitch_enabled'] is True, qa
-          assert qa['name_lock']=={'shooter':'SHEPPARD','screener':'ADAMS','point_of_attack_defender':'SHEAD'}, qa['name_lock']
-          assert qa['identity_stitch']['defender_identity']=='Jamal Shead'
+          assert qa['tool_id']=='DROP_COVERAGE_LOCKED_BROADCAST_V1'
+          assert qa['universal_role_resolution_v2'] is True
+          assert qa['identity_stitch_enabled'] is True
+          assert qa['name_lock']['drop_coverage_defender']=='MAMUKELASHVILI'
+          assert qa['drop_big_stitch']['identity']=='Sandro Mamukelashvili'
+          assert qa['drop_big_stitch']['jersey']==54
+          assert [x['raw_track_id'] for x in qa['drop_big_stitch']['segments']]==[4,26,8]
+          assert all(p['name']!='Jakob Poeltl' for p in qa['exact_defensive_lineup'])
           assert abs(qa['screen_contact_total_s']-1.8018)<0.002
           assert qa['event_xfg_pct']==41.7
           assert qa['similar_xfg']['n']==8 and abs(qa['similar_xfg']['xfg_pct']-40.9375)<1e-12
@@ -93,42 +105,34 @@ jobs:
           print(json.dumps(qa,indent=2))
           PY
           ffmpeg -y -hide_banner -loglevel warning \
-            -i artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_UHD.mp4 \
+            -i artifacts/drop_coverage_universal_v2/sheppard_adams_drop_coverage_universal_v2_event483_UHD.mp4 \
             -c:v libx264 -preset veryfast -crf 20 -maxrate 14M -bufsize 28M -profile:v high -pix_fmt yuv420p \
             -c:a aac -b:a 160k -movflags +faststart \
-            artifacts/sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_4k_streamable.mp4
-          ffmpeg -v error -i artifacts/sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_4k_streamable.mp4 -f null -
-      - name: Build QA frames and package
+            artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4
+          ffmpeg -v error -i artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4 -f null -
+      - name: Build package
         run: |
-          mkdir -p artifacts/drop_coverage_qa_fixed
-          ffmpeg -y -v error -ss 1.55 -i artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_native.mp4 -frames:v 1 artifacts/drop_coverage_qa_fixed/pre_swap.jpg
-          ffmpeg -y -v error -ss 2.15 -i artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_native.mp4 -frames:v 1 artifacts/drop_coverage_qa_fixed/post_swap.jpg
-          ffmpeg -y -v error -ss 3.55 -i artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_native.mp4 -frames:v 1 artifacts/drop_coverage_qa_fixed/release_area.jpg
-          cp artifacts/drop_coverage_locked_broadcast_v1_fixed/release_freeze.jpg artifacts/drop_coverage_qa_fixed/
           cd artifacts
-          zip -9 -r sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_package.zip \
-            drop_coverage_locked_broadcast_v1_fixed \
-            sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_4k_streamable.mp4 \
-            v3/sheppard_v3_matched_xfg.json \
-            v3/sheppard_v3_matched_shots.csv \
+          zip -9 -r sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_package.zip \
+            drop_coverage_universal_v2 \
+            sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4 \
             ../configs/drop_coverage_locked_broadcast_v1_toronto_event483.json \
-            drop_coverage_qa_fixed
+            ../manifests/drop_coverage/game_0022500131_event_483_roles.json \
+            v3/sheppard_v3_matched_xfg.json \
+            v3/sheppard_v3_matched_shots.csv
       - uses: actions/upload-artifact@v4
         with:
-          name: drop-coverage-locked-broadcast-v1-fixed-tracking
+          name: drop-coverage-universal-v2-event483
           path: |
-            artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_UHD.mp4
-            artifacts/drop_coverage_locked_broadcast_v1_fixed/sheppard_adams_drop_coverage_locked_broadcast_v1_fixed_tracking_native.mp4
-            artifacts/sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_4k_streamable.mp4
-            artifacts/drop_coverage_locked_broadcast_v1_fixed/release_freeze.jpg
-            artifacts/drop_coverage_locked_broadcast_v1_fixed/qa.json
-            artifacts/drop_coverage_locked_broadcast_v1_fixed/LOCKED_TOOL_ID.txt
-            artifacts/drop_coverage_locked_broadcast_v1_fixed/identity_stitched_tracks.csv
-            artifacts/drop_coverage_qa_fixed/pre_swap.jpg
-            artifacts/drop_coverage_qa_fixed/post_swap.jpg
-            artifacts/drop_coverage_qa_fixed/release_area.jpg
-            artifacts/drop_coverage_qa_fixed/release_freeze.jpg
+            artifacts/drop_coverage_universal_v2/sheppard_adams_drop_coverage_universal_v2_event483_UHD.mp4
+            artifacts/drop_coverage_universal_v2/sheppard_adams_drop_coverage_universal_v2_event483_native.mp4
+            artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_4k_streamable.mp4
+            artifacts/drop_coverage_universal_v2/release_freeze.jpg
+            artifacts/drop_coverage_universal_v2/qa.json
+            artifacts/drop_coverage_universal_v2/LOCKED_TOOL_ID.txt
+            artifacts/drop_coverage_universal_v2/identity_stitched_tracks.csv
             configs/drop_coverage_locked_broadcast_v1_toronto_event483.json
-            artifacts/sheppard_adams_DROP_COVERAGE_V1_fixed_tracking_package.zip
+            manifests/drop_coverage/game_0022500131_event_483_roles.json
+            artifacts/sheppard_adams_DROP_COVERAGE_UNIVERSAL_V2_package.zip
           if-no-files-found: error
           retention-days: 30
