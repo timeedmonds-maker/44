@@ -1,0 +1,276 @@
+{
+  "page": "https://clips.nba.com/?gameNo=0012500014&eventNum=301&source=grs",
+  "angle_count": 10,
+  "angles": [
+    {
+      "index": 0,
+      "label": "Other Broadcast",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "00_Other_Broadcast.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "30000/1001"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.886533"
+        }
+      }
+    },
+    {
+      "index": 1,
+      "label": "Broadcast",
+      "selected": true,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "01_Broadcast.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "30000/1001"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.904000"
+        }
+      }
+    },
+    {
+      "index": 2,
+      "label": "High Tight",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "02_High_Tight.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "30000/1001"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.886533"
+        }
+      }
+    },
+    {
+      "index": 3,
+      "label": "In Arena",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "03_In_Arena.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "30000/1001"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.955900"
+        }
+      }
+    },
+    {
+      "index": 4,
+      "label": "Left HandHeld",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "04_Left_HandHeld.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "30000/1001"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.935900"
+        }
+      }
+    },
+    {
+      "index": 5,
+      "label": "Left Slash",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "05_Left_Slash.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "30000/1001"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.954900"
+        }
+      }
+    },
+    {
+      "index": 6,
+      "label": "Mobile Broadcast",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "06_Mobile_Broadcast.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "3570000/118981"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.861333"
+        }
+      }
+    },
+    {
+      "index": 7,
+      "label": "Play by Play",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "07_Play_by_Play.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "30000/1001"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.886533"
+        }
+      }
+    },
+    {
+      "index": 8,
+      "label": "Right HandHeld",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "08_Right_HandHeld.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "30000/1001"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.954900"
+        }
+      }
+    },
+    {
+      "index": 9,
+      "label": "Right Slash",
+      "selected": false,
+      "variant": {
+        "width": 1000000000,
+        "height": null,
+        "bandwidth": null
+      },
+      "file": "09_Right_Slash.mp4",
+      "probe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 960,
+            "height": 540,
+            "avg_frame_rate": "3570000/119047"
+          },
+          {
+            "avg_frame_rate": "0/0"
+          }
+        ],
+        "format": {
+          "duration": "19.850167"
+        }
+      }
+    }
+  ]
+}
