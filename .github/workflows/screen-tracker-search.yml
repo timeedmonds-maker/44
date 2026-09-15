@@ -6,7 +6,7 @@ on:
       game_id:
         description: 'NBA game ID'
         required: true
-        default: '0022500054'
+        default: '0022500032'
         type: string
       screener_id:
         description: 'Screener player ID'
@@ -16,7 +16,7 @@ on:
       target_id:
         description: 'Target player ID / intended ballhandler'
         required: true
-        default: '1641708'
+        default: '203500'
         type: string
       screener_name:
         description: 'Screener display name'
@@ -26,12 +26,12 @@ on:
       target_name:
         description: 'Target display name'
         required: true
-        default: 'Amen Thompson'
+        default: 'ALL ADAMS OFFENSIVE POSSESSIONS'
         type: string
       top_n:
         description: 'Native preview clips/contact sheets to retain'
         required: true
-        default: '12'
+        default: '20'
         type: string
   push:
     branches: [screen-tracker]
@@ -63,12 +63,12 @@ jobs:
       - id: params
         name: Resolve search parameters
         env:
-          GAME: ${{ inputs.game_id || '0022500054' }}
+          GAME: ${{ inputs.game_id || '0022500032' }}
           SCREENER: ${{ inputs.screener_id || '203500' }}
-          TARGET: ${{ inputs.target_id || '1641708' }}
+          TARGET: ${{ inputs.target_id || '203500' }}
           SNAME: ${{ inputs.screener_name || 'Steven Adams' }}
-          TNAME: ${{ inputs.target_name || 'Amen Thompson' }}
-          TOPN: ${{ inputs.top_n || '12' }}
+          TNAME: ${{ inputs.target_name || 'ALL ADAMS OFFENSIVE POSSESSIONS' }}
+          TOPN: ${{ inputs.top_n || '20' }}
         run: |
           echo "game_id=$GAME" >> "$GITHUB_OUTPUT"
           echo "screener_id=$SCREENER" >> "$GITHUB_OUTPUT"
