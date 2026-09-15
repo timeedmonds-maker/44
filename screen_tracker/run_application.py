@@ -59,7 +59,6 @@ def main():
     src_qa = load_json(source_qa)
     event = app["event"]
 
-    # Hard event identity gate before any renderer is allowed to run.
     game_id = str(event["game_id"])
     event_num = int(event["event_num"])
     assert str(cfg["event"]["game_id"]) == game_id
@@ -70,7 +69,7 @@ def main():
         assert cfg["screen"]["value"] == event["coverage_label"], (cfg["screen"], event)
 
     backend_script = Path(SUPPORTED_ENGINES[engine])
-    cmd = [
+    subprocess.run([
         sys.executable, str(backend_script),
         "--source", str(source),
         "--tracks", str(tracks),
@@ -78,14 +77,12 @@ def main():
         "--config", str(config),
         "--role-manifest", str(role_manifest),
         "--out", str(out),
-    ]
-    subprocess.run(cmd, check=True)
+    ], check=True)
 
     qa_path = out / "qa.json"
     qa = load_json(qa_path)
     backend_tool_id = qa.get("tool_id")
 
-    # Promote the generic Screen Tracker identity while preserving backend provenance.
     qa["backend_tool_id"] = backend_tool_id
     qa["tool_id"] = TOOL_ID
     qa["tool_name"] = TOOL_NAME
@@ -105,11 +102,12 @@ def main():
     qa["ai_image_generation"] = False
     qa["ai_super_resolution"] = False
 
-    # The backend must still provide the core enduring role/visual guarantees.
     assert qa.get("universal_role_resolution_v2") is True
     assert qa.get("visual_lock", {}).get("drop_defender_name_bar") is True
     assert qa.get("visual_lock", {}).get("drop_defender_floor_ring") is True
-    assert qa.get("team_colour_resolution", {}).get("policy") == "primary_collision_aware_v1"
+    colour = qa.get("team_colour_resolution", {})
+    assert colour.get("rule") == "defense_keeps_primary_offense_switches_secondary_when_primaries_similar", colour
+    assert float(colour.get("rgb_distance_threshold", -1)) == 80.0, colour
 
     qa_path.write_text(json.dumps(qa, indent=2))
     (out / "SCREEN_TRACKER_TOOL_ID.txt").write_text(f"{TOOL_ID}\n{VERSION}\n{app['application_id']}\n")
