@@ -139,6 +139,23 @@ jobs:
           print('OFFICIAL_XFG_PCT',round(exact['xfg_xfg_pct'],4))
           print(json.dumps(out,indent=2,default=str))
           PY
+      - name: Patch display formatting for broadcast xFG label
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tools/adams_screen_prod_poc.py')
+          s=p.read_text()
+          old="    pct=xfg.get('xfg_xfg_pct','--')\n    lines=["
+          new="""    raw_pct=xfg.get('xfg_xfg_pct','--')
+    try:
+        pct=f'{float(raw_pct):.1f}'
+    except (TypeError, ValueError):
+        pct=str(raw_pct)
+    lines=["""
+          if old not in s:
+              raise RuntimeError('draw_panel xFG formatting anchor not found')
+          p.write_text(s.replace(old,new,1))
+          PY
       - name: Render final V8 Adams screen clip with official xFG
         run: |
           python tools/adams_screen_prod_v3.py \
@@ -173,6 +190,7 @@ jobs:
           assert x['xfg_source_resource']=='shotqualityvideologs', x
           assert 0.0 <= float(x['xfg_xfg']) <= 1.0, x
           assert abs(float(x['xfg_xfg_pct']) - 100.0*float(x['xfg_xfg'])) < 0.11, x
+          assert f"{float(x['xfg_xfg_pct']):.1f}" == '41.7'
           print('OFFICIAL_XFG_PCT', x['xfg_xfg_pct'])
           print(json.dumps(qa,indent=2))
           print(json.dumps(ctx,indent=2))
