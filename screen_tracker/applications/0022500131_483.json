@@ -1,6 +1,11 @@
 {
   "screen_tracker_version": "1.0.0",
   "application_id": "hou_tor_0022500131_event483",
+  "angle_policy": {
+    "mode": "legacy_single_angle",
+    "primary_label": "Broadcast",
+    "reason": "Locked reference predates Screen Tracker 1.1 two-angle default"
+  },
   "event": {
     "game_id": "0022500131",
     "event_num": 483,
