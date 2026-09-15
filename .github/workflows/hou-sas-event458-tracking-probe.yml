@@ -1,0 +1,66 @@
+name: HOU SAS event 458 tracking probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/hou-sas-event458-tracking-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic CV stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git fonts-dejavu-core zip
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install requests ultralytics scipy pandas 'numpy<2' pillow pyreadr
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download deterministic tracking models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --fail --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --fail --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Track exact official event 458
+        run: |
+          python tools/adams_screen_prod_v3.py \
+            --game 0022500032 --event 458 \
+            --start-s 3.5 --end-s 10.5 \
+            --analysis-fps 15 --number-fps 8 --court-fps 1 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/hou_sas_event458_tracking
+      - name: Package probe essentials
+        run: |
+          mkdir -p artifacts/delivery
+          cp artifacts/hou_sas_event458_tracking/source_native.mp4 artifacts/delivery/
+          cp artifacts/hou_sas_event458_tracking/tracks.csv artifacts/delivery/
+          cp artifacts/hou_sas_event458_tracking/qa.json artifacts/delivery/
+          cp artifacts/hou_sas_event458_tracking/roles.json artifacts/delivery/
+          cp artifacts/hou_sas_event458_tracking/number_evidence.csv artifacts/delivery/ || true
+          cp artifacts/hou_sas_event458_tracking/number_contact_sheet.jpg artifacts/delivery/ || true
+          cp artifacts/hou_sas_event458_tracking/track_contact_sheet.jpg artifacts/delivery/ || true
+          cp artifacts/hou_sas_event458_tracking/context.json artifacts/delivery/ || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hou-sas-event458-tracking-probe
+          path: artifacts/delivery/
+          if-no-files-found: error
+          retention-days: 30
