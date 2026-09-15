@@ -1,0 +1,63 @@
+name: HOU SAS event 458 geometry
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/hou-sas-event458-geometry.yml'
+
+jobs:
+  geometry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install pandas requests opencv-python-headless 'numpy<2'
+      - uses: actions/download-artifact@v4
+        with:
+          name: screen-tracker-search-bundle
+          path: artifacts/bundle
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 34969474090
+      - name: Isolate event 458
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+          d=pd.read_csv('artifacts/bundle/search_plan/event_scan_manifest.csv')
+          q=d[d.event_num.eq(458)].copy()
+          assert len(q)==1
+          Path('artifacts/event458').mkdir(parents=True,exist_ok=True)
+          q.to_csv('artifacts/event458/input.csv',index=False)
+          print(q[['period','event_clock','event_num','event_description']].to_string(index=False))
+          PY
+      - name: Run high-sample temporal screen geometry
+        run: |
+          python tools/adams_screen_temporal_onnx.py \
+            --input artifacts/event458/input.csv \
+            --onnx-model artifacts/bundle/models/yolo11n.onnx \
+            --out artifacts/event458/scan \
+            --sample-fps 8.0 \
+            --max-seconds 24 \
+            --target-hls-width 640
+          cat artifacts/event458/scan/temporal_candidates.csv
+          cat artifacts/event458/scan/screen_sequences.csv || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hou-sas-event458-geometry
+          path: artifacts/event458/
+          if-no-files-found: error
+          retention-days: 30
