@@ -3,6 +3,10 @@ name: Adams Toronto event483 V8 final
 
 on:
   workflow_dispatch:
+  push:
+    branches: [codex/sheppard-adams-xfg-delivery]
+    paths:
+      - '.github/workflows/adams-toronto-event483-v8-final.yml'
   pull_request:
     branches: [codex/adams-screen-v8-toronto]
     paths:
