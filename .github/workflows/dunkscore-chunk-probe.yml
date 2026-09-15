@@ -1,0 +1,41 @@
+name: Dunk Score Chunk Probe
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths: ['.github/workflows/dunkscore-chunk-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {contents: read}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: screen-tracker}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install requests beautifulsoup4
+      - name: Inspect page dependency chunk
+        run: |
+          mkdir -p artifacts/chunkprobe
+          python - <<'PY'
+          import requests,re,json
+          from pathlib import Path
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Accept':'*/*','Referer':'https://www.nba.com/stats/players/dunk-scores?Season=2025-26'}
+          s=requests.Session(); s.headers.update(H)
+          page=s.get('https://www.nba.com/stats/players/dunk-scores?Season=2025-26',timeout=45); print('PAGE',page.status_code,len(page.text))
+          paths=['/_next/static/chunks/11124-273cfb4a3c2e71d9.js','/_next/static/chunks/40973-d845a00367428861.js','/_next/static/chunks/31863-08aa8aefc8312bae.js']
+          for i,p in enumerate(paths):
+            r=s.get('https://www.nba.com'+p,timeout=45); print('CHUNK',p,r.status_code,len(r.text));
+            Path(f'artifacts/chunkprobe/chunk_{i}.js').write_text(r.text)
+            for n in ['dunkscoreleaders','dunkScore','playerName','SeasonType','stats.nba.com','api-hub','LeagueID']:
+              ms=list(re.finditer(re.escape(n),r.text,re.I))
+              if ms:
+                print('\n===',p,n,len(ms),'===')
+                for m in ms[:5]: print(r.text[max(0,m.start()-1000):m.start()+2400])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dunkscore-chunk-probe
+          path: artifacts/chunkprobe
+          retention-days: 7
