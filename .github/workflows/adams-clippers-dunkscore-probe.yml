@@ -1,0 +1,156 @@
+name: Adams Clippers Dunk Score Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths:
+      - '.github/workflows/adams-clippers-dunkscore-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: screen-tracker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install probe dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install requests pandas
+      - name: Resolve exact PBP event and Dunk Score row
+        run: |
+          mkdir -p artifacts/probe
+          python - <<'PY'
+          import json, time
+          from pathlib import Path
+          import pandas as pd, requests
+          GAME='0022501205'; EVENT=505; ADAMS='203500'; AMEN='1641708'
+          PBP='https://github.com/ramirobentes/nba_pbp_data/releases/download/pbp-final-2026/data.csv'
+          df=pd.read_csv(PBP,low_memory=False)
+          def gid(v):
+              s=str(v); s=s[:-2] if s.endswith('.0') else s
+              return ''.join(c for c in s if c.isdigit()).zfill(10)
+          df['game_id_norm']=df['game_id'].map(gid)
+          df['event_num_num']=pd.to_numeric(df['event_num'],errors='coerce')
+          g=df[df.game_id_norm.eq(GAME)].copy()
+          exact=g[g.event_num_num.eq(EVENT)].copy()
+          near=g[g.event_num_num.between(EVENT-8,EVENT+8)].copy()
+          if len(exact)!=1: raise RuntimeError(f'exact PBP rows={len(exact)}')
+          keep=[c for c in ['game_id','game_date','event_num','period','clock','description','player1_id','player1_name','player2_id','player2_name','player3_id','player3_name','action_type','sub_type','descriptor','shot_result','is_field_goal','assist_player_id','assist_player_name','home_score','away_score'] if c in g.columns]
+          er=exact[keep].fillna('').to_dict('records')[0]
+          print('EXACT_PBP='+json.dumps(er,default=str),flush=True)
+          print('NEAR_PBP='+json.dumps(near[keep].fillna('').to_dict('records'),default=str),flush=True)
+          Path('artifacts/probe/pbp_exact.json').write_text(json.dumps({'exact':er,'near':near[keep].fillna('').to_dict('records')},indent=2,default=str))
+
+          url='https://stats.nba.com/stats/dunkscoreleaders'
+          headers={
+            'Host':'stats.nba.com',
+            'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9',
+            'Origin':'https://www.nba.com','Referer':'https://www.nba.com/','x-nba-stats-origin':'stats','x-nba-stats-token':'true',
+            'Connection':'keep-alive','Cache-Control':'no-cache','Pragma':'no-cache'
+          }
+          params={'LeagueID':'00','Season':'2025-26','SeasonType':'Regular Season','PlayerID':ADAMS,'TeamID':'','GameID':GAME}
+          last=None
+          for i in range(5):
+              try:
+                  r=requests.get(url,params=params,headers=headers,timeout=(10,45))
+                  print('DUNK_SCORE_HTTP',r.status_code,r.url,flush=True)
+                  if r.status_code==200:
+                      raw=r.json(); break
+                  last=r.text[:1000]
+              except Exception as e: last=repr(e)
+              time.sleep(1.5*(i+1))
+          else:
+              raise RuntimeError('Dunk Score request failed: '+str(last))
+          Path('artifacts/probe/dunk_score_raw.json').write_text(json.dumps(raw,indent=2))
+          print('DUNK_SCORE_TOP_KEYS='+json.dumps(list(raw.keys())),flush=True)
+
+          # Robustly locate row dictionaries in V3-style flat nested data.
+          rows=[]
+          def walk(x):
+              if isinstance(x,dict):
+                  low={str(k).lower():v for k,v in x.items()}
+                  if any(k in low for k in ['dunkscore','dunk_score']) and any(k in low for k in ['gameid','game_id']): rows.append(x)
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+          walk(raw)
+          print('DICT_ROWS_FOUND',len(rows),flush=True)
+          # If endpoint uses headers/data arrays, decode them too.
+          def decode_arrays(x):
+              out=[]
+              if isinstance(x,dict):
+                  headers=x.get('headers') or x.get('Headers')
+                  data=x.get('data') or x.get('Data') or x.get('rowSet')
+                  if isinstance(headers,list) and isinstance(data,list):
+                      for rr in data:
+                          if isinstance(rr,list) and len(rr)==len(headers): out.append(dict(zip(headers,rr)))
+                  for v in x.values(): out.extend(decode_arrays(v))
+              elif isinstance(x,list):
+                  for v in x: out.extend(decode_arrays(v))
+              return out
+          rows.extend(decode_arrays(raw))
+          # Deduplicate JSON-serializable rows.
+          uniq=[]; seen=set()
+          for row in rows:
+              key=json.dumps(row,sort_keys=True,default=str)
+              if key not in seen: seen.add(key); uniq.append(row)
+          def val(row,*names):
+              low={str(k).lower():v for k,v in row.items()}
+              for n in names:
+                  if n.lower() in low:return low[n.lower()]
+              return None
+          matches=[]
+          for row in uniq:
+              rg=val(row,'game_id','gameid'); re=val(row,'event_num','eventnum'); rp=val(row,'player_id','playerid')
+              if str(rg).zfill(10)==GAME and str(rp).split('.')[0]==ADAMS:
+                  try: ev=int(float(re))
+                  except: ev=None
+                  if ev==EVENT: matches.append(row)
+          if not matches:
+              # Endpoint already game/player filtered; emit all decoded rows for diagnosis.
+              Path('artifacts/probe/dunk_score_decoded_rows.json').write_text(json.dumps(uniq,indent=2,default=str))
+              raise RuntimeError(f'No Dunk Score row matched game/event/player; decoded={len(uniq)}')
+          row=matches[0]
+          Path('artifacts/probe/dunk_score_event505.json').write_text(json.dumps(row,indent=2,default=str))
+          print('DUNK_SCORE_EVENT505='+json.dumps(row,default=str),flush=True)
+          PY
+      - name: Fetch exact official NBA event HLS
+        run: |
+          python tools/fetch_official_nba_event_clip.py --game 0022501205 --event 505 --out artifacts/probe/source_native.mp4
+          ffprobe -v error -show_entries stream=width,height,avg_frame_rate:format=duration -of json artifacts/probe/source_native.mp4 > artifacts/probe/source_probe.json
+      - name: Build deterministic timing contact sheet
+        run: |
+          python - <<'PY'
+          import cv2, math, json
+          import numpy as np
+          from pathlib import Path
+          v='artifacts/probe/source_native.mp4'
+          cap=cv2.VideoCapture(v); fps=cap.get(cv2.CAP_PROP_FPS); n=int(cap.get(cv2.CAP_PROP_FRAME_COUNT)); dur=n/fps if fps else 0
+          ts=np.linspace(max(0,dur-6.0),max(0,dur-0.15),24)
+          ims=[]
+          for t in ts:
+              cap.set(cv2.CAP_PROP_POS_MSEC,float(t)*1000); ok,fr=cap.read()
+              if not ok: continue
+              cv2.putText(fr,f'{t:.3f}s',(16,34),cv2.FONT_HERSHEY_SIMPLEX,.8,(255,255,255),2,cv2.LINE_AA)
+              ims.append(cv2.resize(fr,(480,270),interpolation=cv2.INTER_AREA))
+          cap.release(); cols=4; rows=math.ceil(len(ims)/cols); sheet=np.zeros((rows*270,cols*480,3),np.uint8)
+          for i,im in enumerate(ims): sheet[(i//cols)*270:(i//cols+1)*270,(i%cols)*480:(i%cols+1)*480]=im
+          cv2.imwrite('artifacts/probe/rim_timing_sheet.jpg',sheet,[cv2.IMWRITE_JPEG_QUALITY,94])
+          Path('artifacts/probe/timing.json').write_text(json.dumps({'fps':fps,'frames':n,'duration':dur,'sample_times_s':[float(x) for x in ts]},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adams-clippers-dunkscore-probe
+          path: artifacts/probe
+          if-no-files-found: error
+          retention-days: 14
