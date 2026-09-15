@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "screen-tracker-application.schema.json",
+  "title": "Screen Tracker application",
+  "type": "object",
+  "required": ["screen_tracker_version", "application_id", "event", "input_artifact", "backend", "output"],
+  "properties": {
+    "screen_tracker_version": {"type": "string"},
+    "application_id": {"type": "string", "minLength": 1},
+    "event": {
+      "type": "object",
+      "required": ["game_id", "event_num"],
+      "properties": {
+        "game_id": {"type": "string", "pattern": "^[0-9]{10}$"},
+        "event_num": {"type": "integer", "minimum": 1},
+        "coverage_label": {"type": "string"}
+      }
+    },
+    "input_artifact": {
+      "type": "object",
+      "required": ["repository", "run_id", "name", "source_path", "tracks_path", "source_qa_path"],
+      "properties": {
+        "repository": {"type": "string"},
+        "run_id": {"type": "integer", "minimum": 1},
+        "name": {"type": "string"},
+        "source_path": {"type": "string"},
+        "tracks_path": {"type": "string"},
+        "source_qa_path": {"type": "string"}
+      }
+    },
+    "backend": {
+      "type": "object",
+      "required": ["engine", "config_path", "role_manifest_path"],
+      "properties": {
+        "engine": {"enum": ["drop_coverage_universal_v2"]},
+        "config_path": {"type": "string"},
+        "role_manifest_path": {"type": "string"}
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["basename"],
+      "properties": {
+        "basename": {"type": "string"},
+        "require_native": {"type": "boolean", "default": true},
+        "require_uhd": {"type": "boolean", "default": true},
+        "require_streamable_4k": {"type": "boolean", "default": true}
+      }
+    }
+  },
+  "additionalProperties": true
+}
