@@ -1,0 +1,36 @@
+name: Dunk Score Service Probe
+on:
+  workflow_dispatch:
+  push:
+    branches: [screen-tracker]
+    paths: ['.github/workflows/dunkscore-service-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {contents: read}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: screen-tracker}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install requests
+      - name: Find module 36843 and call NBA HANA service
+        run: |
+          python - <<'PY'
+          import requests,re,json,urllib.parse
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Accept':'*/*','Referer':'https://www.nba.com/stats/players/dunk-scores?Season=2025-26'}
+          s=requests.Session(); s.headers.update(H)
+          chunks=['18138-f88acd807ddb1cdd.js','21293-c1cf0e1083718a12.js','32044-235a90ba85d9594b.js','68866-2b57036c0cd48a32.js','87683-e14f84b8b05fdac8.js','92590-1dfe5f3068903af4.js','pages/_app-1100f91c85e90799.js','main-196c53f13b153e43.js']
+          found=''
+          for c in chunks:
+            u='https://www.nba.com/_next/static/chunks/'+c
+            r=s.get(u,timeout=45); print('CHUNK',c,r.status_code,len(r.text),flush=True)
+            txt=r.text
+            if '36843:' in txt:
+              m=txt.index('36843:'); found=txt[max(0,m-1500):m+8000]; print('MODULE36843='+found,flush=True)
+            for needle in ['api-hub','stats.nba.com','hana','data.nba','resource=']:
+              if needle.lower() in txt.lower():
+                for mm in list(re.finditer(needle,txt,re.I))[:3]: print('HIT',c,needle,txt[max(0,mm.start()-800):mm.start()+1800],flush=True)
+          if not found: raise SystemExit('module 36843 not found')
+          PY
