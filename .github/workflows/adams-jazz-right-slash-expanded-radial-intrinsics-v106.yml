@@ -1,0 +1,120 @@
+name: Adams Jazz Right Slash expanded radial intrinsics v106
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [right-slash-v100b-run]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-expanded-radial-intrinsics-v106.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-expanded-radial-intrinsics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable v100b bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-distributed-geometry-v100b-33980277033
+          path: base_bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33980277033
+      - name: Recover immutable v105 expanded bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-expanded-geometry-v105-33992973825
+          path: expanded_bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33992973825
+      - name: Verify and merge evidence banks
+        run: |
+          python - <<'PY'
+          import json
+          a=json.load(open('base_bank/distributed_same_game_geometry_bank_v100.json'))
+          b=json.load(open('expanded_bank/distributed_same_game_geometry_bank_v100.json'))
+          for q in (a,b):
+              assert q['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+              assert q['game_id']=='0022500301'
+              assert q['camera_label']=='Right Slash'
+              assert all(v is False for v in q['permissions'].values())
+          assert a['successful_clip_count']==18
+          assert b['successful_clip_count']==28
+          print('BANK_COUNTS',a['successful_clip_count'],b['successful_clip_count'])
+          PY
+          mkdir -p bank
+          cp -a base_bank/event_*_frames bank/
+          for d in expanded_bank/event_*_frames; do
+            [ -d "$d" ] || continue
+            bn=$(basename "$d")
+            if [ -d "bank/$bn" ]; then
+              cp -a "$d"/. "bank/$bn"/
+            else
+              cp -a "$d" bank/
+            fi
+          done
+          echo MERGED_EVENT_DIRS $(find bank -maxdepth 1 -type d -name 'event_*_frames' | wc -l)
+      - name: Run unchanged k1-only proof on expanded evidence
+        run: python -m freeze_spin.prove_right_slash_radial_intrinsics_v104 --bank bank --out v106
+      - name: Apply v106 expanded-evidence promotion gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('v106/right_slash_radial_intrinsics_v104.json')
+          q=json.loads(p.read_text())
+          q['v104_internal_status']=q['status']
+          q['evidence_sources']={
+            'v100b_run':33980277033,
+            'v100b_artifact':9973583746,
+            'v100b_digest':'sha256:3c3352a8a862c3b4d4f95a5f5fe917d71aeef89badb5e1e02328f8e0cb681279',
+            'v105_run':33992973825,
+            'v105_artifact':9977223856,
+            'v105_digest':'sha256:f5f24c1763cd35848e94c090a017e772d0dba0e43ba395b546e47a5634cc6222'
+          }
+          evidence_ok=int(q.get('independent_passing_event_count',0))>=6
+          internal_ok=q.get('v104_internal_status')=='PASS_RIGHT_SLASH_RADIAL_INTRINSICS_PRIOR_V104'
+          q.setdefault('gates',{})['independent_events_at_least_6_v106']=evidence_ok
+          passed=bool(evidence_ok and internal_ok and all(v is True for k,v in q['gates'].items() if k!='independent_events_at_least_4'))
+          q['principal_point_prior_allowed']=passed
+          q['status']='PASS_RIGHT_SLASH_EXPANDED_RADIAL_INTRINSICS_PRIOR_V106' if passed else 'FAIL_RIGHT_SLASH_EXPANDED_RADIAL_INTRINSICS_V106'
+          q['metric_event_camera_allowed']=False
+          q['replay_render_allowed']=False
+          p.write_text(json.dumps(q,indent=2)+'\n')
+          print('STATUS',q['status'])
+          print('INTERNAL',q['v104_internal_status'])
+          print('HUB',q.get('selected_hub'))
+          print('EVENTS',q.get('independent_passing_event_count'))
+          print('PP',q.get('shared_principal_point_px'))
+          print('K1',q.get('shared_k1_normalized_brown'))
+          print('MAX_LOO_PP',q.get('max_leave_one_event_out_pp_shift_px'))
+          print('K1_RATIO',q.get('k1_loo_max_min_ratio'))
+          print('MAX_HALF_PIXEL_PP',q.get('max_half_pixel_pp_shift_px'))
+          print('GATES',q.get('gates'))
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          PY
+      - name: Package v106 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v106/*.json delivery/ 2>/dev/null || true
+          cp base_bank/distributed_same_game_geometry_bank_v100.json delivery/v100b_source_manifest.json
+          cp expanded_bank/distributed_same_game_geometry_bank_v100.json delivery/v105_source_manifest.json
+      - name: Upload v106 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-expanded-radial-v106-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

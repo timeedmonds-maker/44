@@ -1,0 +1,75 @@
+name: Adams Jazz Right Slash expanded geometry bank v105
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [right-slash-v100b-run]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-expanded-bank-v105.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  expanded-geometry-bank:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native video runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 requests
+      - name: Mine expanded full-game Right Slash geometry states
+        run: |
+          python -m freeze_spin.scan_distributed_same_game_camera_geometry_v100 \
+            --game-id 0022500301 \
+            --camera-label 'Right Slash' \
+            --event-start 5 \
+            --event-stop 805 \
+            --event-step 2 \
+            --segments 8 \
+            --per-segment 4 \
+            --frames-per-clip 7 \
+            --min-clips 24 \
+            --out right_slash_geometry_v105
+      - name: Enforce expanded discovery-only evidence gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('right_slash_geometry_v105/distributed_same_game_geometry_bank_v100.json').read_text())
+          assert p['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+          assert p['game_id']=='0022500301'
+          assert p['camera_label']=='Right Slash'
+          assert p['successful_clip_count']>=24
+          assert p['sampling']['event_step']==2
+          assert p['sampling']['segments']==8
+          assert p['sampling']['per_segment_target']==4
+          assert all(v is False for v in p['permissions'].values())
+          segs=sorted({e['segment'] for e in p['events'] if e.get('status')=='ok'})
+          assert len(segs)>=6, segs
+          print('V105_EXPANDED_GEOMETRY_BANK_OK',p['successful_clip_count'],'segments',segs)
+          print('EVENTS',[e['event_probe'] for e in p['events'] if e.get('status')=='ok'])
+          PY
+      - name: Package native expanded evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp right_slash_geometry_v105/distributed_same_game_geometry_bank_v100.json delivery/ 2>/dev/null || true
+          cp right_slash_geometry_v105/distributed_geometry_candidates_montage.png delivery/ 2>/dev/null || true
+          cp right_slash_geometry_v105/event_*_Right_Slash_sheet.png delivery/ 2>/dev/null || true
+          for d in right_slash_geometry_v105/event_*_frames; do
+            [ -d "$d" ] || continue
+            cp -a "$d" delivery/
+          done
+      - name: Upload v105 geometry bank
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: right-slash-expanded-geometry-v105-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

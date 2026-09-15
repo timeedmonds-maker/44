@@ -1,0 +1,75 @@
+name: Adams Jazz Right Slash radial intrinsics v104
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [right-slash-v100b-run]
+    paths:
+      - 'freeze_spin/prove_right_slash_radial_intrinsics_v104.py'
+      - '.github/workflows/adams-jazz-right-slash-radial-intrinsics-v104.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-radial-intrinsics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable v100b geometry bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-distributed-geometry-v100b-33980277033
+          path: bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33980277033
+      - name: Verify immutable source evidence
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('bank/distributed_same_game_geometry_bank_v100.json'))
+          assert q['status']=='DISCOVERY_ONLY_NO_PROMOTION'
+          assert q['game_id']=='0022500301'
+          assert q['camera_label']=='Right Slash'
+          assert int(q['successful_clip_count'])==18
+          assert all(v is False for v in q['permissions'].values())
+          PY
+      - name: Run k1-only radial intrinsics proof
+        run: python -m freeze_spin.prove_right_slash_radial_intrinsics_v104 --bank bank --out v104
+      - name: Enforce intrinsics-only semantics
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v104/right_slash_radial_intrinsics_v104.json'))
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          print('STATUS',q['status'])
+          print('HUB',q['selected_hub'])
+          print('EVENTS',q['independent_passing_event_count'])
+          print('PP',q.get('shared_principal_point_px'))
+          print('K1',q.get('shared_k1_normalized_brown'))
+          print('MAX_LOO_PP',q.get('max_leave_one_event_out_pp_shift_px'))
+          print('K1_RATIO',q.get('k1_loo_max_min_ratio'))
+          print('MAX_HALF_PIXEL_PP',q.get('max_half_pixel_pp_shift_px'))
+          print('GATES',q.get('gates'))
+          PY
+      - name: Package v104 evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v104/*.json delivery/ 2>/dev/null || true
+          cp bank/distributed_same_game_geometry_bank_v100.json delivery/v100b_source_manifest.json
+      - name: Upload v104 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-radial-intrinsics-v104-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0

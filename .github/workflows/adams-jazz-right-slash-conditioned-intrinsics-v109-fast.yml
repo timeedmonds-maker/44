@@ -1,0 +1,140 @@
+name: Adams Jazz Right Slash conditioned intrinsics v109 fast
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [right-slash-v100b-run]
+    paths:
+      - '.github/workflows/adams-jazz-right-slash-conditioned-intrinsics-v109-fast.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prove-conditioned-intrinsics-fast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deterministic runtime
+        run: python -m pip install --quiet numpy==1.26.4 scipy==1.12.0 opencv-python-headless==4.10.0.84
+      - name: Recover immutable v100b bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-distributed-geometry-v100b-33980277033
+          path: base_bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33980277033
+      - name: Recover immutable v105 bank
+        uses: actions/download-artifact@v4
+        with:
+          name: right-slash-expanded-geometry-v105-33992973825
+          path: expanded_bank
+          github-token: ${{ github.token }}
+          repository: timeedmonds-maker/44
+          run-id: 33992973825
+      - name: Verify and merge source banks
+        run: |
+          python - <<'PY'
+          import json
+          a=json.load(open('base_bank/distributed_same_game_geometry_bank_v100.json'))
+          b=json.load(open('expanded_bank/distributed_same_game_geometry_bank_v100.json'))
+          assert a['successful_clip_count']==18 and b['successful_clip_count']==28
+          assert a['camera_label']==b['camera_label']=='Right Slash'
+          assert a['game_id']==b['game_id']=='0022500301'
+          assert all(v is False for v in a['permissions'].values())
+          assert all(v is False for v in b['permissions'].values())
+          PY
+          mkdir -p bank
+          cp -a base_bank/event_*_frames bank/
+          for d in expanded_bank/event_*_frames; do
+            [ -d "$d" ] || continue
+            bn=$(basename "$d")
+            if [ -d "bank/$bn" ]; then cp -a "$d"/. "bank/$bn"/; else cp -a "$d" bank/; fi
+          done
+      - name: ORB screen only - exact gate remains unchanged
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import cv2, numpy as np, re, shutil, json
+          W,H=960,540
+          bank=Path('bank'); out=Path('screened_bank'); out.mkdir()
+          hub=bank/'event_540_frames'/'f02.png'
+          orb=cv2.ORB_create(nfeatures=5000,fastThreshold=10)
+          him=cv2.imread(str(hub),0); hk,hd=orb.detectAndCompute(him,None)
+          bf=cv2.BFMatcher(cv2.NORM_HAMMING)
+          by={}
+          for p in sorted(bank.glob('event_*_frames/f*.png')):
+            m=re.search(r'event_(\d+)_frames',str(p)); e=int(m.group(1))
+            if e==540: continue
+            im=cv2.imread(str(p),0); k,d=orb.detectAndCompute(im,None)
+            if d is None: continue
+            raw=bf.knnMatch(d,hd,k=2); good=[x for x,y in raw if x.distance<.78*y.distance]
+            best={}
+            for x in good:
+              if x.trainIdx not in best or x.distance<best[x.trainIdx].distance: best[x.trainIdx]=x
+            good=list(best.values())
+            nin=0; ratio=0.0
+            if len(good)>=12:
+              a=np.float32([k[x.queryIdx].pt for x in good]); b=np.float32([hk[x.trainIdx].pt for x in good])
+              M,mask=cv2.findHomography(a,b,cv2.RANSAC,3.0,maxIters=5000,confidence=.995)
+              if M is not None and mask is not None:
+                nin=int(mask.sum()); ratio=nin/max(1,len(good))
+            by.setdefault(e,[]).append((nin,ratio,len(good),p))
+          # Keep the best two frames from the 35 strongest events. This is only a
+          # computational screen: v108 still applies the exact unchanged SIFT gate.
+          er=[]
+          for e,rr in by.items():
+            rr.sort(key=lambda z:(z[0],z[1],z[2]),reverse=True)
+            er.append((rr[0][0],rr[0][1],e,rr[:2]))
+          er.sort(reverse=True)
+          selected=[]
+          for _,_,e,rr in er[:35]: selected.extend([z[3] for z in rr])
+          forced=[hub,
+            bank/'event_9_frames'/'f03.png', bank/'event_15_frames'/'f03.png',
+            bank/'event_205_frames'/'f03.png', bank/'event_415_frames'/'f06.png',
+            bank/'event_690_frames'/'f02.png', bank/'event_621_frames'/'f00.png']
+          selected=list(dict.fromkeys([*selected,*forced]))
+          for p in selected:
+            q=out/p.parent.name; q.mkdir(parents=True,exist_ok=True); shutil.copy2(p,q/p.name)
+          manifest={'screen':'ORB ranking only; cannot create an exact-gate pass','top_event_count':35,'selected_frame_count':len(selected),'selected':[str(p) for p in selected]}
+          (out/'v109_screen.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          print('SCREENED_FRAMES',len(selected),'EVENTS',len({p.parent.name for p in selected}))
+          PY
+      - name: Run unchanged v108 exact conditioned search on screen
+        run: python -m freeze_spin.prove_right_slash_conditioned_intrinsics_v108 --bank screened_bank --out v109 --top-singles 6 --top-pair-pool 4
+      - name: Report promotion gate
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('v109/right_slash_conditioned_intrinsics_v108.json'))
+          q['workflow_version']='v109-fast-screen'
+          q['screen_manifest']=json.load(open('screened_bank/v109_screen.json'))
+          q['status']=q['status'].replace('_V108','_V109')
+          open('v109/right_slash_conditioned_intrinsics_v109.json','w').write(json.dumps(q,indent=2)+'\n')
+          print('STATUS',q['status'])
+          print('CANDIDATES',len(q['candidate_census']))
+          print('SELECTED',q.get('selected_solution'))
+          print('PRIOR_ALLOWED',q['principal_point_prior_allowed'])
+          assert q['metric_event_camera_allowed'] is False
+          assert q['replay_render_allowed'] is False
+          PY
+      - name: Package evidence
+        if: always()
+        run: |
+          mkdir -p delivery
+          cp v109/*.json delivery/ 2>/dev/null || true
+          cp screened_bank/v109_screen.json delivery/ 2>/dev/null || true
+          cp base_bank/distributed_same_game_geometry_bank_v100.json delivery/v100b_source_manifest.json
+          cp expanded_bank/distributed_same_game_geometry_bank_v100.json delivery/v105_source_manifest.json
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adams-jazz-right-slash-conditioned-intrinsics-v109-${{ github.run_id }}
+          path: delivery/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
