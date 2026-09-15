@@ -41,7 +41,7 @@ jobs:
           python screen_tracker_kickout3/run_angle_tracking.py \
             --angle-label 'Left Slash' \
             --game '0022500255' --event '247' \
-            --start-s '8.5' --end-s '12.0' \
+            --start-s '4.7' --end-s '8.2' \
             --analysis-fps 15 --number-fps 5 --court-fps 4 \
             --detector-onnx artifacts/models/rfdetr_m_640.onnx \
             --object-eval-src /tmp/object-detection-eval/src \
