@@ -1,0 +1,42 @@
+name: Screen Tracker - Kickout 3 integrated xFG
+on:
+  push:
+    branches: [screen-tracker-kickout-3]
+    paths:
+      - 'screen_tracker_kickout3/enrich_integrated_xfg.py'
+      - '.github/workflows/kickout3-integrated-xfg.yml'
+  workflow_dispatch:
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install pandas pyreadr requests
+      - name: Reproduce exact events
+        run: python screen_tracker_kickout3/discover_events.py --out artifacts/kickout3
+      - name: Enrich from durable exact-key xFG/PBP integration
+        run: python screen_tracker_kickout3/enrich_integrated_xfg.py --manifest artifacts/kickout3/kickout3_event_manifest.json --out artifacts/kickout3/enriched
+      - name: QA
+        run: |
+          python - <<'PY'
+          import json
+          m=json.load(open('artifacts/kickout3/enriched/kickout3_event_manifest_enriched.json'))
+          assert len(m['selected_events'])==2
+          for e in m['selected_events']:
+              q=e['shot_quality']
+              assert q['official_event_xfg_pct'] is not None
+              assert q['observed_shot_distance_ft'] is not None
+              assert q['durant_similar_sample_fga'] > 0
+              assert q['event_match_method']=='exact game_id + event_num + player_id'
+          print(json.dumps(m,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kickout3-integrated-xfg
+          path: artifacts/kickout3/
+          if-no-files-found: error
+          retention-days: 30
