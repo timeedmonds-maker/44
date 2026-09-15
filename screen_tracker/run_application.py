@@ -17,7 +17,10 @@ from pathlib import Path
 TOOL_NAME = "screen tracker"
 TOOL_ID = "SCREEN_TRACKER"
 VERSION = "1.0.0"
-SUPPORTED_ENGINES = {"drop_coverage_universal_v2": "tools/drop_coverage_universal_v2.py"}
+# Keep the public engine contract stable while routing every application through
+# the V3 compatibility backend, which preserves universal-v2 role resolution and
+# upgrades only the floor-ring renderer to camera-perspective normalization.
+SUPPORTED_ENGINES = {"drop_coverage_universal_v2": "tools/drop_coverage_universal_v3.py"}
 
 
 def load_json(path: Path):
@@ -105,6 +108,10 @@ def main():
     assert qa.get("universal_role_resolution_v2") is True
     assert qa.get("visual_lock", {}).get("drop_defender_name_bar") is True
     assert qa.get("visual_lock", {}).get("drop_defender_floor_ring") is True
+    ring = qa.get("floor_ring_policy_v2", {})
+    assert ring.get("mode") == "camera_scale_at_screen_action_constant_within_angle", ring
+    assert ring.get("never_smaller_than_canonical_broadcast") is True, ring
+    assert float(ring.get("resolved_scale", 0)) >= 1.0, ring
     colour = qa.get("team_colour_resolution", {})
     assert colour.get("rule") == "defense_keeps_primary_offense_switches_secondary_when_primaries_similar", colour
     assert float(colour.get("rgb_distance_threshold", -1)) == 80.0, colour
