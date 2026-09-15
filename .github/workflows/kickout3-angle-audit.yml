@@ -1,0 +1,32 @@
+name: Screen Tracker - Kickout 3 angle audit
+
+on:
+  push:
+    branches: [screen-tracker-kickout-3]
+    paths:
+      - 'screen_tracker_kickout3/audit_angles.py'
+      - '.github/workflows/kickout3-angle-audit.yml'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas pyreadr requests
+      - name: Reproduce exact event selection
+        run: python screen_tracker_kickout3/discover_events.py --out artifacts/kickout3
+      - name: Audit every official angle on both shot events
+        run: python screen_tracker_kickout3/audit_angles.py --manifest artifacts/kickout3/kickout3_event_manifest.json --out artifacts/kickout3/angles
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kickout3-angle-audit
+          path: artifacts/kickout3/
+          if-no-files-found: error
+          retention-days: 30
