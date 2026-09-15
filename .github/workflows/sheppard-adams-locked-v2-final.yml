@@ -1,0 +1,108 @@
+name: Sheppard Adams locked V2 final
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/sheppard-adams-locked-v2-similar-xfg-contact]
+    paths:
+      - '.github/workflows/sheppard-adams-locked-v2-final.yml'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deterministic render stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core zip
+          pip install 'numpy<2' pandas pillow opencv-python-headless
+      - name: Download validated V2 probe inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: sheppard-adams-v2-probe
+          path: artifacts/probe
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 34923420312
+      - name: Validate season comparator and two contact phases
+        run: |
+          python - <<'PY'
+          import json, math
+          cfg=json.load(open('configs/locked_broadcast_screen_v2_toronto_event483.json'))
+          sx=json.load(open('artifacts/probe/sheppard_similar_xfg.json'))
+          cs=json.load(open('artifacts/probe/contact_gap_summary.json'))
+          q=json.load(open('artifacts/probe/toronto_tracking/qa.json'))
+          assert q['game_id']=='0022500131' and q['event_num']==483, q
+          assert q['source']['angle']=='Broadcast', q['source']
+          assert q['source']['variant']['width']==960 and q['source']['variant']['height']==540, q['source']
+          assert q['roles']['adams']==10 and q['roles']['ballhandler']==7 and q['roles']['screened_defender']==3, q['roles']
+          chosen=sx['chosen']; sim=cfg['shot']['similar_xfg']
+          assert chosen['n']==70 and sim['n']==70, (chosen,sim)
+          assert abs(chosen['xfg_pct']-42.89142857142856)<1e-10, chosen
+          assert abs(sim['xfg_pct']-chosen['xfg_pct'])<1e-10, (sim,chosen)
+          assert sx['coverage']=={'reed_fga':946,'xfg_covered':890,'games':82}, sx['coverage']
+          assert cfg['shot']['league_xfg_pct']==41.7
+          phases=cfg['timing']['contact_phases']; assert len(phases)==2, phases
+          expected=cs['bbox_overlap']; assert len(expected)==2, expected
+          for got,exp in zip(phases,expected):
+              assert abs(got[0]-exp[0])<0.02 and abs(got[1]-exp[1])<0.02, (got,exp)
+          total=sum(e-s for s,e in phases); assert abs(total-1.4)<0.02, total
+          print('SIMILAR_XFG_PCT',round(sim['xfg_pct'],1),'N',sim['n'])
+          print('CONTACT_PHASES',phases,'TOTAL',total)
+          PY
+      - name: Render LOCKED_BROADCAST_SCREEN_V2 UHD
+        run: |
+          python tools/locked_broadcast_screen_v2.py \
+            --source artifacts/probe/toronto_tracking/source_native.mp4 \
+            --tracks artifacts/probe/toronto_tracking/tracks.csv \
+            --config configs/locked_broadcast_screen_v2_toronto_event483.json \
+            --out artifacts/sheppard_adams_locked_v2
+      - name: Validate final UHD and package
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          p=pathlib.Path('artifacts/sheppard_adams_locked_v2')
+          qa=json.load(open(p/'qa.json'))
+          assert qa['tool_id']=='LOCKED_BROADCAST_SCREEN_V2', qa
+          assert abs(qa['screen_contact_total_s']-1.4)<0.02, qa
+          assert qa['similar_xfg']['n']==70
+          assert abs(qa['similar_xfg']['xfg_pct']-42.89142857142856)<1e-10
+          assert qa['event_xfg_pct']==41.7
+          uhd=pathlib.Path(qa['uhd']); assert uhd.exists()
+          probe=subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=codec_name,width,height,r_frame_rate','-of','json',str(uhd)],text=True)
+          s=json.loads(probe)['streams'][0]
+          assert s['codec_name']=='h264' and s['width']==3840 and s['height']==2160 and s['r_frame_rate']=='30/1', s
+          print(json.dumps(qa,indent=2))
+          print(json.dumps(s,indent=2))
+          PY
+          cd artifacts/sheppard_adams_locked_v2
+          zip -j -9 ../sheppard_adams_locked_v2_similar_xfg_contact_UHD.zip \
+            adams_sheppard_toronto_locked_broadcast_v2_similar_xfg_contact_UHD.mp4 \
+            adams_sheppard_toronto_locked_broadcast_v2_similar_xfg_contact_native.mp4 \
+            release_freeze.jpg qa.json LOCKED_TOOL_ID.txt \
+            ../probe/sheppard_similar_xfg.json ../probe/contact_gap_summary.json \
+            ../../configs/locked_broadcast_screen_v2_toronto_event483.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sheppard-adams-locked-v2-similar-xfg-contact
+          path: |
+            artifacts/sheppard_adams_locked_v2/adams_sheppard_toronto_locked_broadcast_v2_similar_xfg_contact_UHD.mp4
+            artifacts/sheppard_adams_locked_v2/adams_sheppard_toronto_locked_broadcast_v2_similar_xfg_contact_native.mp4
+            artifacts/sheppard_adams_locked_v2/release_freeze.jpg
+            artifacts/sheppard_adams_locked_v2/qa.json
+            artifacts/sheppard_adams_locked_v2/LOCKED_TOOL_ID.txt
+            artifacts/probe/sheppard_similar_xfg.json
+            artifacts/probe/sheppard_similar_shots.csv
+            artifacts/probe/contact_gap_summary.json
+            configs/locked_broadcast_screen_v2_toronto_event483.json
+            artifacts/sheppard_adams_locked_v2_similar_xfg_contact_UHD.zip
+          if-no-files-found: error
+          retention-days: 30
