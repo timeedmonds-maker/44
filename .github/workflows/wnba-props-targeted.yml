@@ -12,7 +12,7 @@ permissions:
 jobs:
   extract:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,142 +22,55 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests
-      - name: Recover previous-season WNBA potential assists
+      - name: Probe league-wide WNBA Explore data
         shell: bash
         run: |
-          cat >/tmp/extract.py <<'PY'
-          import csv,json,time
+          cat >/tmp/explore.py <<'PY'
+          import csv,json
           from pathlib import Path
           import requests
-
-          O=Path('outputs/wnba_props_previous')
-          O.mkdir(parents=True,exist_ok=True)
-          s=requests.Session()
-          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36','Accept':'application/json,text/plain,*/*','Origin':'https://propsmadness.com','Referer':'https://propsmadness.com/wnba'}
-          BASE='https://api.propsmadness.com/api'
-
-          # Pull multiple public WNBA boards. The live JS defines /offer/{league}/bets/{market}.
-          markets=['featured','player-assists','assists','player-points','player-rebounds','rebounds-assists','player-rebounds-assists','points-assists','points-rebounds-assists']
-          payloads=[]; board_attempts=[]
-          for market in markets:
-              u=f'{BASE}/offer/wnba/bets/{market}'
-              try:
-                  r=s.get(u,headers=H,timeout=25)
-                  board_attempts.append({'market':market,'status':r.status_code,'bytes':len(r.content),'prefix':r.text[:160]})
-                  if r.status_code==200 and r.text.strip().startswith(('{','[')):
-                      j=r.json(); payloads.append((market,j))
-                      (O/f'board_{market}.json').write_text(json.dumps(j,indent=2),encoding='utf8')
-                      print('BOARD',market,'200',len(r.content))
-                  else: print('BOARD',market,r.status_code,len(r.content))
-              except Exception as e:
-                  board_attempts.append({'market':market,'error':repr(e)})
-          (O/'board_attempts.json').write_text(json.dumps(board_attempts,indent=2),encoding='utf8')
-
-          players={}
-          for market,j in payloads:
-              for mo in j.get('matchOffers',[]):
-                  match=mo.get('match') or {}
-                  for off in mo.get('offer') or []:
-                      p=off.get('player') or {}; pid=p.get('id')
-                      if pid is None: continue
-                      key=str(pid)
-                      d=players.setdefault(key,{'id':key,'name':(' '.join(x for x in [p.get('firstName'),p.get('lastName')] if x)).strip(),'teamId':p.get('teamId'),'position':p.get('position'),'offerTypes':set(),'markets':set()})
-                      d['offerTypes'].add(off.get('offerType')); d['markets'].add(market)
-          # make serializable
-          for d in players.values():
-              d['offerTypes']=sorted(x for x in d['offerTypes'] if x); d['markets']=sorted(d['markets'])
-          (O/'players.json').write_text(json.dumps(players,indent=2),encoding='utf8')
-          print('UNIQUE PLAYERS',len(players))
-
-          def walk(x):
-              if isinstance(x,dict):
-                  yield x
-                  for v in x.values(): yield from walk(v)
-              elif isinstance(x,list):
-                  for v in x: yield from walk(v)
-
-          attempts=[]; good=[]
-          for pid,p in players.items():
-              u=f'{BASE}/players/{pid}/match-statistics?seasonReference=previous'
-              try:
-                  r=s.get(u,headers=H,timeout=25)
-                  rec={'playerId':pid,'playerName':p['name'],'offerTypes':p['offerTypes'],'markets':p['markets'],'url':u,'status':r.status_code,'bytes':len(r.content),'prefix':r.text[:220]}
-                  attempts.append(rec)
-                  if r.status_code==200 and r.text.strip().startswith(('{','[')):
-                      j=r.json(); txt=r.text
-                      has=any(k in txt for k in ['potentialAssists','POTENTIAL_AST','potential_assists'])
-                      rec['hasPA']=has
-                      print('HISTORY',pid,p['name'],r.status_code,len(r.content),'PA',has)
-                      if has:
-                          good.append({'player':p,'playerId':pid,'payload':j})
-                          (O/f'history_{pid}.json').write_text(json.dumps(j,indent=2),encoding='utf8')
-                  else:
-                      print('HISTORY',pid,p['name'],r.status_code,len(r.content))
-              except Exception as e:
-                  attempts.append({'playerId':pid,'playerName':p['name'],'url':u,'error':repr(e)})
-              time.sleep(.06)
+          O=Path('outputs/wnba_props_explore'); O.mkdir(parents=True,exist_ok=True)
+          s=requests.Session(); H={'User-Agent':'Mozilla/5.0 Chrome/122 Safari/537.36','Accept':'application/json,text/plain,*/*','Origin':'https://propsmadness.com','Referer':'https://propsmadness.com/wnba'}
+          B='https://api.propsmadness.com/api'
+          markets=['player-assists','player-rebounds-assists','player-points-rebounds-assists','featured']
+          attempts=[]; payloads=[]
+          for m in markets:
+              for path in [f'/offer/wnba/explore/{m}',f'/offer/wnba/explore/{m}?seasonReference=previous']:
+                  try:
+                      r=s.get(B+path,headers=H,timeout=30)
+                      rec={'market':m,'path':path,'status':r.status_code,'bytes':len(r.content),'prefix':r.text[:220]};attempts.append(rec)
+                      print(path,r.status_code,len(r.content))
+                      if r.status_code==200 and r.text.strip().startswith(('{','[')):
+                          j=r.json();payloads.append((m,path,j));
+                          safe=m+'_'+('previous' if 'previous' in path else 'default')
+                          (O/f'{safe}.json').write_text(json.dumps(j,indent=2),encoding='utf8')
+                  except Exception as e:attempts.append({'market':m,'path':path,'error':repr(e)})
           (O/'attempts.json').write_text(json.dumps(attempts,indent=2),encoding='utf8')
-
-          rows=[]
-          for g in good:
-              pid=g['playerId']; pname=g['player']['name']
-              payload=g['payload']
-              # Prefer actual matchPlayerStatistics list to avoid nested duplicate PA fields.
-              mps=payload.get('matchPlayerStatistics') if isinstance(payload,dict) else None
-              iterable=mps if isinstance(mps,list) else list(walk(payload))
-              for d in iterable:
-                  if not isinstance(d,dict): continue
-                  # Payload may put stats directly on item or inside statistics/statistic.
-                  candidates=[d]
-                  for k in ['statistics','statistic','playerStatistics','stats']:
-                      if isinstance(d.get(k),dict): candidates.append(d[k])
-                  pa=None; statsrc=None
-                  for c in candidates:
-                      for key in ['potentialAssists','POTENTIAL_AST','potential_assists']:
-                          if c.get(key) is not None:
-                              pa=c.get(key); statsrc=c; break
-                      if pa is not None: break
-                  if pa is None: continue
-                  match=d.get('match') if isinstance(d.get('match'),dict) else {}
-                  mid=d.get('matchId') or match.get('id') or d.get('gameId') or ''
-                  date=d.get('date') or d.get('matchDate') or d.get('gameDate') or match.get('startDate') or match.get('startDateTimestamp') or ''
-                  home=match.get('homeTeam') if isinstance(match.get('homeTeam'),dict) else {}
-                  away=match.get('awayTeam') if isinstance(match.get('awayTeam'),dict) else {}
-                  teamid=str(g['player'].get('teamId') or '')
-                  opp=''
-                  if str(home.get('id',''))==teamid: opp=away.get('nameAbbreviation') or away.get('shortName') or away.get('name') or ''
-                  elif str(away.get('id',''))==teamid: opp=home.get('nameAbbreviation') or home.get('shortName') or home.get('name') or ''
-                  c=statsrc or d
-                  rows.append({'playerId':pid,'playerName':pname,'matchId':mid,'date':date,'opponent':opp,'potentialAssists':pa,'assists':c.get('assists',c.get('AST')),'passesMade':c.get('passesMade',c.get('PASSES_MADE')),'minutes':c.get('minutesPlayed',c.get('MIN'))})
-
-          clean=[]; seen=set()
-          for x in rows:
-              key=(x['playerId'],str(x['matchId']),str(x['date']))
-              if key in seen: continue
-              seen.add(key); clean.append(x)
-          fields=['playerId','playerName','matchId','date','opponent','potentialAssists','assists','passesMade','minutes']
-          with (O/'wnba_2025_potential_assists_gamelogs.csv').open('w',newline='',encoding='utf8') as f:
-              w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows(clean)
-
-          agg={}
-          for x in clean:
-              try: pa=float(x['potentialAssists'])
-              except: continue
-              a=agg.setdefault(x['playerId'],{'playerId':x['playerId'],'playerName':x['playerName'],'games':0,'potentialAssistsTotal':0.0})
-              a['games']+=1;a['potentialAssistsTotal']+=pa
-          for a in agg.values(): a['potentialAssistsPerGame']=round(a['potentialAssistsTotal']/a['games'],3)
-          board=sorted(agg.values(),key=lambda x:x['potentialAssistsPerGame'],reverse=True)
-          af=['playerId','playerName','games','potentialAssistsTotal','potentialAssistsPerGame']
-          with (O/'wnba_2025_potential_assists_by_player.csv').open('w',newline='',encoding='utf8') as f:
-              w=csv.DictWriter(f,fieldnames=af);w.writeheader();w.writerows(board)
-          (O/'summary.json').write_text(json.dumps({'publicBoards':len(payloads),'uniquePlayers':len(players),'history200WithPA':len(good),'gameRows':len(clean),'leaderboardPlayers':len(board),'top20':board[:20]},indent=2),encoding='utf8')
-          print('TOP20',json.dumps(board[:20]))
+          def walk(x,path=''):
+              if isinstance(x,dict):
+                  yield path,x
+                  for k,v in x.items():yield from walk(v,path+'/'+str(k))
+              elif isinstance(x,list):
+                  for i,v in enumerate(x):yield from walk(v,path+'/'+str(i))
+          hits=[]
+          for m,p,j in payloads:
+              for path,d in walk(j):
+                  if not isinstance(d,dict):continue
+                  for key in ['potentialAssists','POTENTIAL_AST','potential_assists']:
+                      if key in d:
+                          hits.append({'market':m,'requestPath':p,'jsonPath':path,'key':key,'value':d.get(key),'object':d})
+                          break
+          (O/'potential_assist_hits.json').write_text(json.dumps(hits,indent=2),encoding='utf8')
+          nonnull=[h for h in hits if h['value'] is not None]
+          (O/'summary.json').write_text(json.dumps({'successfulPayloads':len(payloads),'potentialAssistObjects':len(hits),'nonNullPotentialAssistObjects':len(nonnull),'sampleNonNull':nonnull[:25]},indent=2),encoding='utf8')
+          print('PA HITS',len(hits),'NONNULL',len(nonnull))
+          if nonnull: print(json.dumps(nonnull[:10]))
           PY
-          python /tmp/extract.py
+          python /tmp/explore.py
       - name: Commit isolated outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add outputs/wnba_props_previous
-          git diff --staged --quiet || git commit -m "Recover 2025 WNBA potential assists via previous-season route [skip ci]"
+          git add outputs/wnba_props_explore
+          git diff --staged --quiet || git commit -m "Probe WNBA Explore potential assists payload [skip ci]"
           git push origin HEAD:agent/wnba-potential-assists-2025
