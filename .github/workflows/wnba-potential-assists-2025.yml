@@ -1,0 +1,235 @@
+name: WNBA potential assists 2025 probe
+
+on:
+  push:
+    branches:
+      - agent/wnba-potential-assists-2025
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wnba-potential-assists-2025
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install
+        run: pip install requests
+
+      - name: Probe official, relay and PropsMadness routes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv, json, re, sys, urllib.parse
+          from pathlib import Path
+          import requests
+
+          OUT = Path('outputs/wnba_potential_assists_probe')
+          OUT.mkdir(parents=True, exist_ok=True)
+          summary = []
+          s = requests.Session()
+          UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+          NBA_HEADERS = {
+              'User-Agent': UA,
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Referer': 'https://www.wnba.com/',
+              'Origin': 'https://www.wnba.com',
+              'x-nba-stats-origin': 'stats',
+              'x-nba-stats-token': 'true',
+          }
+          params = {
+              'College':'','Conference':'','Country':'','DateFrom':'','DateTo':'','Division':'',
+              'DraftPick':'','DraftYear':'','GameScope':'','Height':'','LastNGames':'0',
+              'LeagueID':'10','Location':'','Month':'0','OpponentTeamID':'0','Outcome':'',
+              'PORound':'0','PerMode':'PerGame','PlayerExperience':'','PlayerOrTeam':'Player',
+              'PlayerPosition':'','PtMeasureType':'Passing','Season':'2025','SeasonSegment':'',
+              'SeasonType':'Regular Season','StarterBench':'','TeamID':'0','VsConference':'',
+              'VsDivision':'','Weight':''
+          }
+          q = urllib.parse.urlencode(params)
+          official_urls = [
+              'https://stats.wnba.com/stats/leaguedashptstats?' + q,
+              'https://stats.nba.com/stats/leaguedashptstats?' + q,
+          ]
+
+          def save_attempt(name, url, headers=None, timeout=45):
+              rec = {'name':name, 'url':url}
+              try:
+                  r = s.get(url, headers=headers or {'User-Agent':UA}, timeout=timeout, allow_redirects=True)
+                  rec.update(status=r.status_code, final_url=r.url, length=len(r.content), content_type=r.headers.get('content-type',''))
+                  text = r.text
+                  (OUT / f'{name}.txt').write_text(text, encoding='utf-8', errors='replace')
+                  rec['prefix'] = text[:180].replace('\n',' ')
+                  print(name, r.status_code, len(r.content), r.url)
+                  return rec, text
+              except Exception as e:
+                  rec['error'] = repr(e)
+                  (OUT / f'{name}.error.txt').write_text(repr(e), encoding='utf-8')
+                  print(name, 'ERROR', repr(e))
+                  return rec, ''
+
+          def json_candidates(text):
+              out=[]
+              try:
+                  out.append(json.loads(text))
+              except Exception:
+                  pass
+              # Jina/relay responses sometimes wrap the JSON in markdown/text.
+              first=text.find('{'); last=text.rfind('}')
+              if first >= 0 and last > first:
+                  try: out.append(json.loads(text[first:last+1]))
+                  except Exception: pass
+              return out
+
+          def parse_nba_payload(obj):
+              if not isinstance(obj, dict): return None
+              rs = obj.get('resultSets') or obj.get('resultSet')
+              if isinstance(rs, dict): rs=[rs]
+              if not isinstance(rs, list): return None
+              for x in rs:
+                  if not isinstance(x, dict): continue
+                  h=x.get('headers') or []
+                  rows=x.get('rowSet') or []
+                  if 'POTENTIAL_AST' in h and rows:
+                      return h, rows
+              return None
+
+          def emit_csv(headers, rows, source_name):
+              raw = OUT / f'wnba_2025_passing_{source_name}.csv'
+              with raw.open('w', newline='', encoding='utf-8') as f:
+                  w=csv.writer(f); w.writerow(headers); w.writerows(rows)
+              idx={h:i for i,h in enumerate(headers)}
+              wanted=['PLAYER_ID','PLAYER_NAME','TEAM_ABBREVIATION','GP','MIN','PASSES_MADE','PASSES_RECEIVED','AST','SECONDARY_AST','POTENTIAL_AST','AST_POINTS_CREATED']
+              simp=OUT / f'wnba_2025_potential_assists_{source_name}.csv'
+              with simp.open('w', newline='', encoding='utf-8') as f:
+                  w=csv.writer(f); w.writerow([x.lower() for x in wanted])
+                  for row in rows:
+                      w.writerow([row[idx[x]] if x in idx and idx[x] < len(row) else '' for x in wanted])
+              print('PARSED', source_name, len(rows), 'players ->', simp)
+              return str(simp), len(rows)
+
+          parsed=[]
+          for i,u in enumerate(official_urls):
+              name=['official_wnba','official_nba_league10'][i]
+              rec,text=save_attempt(name,u,NBA_HEADERS)
+              summary.append(rec)
+              for obj in json_candidates(text):
+                  p=parse_nba_payload(obj)
+                  if p:
+                      parsed.append((name,*emit_csv(*p,name)))
+                      break
+
+          # Public relay services: legal/public HTTP relays, no private credentials.
+          relay_specs=[]
+          for host_i, target in enumerate(official_urls):
+              enc=urllib.parse.quote(target, safe='')
+              relay_specs += [
+                  (f'jina_{host_i}', 'https://r.jina.ai/' + target),
+                  (f'allorigins_{host_i}', 'https://api.allorigins.win/raw?url=' + enc),
+                  (f'corsproxy_{host_i}', 'https://corsproxy.io/?url=' + enc),
+                  (f'codetabs_{host_i}', 'https://api.codetabs.com/v1/proxy?quest=' + enc),
+              ]
+          for name,u in relay_specs:
+              rec,text=save_attempt(name,u,{'User-Agent':UA},60)
+              summary.append(rec)
+              for obj in json_candidates(text):
+                  p=parse_nba_payload(obj)
+                  if p:
+                      parsed.append((name,*emit_csv(*p,name)))
+                      break
+
+          # PropsMadness public REST + frontend reverse-engineering.
+          pm_base='https://api.propsmadness.com'
+          pm_paths=[
+              '/', '/health', '/openapi.json', '/swagger.json', '/docs', '/redoc',
+              '/offer/wnba/bets/featured', '/offer/wnba/bets', '/players?league=wnba', '/players/wnba'
+          ]
+          pm_json={}
+          for j,path in enumerate(pm_paths):
+              name=f'props_api_{j:02d}'
+              rec,text=save_attempt(name,pm_base+path,{'User-Agent':UA,'Accept':'application/json'},30)
+              rec['path']=path; summary.append(rec)
+              for obj in json_candidates(text):
+                  pm_json[path]=obj; break
+
+          # Fetch frontend and JS bundles, then locate hidden endpoint/key strings.
+          rec,html=save_attempt('props_wnba_page','https://propsmadness.com/wnba',{'User-Agent':UA,'Accept':'text/html'},30)
+          summary.append(rec)
+          scripts=[]
+          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html):
+              if src.startswith('/'): src='https://propsmadness.com'+src
+              elif src.startswith('//'): src='https:'+src
+              if src.startswith('http'): scripts.append(src)
+          hits=[]
+          for k,src in enumerate(dict.fromkeys(scripts)):
+              try:
+                  rr=s.get(src,headers={'User-Agent':UA},timeout=30)
+                  txt=rr.text
+                  for needle in ['api.propsmadness.com','match-statistics','potentialAssist','potential_assist','potential assists','potentialAssists','POTENTIAL_AST','offer/wnba']:
+                      pos=txt.find(needle)
+                      if pos>=0:
+                          hits.append({'script':src,'needle':needle,'snippet':txt[max(0,pos-500):pos+900]})
+              except Exception as e:
+                  hits.append({'script':src,'error':repr(e)})
+          (OUT/'props_bundle_hits.json').write_text(json.dumps(hits,indent=2),encoding='utf-8')
+
+          # Recursively collect plausible player and match IDs from public featured payload.
+          def walk(x, path=''):
+              if isinstance(x,dict):
+                  for k,v in x.items():
+                      yield path+'/'+str(k),v
+                      yield from walk(v,path+'/'+str(k))
+              elif isinstance(x,list):
+                  for i,v in enumerate(x): yield from walk(v,path+f'/{i}')
+          feature=pm_json.get('/offer/wnba/bets/featured')
+          player_ids=[]; match_ids=[]
+          if feature is not None:
+              for path,v in walk(feature):
+                  key=path.rsplit('/',1)[-1].lower()
+                  if isinstance(v,(int,str)) and str(v).isdigit():
+                      if 'player' in key or 'athlete' in key: player_ids.append(str(v))
+                      if 'match' in key or 'game' in key: match_ids.append(str(v))
+              player_ids=list(dict.fromkeys(player_ids))[:20]
+              match_ids=list(dict.fromkeys(match_ids))[:20]
+          (OUT/'props_ids.json').write_text(json.dumps({'player_ids':player_ids,'match_ids':match_ids},indent=2),encoding='utf-8')
+
+          # Probe likely public per-player history routes for free/featured IDs.
+          for pi,pid in enumerate(player_ids[:10]):
+              routes=[
+                  f'/players/{pid}/match-statistics',
+                  f'/players/{pid}/match-statistics?season=2025',
+                  f'/players/{pid}/season/2025/match-statistics',
+                  f'/players/{pid}/season/current/match-statistics',
+              ]
+              if match_ids:
+                  routes += [f'/players/{pid}/match/{match_ids[0]}/bet-offers']
+              for ri,path in enumerate(routes):
+                  name=f'props_player_{pi:02d}_{ri:02d}'
+                  rec,text=save_attempt(name,pm_base+path,{'User-Agent':UA,'Accept':'application/json'},30)
+                  rec.update(player_id=pid,path=path); summary.append(rec)
+                  low=text.lower()
+                  if any(k in low for k in ['potential_assist','potentialassist','potential ast','potential_ast']):
+                      (OUT/f'PROPS_POTENTIAL_HIT_{pi:02d}_{ri:02d}.txt').write_text(text,encoding='utf-8',errors='replace')
+
+          (OUT/'summary.json').write_text(json.dumps({'attempts':summary,'parsed':parsed,'props_bundle_hits':len(hits)},indent=2),encoding='utf-8')
+          print('\nFINAL parsed:', parsed)
+          print('Props bundle hits:', len(hits), 'player IDs:', player_ids[:10], 'match IDs:', match_ids[:10])
+          PY
+
+      - name: Commit probe outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add outputs/wnba_potential_assists_probe
+          git diff --staged --quiet || git commit -m "Add WNBA 2025 potential assists probe results [skip ci]"
+          git push origin HEAD:agent/wnba-potential-assists-2025
