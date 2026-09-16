@@ -1,0 +1,161 @@
+name: WNBA 2025 Potential Assists Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/wnba-2025-potential-assists.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Probe official and relay routes
+        shell: bash
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import csv, json, os, urllib.parse
+          import requests
+
+          base_params = {
+              'College':'','Conference':'','Country':'','DateFrom':'','DateTo':'','Division':'',
+              'DraftPick':'','DraftYear':'','GameScope':'','GameSegment':'','Height':'',
+              'LastNGames':'0','LeagueID':'10','Location':'','Month':'0','OpponentTeamID':'0',
+              'Outcome':'','PORound':'0','PerMode':'PerGame','PlayerExperience':'',
+              'PlayerOrTeam':'Player','PlayerPosition':'','PtMeasureType':'Passing',
+              'Season':'2025','SeasonSegment':'','SeasonType':'Regular Season','StarterBench':'',
+              'TeamID':'0','VsConference':'','VsDivision':'','Weight':''
+          }
+
+          header_sets = [
+              {
+                  'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                  'Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9',
+                  'Referer':'https://www.wnba.com/','Origin':'https://www.wnba.com',
+                  'x-nba-stats-origin':'stats','x-nba-stats-token':'true'
+              },
+              {
+                  'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/122 Safari/537.36',
+                  'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/',
+                  'Origin':'https://www.nba.com','x-nba-stats-origin':'stats','x-nba-stats-token':'true'
+              },
+              {'User-Agent':'Mozilla/5.0','Accept':'application/json'}
+          ]
+
+          targets=[]
+          for host in ['https://stats.wnba.com','https://stats.nba.com']:
+              u = host + '/stats/leaguedashptstats?' + urllib.parse.urlencode(base_params)
+              for i,h in enumerate(header_sets):
+                  targets.append((f'direct:{host}:h{i+1}',u,h))
+
+          official_url='https://stats.wnba.com/stats/leaguedashptstats?' + urllib.parse.urlencode(base_params)
+          nba_url='https://stats.nba.com/stats/leaguedashptstats?' + urllib.parse.urlencode(base_params)
+          relay_urls = [
+              ('jina-wnba','https://r.jina.ai/' + official_url, {'User-Agent':'Mozilla/5.0'}),
+              ('jina-nba','https://r.jina.ai/' + nba_url, {'User-Agent':'Mozilla/5.0'}),
+              ('allorigins-wnba','https://api.allorigins.win/raw?url=' + urllib.parse.quote(official_url, safe=''), {'User-Agent':'Mozilla/5.0'}),
+              ('allorigins-nba','https://api.allorigins.win/raw?url=' + urllib.parse.quote(nba_url, safe=''), {'User-Agent':'Mozilla/5.0'}),
+              ('corsproxy-wnba','https://corsproxy.io/?url=' + urllib.parse.quote(official_url, safe=''), {'User-Agent':'Mozilla/5.0'}),
+              ('corsproxy-nba','https://corsproxy.io/?url=' + urllib.parse.quote(nba_url, safe=''), {'User-Agent':'Mozilla/5.0'})
+          ]
+          targets.extend(relay_urls)
+
+          diagnostics=[]
+          found=None
+
+          def parse_payload(text):
+              # Try straight JSON first. Some relays may wrap JSON in text/markdown.
+              try:
+                  return json.loads(text)
+              except Exception:
+                  starts=[text.find('{'), text.find('[')]
+                  starts=[x for x in starts if x>=0]
+                  if not starts: return None
+                  start=min(starts)
+                  for endchar in ['}',']']:
+                      end=text.rfind(endchar)
+                      if end>start:
+                          try: return json.loads(text[start:end+1])
+                          except Exception: pass
+                  return None
+
+          def extract(js):
+              if not isinstance(js,dict): return None
+              rs=js.get('resultSets') or js.get('resultSet')
+              if isinstance(rs,dict): rs=[rs]
+              if not isinstance(rs,list) or not rs: return None
+              for block in rs:
+                  headers=block.get('headers') or []
+                  rows=block.get('rowSet') or []
+                  if 'POTENTIAL_AST' in headers and rows:
+                      return headers, rows
+              return None
+
+          for name,url,headers in targets:
+              try:
+                  r=requests.get(url,headers=headers,timeout=40,allow_redirects=True)
+                  item={'name':name,'status':r.status_code,'bytes':len(r.content),'final_url':r.url}
+                  js=parse_payload(r.text)
+                  ex=extract(js)
+                  if ex:
+                      H,rows=ex
+                      item['rows']=len(rows)
+                      item['success']=True
+                      diagnostics.append(item)
+                      found=(name,H,rows)
+                      break
+                  item['success']=False
+                  item['sample']=r.text[:180].replace('\n',' ')
+                  diagnostics.append(item)
+              except Exception as e:
+                  diagnostics.append({'name':name,'error':repr(e),'success':False})
+
+          with open('outputs/wnba_2025_potential_assists_probe.json','w') as f:
+              json.dump(diagnostics,f,indent=2)
+
+          if found:
+              name,H,rows=found
+              idx={h:i for i,h in enumerate(H)}
+              wanted=['PLAYER_ID','PLAYER_NAME','TEAM_ID','TEAM_ABBREVIATION','GP','MIN','AST','POTENTIAL_AST','PASSES_MADE','PASSES_RECEIVED','SECONDARY_AST','AST_POINTS_CREATED']
+              wanted=[x for x in wanted if x in idx]
+              clean=[]
+              for row in rows:
+                  d={k:row[idx[k]] for k in wanted}
+                  clean.append(d)
+              clean.sort(key=lambda d: (d.get('POTENTIAL_AST') is not None, d.get('POTENTIAL_AST') or -1), reverse=True)
+              with open('outputs/wnba_2025_potential_assists.csv','w',newline='') as f:
+                  w=csv.DictWriter(f,fieldnames=wanted)
+                  w.writeheader(); w.writerows(clean)
+              with open('outputs/wnba_2025_potential_assists_source.txt','w') as f:
+                  f.write('Successful route: '+name+'\n')
+                  f.write('Season: 2025 WNBA Regular Season\n')
+                  f.write('Endpoint: leaguedashptstats / Passing / LeagueID=10 / PerGame\n')
+                  f.write(f'Rows: {len(clean)}\n')
+              print('SUCCESS',name,'rows',len(clean))
+              for d in clean[:20]: print(d)
+          else:
+              print('NO SUCCESSFUL ROUTE')
+              print(json.dumps(diagnostics,indent=2))
+          PY
+
+      - name: Commit results
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add outputs/wnba_2025_potential_assists* || true
+          git diff --cached --quiet || git commit -m 'WNBA 2025 potential assists probe results'
+          git push
