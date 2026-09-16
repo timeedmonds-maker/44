@@ -1,0 +1,95 @@
+name: Screen Tracker - Kickout 3 Left Slash tracking
+
+on:
+  push:
+    branches: [screen-tracker-kickout-3]
+    paths:
+      - '.github/workflows/kickout3-track-left-slash.yml'
+      - 'screen_tracker_kickout3/run_angle_tracking.py'
+  workflow_dispatch:
+
+jobs:
+  track:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - key: cle_left_slash
+            game: '0022500255'
+            event: 247
+            angle: 'Left Slash'
+            start: '5.0'
+            end: '13.0'
+          - key: tor_left_slash
+            game: '0022500131'
+            event: 585
+            angle: 'Left Slash'
+            start: '5.0'
+            end: '13.0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg git zip
+      - name: Install Screen Tracker CV stack
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          pip install -e /tmp/object-detection-eval
+          pip install git+https://github.com/roboflow/trackers.git
+          pip install pyreadr requests ultralytics scipy 'numpy<2' pandas
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+      - name: Download deterministic CV models
+        run: |
+          mkdir -p artifacts/models
+          curl -L --retry 3 -o artifacts/models/rfdetr_m_640.onnx https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx
+          echo '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  artifacts/models/rfdetr_m_640.onnx' | sha256sum -c -
+          curl -L --retry 3 -o artifacts/models/court_yolo11m_pose.pt https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt
+      - name: Build exact Left Slash tracks
+        run: |
+          python screen_tracker_kickout3/run_angle_tracking.py \
+            --angle-label '${{ matrix.angle }}' \
+            --game '${{ matrix.game }}' --event '${{ matrix.event }}' \
+            --start-s '${{ matrix.start }}' --end-s '${{ matrix.end }}' \
+            --analysis-fps 12 --number-fps 4 --court-fps 2 \
+            --detector-onnx artifacts/models/rfdetr_m_640.onnx \
+            --object-eval-src /tmp/object-detection-eval/src \
+            --court-model artifacts/models/court_yolo11m_pose.pt \
+            --nbacv-src /tmp/nbacv/src \
+            --out 'artifacts/${{ matrix.key }}/tracks'
+      - name: Emit PBP-lineup tracking summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib, pandas as pd
+          key='${{ matrix.key }}'; root=pathlib.Path('artifacts')/key
+          ctx_path=root/'tracks/context.json'; tracks_path=root/'tracks/tracks.csv'
+          ctx=json.load(open(ctx_path)) if ctx_path.exists() else {}
+          summary={
+            'key':key,
+            'game_id':'${{ matrix.game }}',
+            'event_num':${{ matrix.event }},
+            'angle':'${{ matrix.angle }}',
+            'track_rows':len(pd.read_csv(tracks_path)) if tracks_path.exists() else 0,
+            'lineup_home':(ctx.get('pbp') or {}).get('lineup_home'),
+            'lineup_away':(ctx.get('pbp') or {}).get('lineup_away'),
+            'identity_contract':'exact PBP lineup gate + role/visual continuity; no live boxscore dependency'
+          }
+          root.mkdir(parents=True,exist_ok=True)
+          (root/'summary.json').write_text(json.dumps(summary,indent=2)); print(json.dumps(summary,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kickout3-track-${{ matrix.key }}
+          path: artifacts/${{ matrix.key }}/
+          if-no-files-found: warn
+          retention-days: 30
