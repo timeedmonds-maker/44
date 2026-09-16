@@ -1,0 +1,618 @@
+{
+  "693": {
+    "id": "693",
+    "name": "Jordin Canada",
+    "teamId": 31,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "728": {
+    "id": "728",
+    "name": "Allisha Gray",
+    "teamId": 31,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "737": {
+    "id": "737",
+    "name": "Naz Hillmon",
+    "teamId": 31,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-points",
+      "player-rebounds"
+    ]
+  },
+  "741": {
+    "id": "741",
+    "name": "Rhyne Howard",
+    "teamId": 31,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "776": {
+    "id": "776",
+    "name": "Angel Reese",
+    "teamId": 31,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "769": {
+    "id": "769",
+    "name": "Arike Ogunbowale",
+    "teamId": 37,
+    "position": "G",
+    "offerTypes": [
+      "fallback"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "1026": {
+    "id": "1026",
+    "name": "Jessica Shepard",
+    "teamId": 37,
+    "position": "F",
+    "offerTypes": [
+      "fallback"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "11178": {
+    "id": "11178",
+    "name": "Awak Kuier",
+    "teamId": 37,
+    "position": "F",
+    "offerTypes": [
+      "fallback"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds"
+    ]
+  },
+  "786": {
+    "id": "786",
+    "name": "Alanna Smith",
+    "teamId": 37,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-points",
+      "player-rebounds"
+    ]
+  },
+  "978": {
+    "id": "978",
+    "name": "Paige Bueckers",
+    "teamId": 37,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "770": {
+    "id": "770",
+    "name": "Nneka Ogwumike",
+    "teamId": 39,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "695": {
+    "id": "695",
+    "name": "Kamilla Cardoso",
+    "teamId": 32,
+    "position": "C",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "679": {
+    "id": "679",
+    "name": "Shakira Austin",
+    "teamId": 36,
+    "position": "C",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "972": {
+    "id": "972",
+    "name": "Georgia Amoore",
+    "teamId": 36,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds-assists"
+    ]
+  },
+  "982": {
+    "id": "982",
+    "name": "Sonia Citron",
+    "teamId": 36,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "994": {
+    "id": "994",
+    "name": "Kiki Iriafen",
+    "teamId": 36,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "696": {
+    "id": "696",
+    "name": "Bridget Carleton",
+    "teamId": 106,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-points"
+    ]
+  },
+  "721": {
+    "id": "721",
+    "name": "Emily Engstler",
+    "teamId": 106,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-points",
+      "player-rebounds"
+    ]
+  },
+  "731": {
+    "id": "731",
+    "name": "Megan Gustafson",
+    "teamId": 106,
+    "position": "C",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-points"
+    ]
+  },
+  "1005": {
+    "id": "1005",
+    "name": "Carla Leite",
+    "teamId": 106,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points"
+    ]
+  },
+  "708": {
+    "id": "708",
+    "name": "Kahleah Copper",
+    "teamId": 41,
+    "position": "G-F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-points"
+    ]
+  },
+  "755": {
+    "id": "755",
+    "name": "Natasha Mack",
+    "teamId": 41,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-points"
+    ]
+  },
+  "798": {
+    "id": "798",
+    "name": "Alyssa Thomas",
+    "teamId": 41,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "1007": {
+    "id": "1007",
+    "name": "Dominique Malonga",
+    "teamId": 42,
+    "position": "C",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "729": {
+    "id": "729",
+    "name": "Chelsea Gray",
+    "teamId": 38,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "812": {
+    "id": "812",
+    "name": "A'ja Wilson",
+    "teamId": 38,
+    "position": "C",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "813": {
+    "id": "813",
+    "name": "Jackie Young",
+    "teamId": 38,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "686": {
+    "id": "686",
+    "name": "Aliyah Boston",
+    "teamId": 34,
+    "position": "C",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "702": {
+    "id": "702",
+    "name": "Caitlin Clark",
+    "teamId": 34,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "763": {
+    "id": "763",
+    "name": "Kelsey Mitchell",
+    "teamId": 34,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "1030": {
+    "id": "1030",
+    "name": "Makayla Timpson",
+    "teamId": 34,
+    "position": "F-C",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-points",
+      "player-rebounds"
+    ]
+  },
+  "705": {
+    "id": "705",
+    "name": "Napheesa Collier",
+    "teamId": 40,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "758": {
+    "id": "758",
+    "name": "Kayla McBride",
+    "teamId": 40,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "809": {
+    "id": "809",
+    "name": "Courtney Williams",
+    "teamId": 40,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "11184": {
+    "id": "11184",
+    "name": "Olivia Miles",
+    "teamId": 40,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "743": {
+    "id": "743",
+    "name": "Sabrina Ionescu",
+    "teamId": 35,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "748": {
+    "id": "748",
+    "name": "Jonquel Jones",
+    "teamId": 35,
+    "position": "C",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "791": {
+    "id": "791",
+    "name": "Breanna Stewart",
+    "teamId": 35,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "817": {
+    "id": "817",
+    "name": "Veronica Burton",
+    "teamId": 43,
+    "position": "G",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  },
+  "828": {
+    "id": "828",
+    "name": "Gabby Williams",
+    "teamId": 43,
+    "position": "F",
+    "offerTypes": [
+      "locked"
+    ],
+    "markets": [
+      "featured",
+      "player-assists",
+      "player-points",
+      "player-rebounds",
+      "player-rebounds-assists"
+    ]
+  }
+}

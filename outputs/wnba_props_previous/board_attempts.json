@@ -1,0 +1,56 @@
+[
+  {
+    "market": "featured",
+    "status": 200,
+    "bytes": 18482,
+    "prefix": "{\"leagueCode\":\"wnba\",\"matchOffers\":[{\"match\":{\"id\":14592,\"homeTeam\":{\"id\":31,\"name\":\"Atlanta Dream\",\"shortName\":\"Dream\",\"nameAbbreviation\":\"ATL\",\"imageUrl\":\"htt"
+  },
+  {
+    "market": "player-assists",
+    "status": 200,
+    "bytes": 19607,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":4,\"name\":\"Player Assists\",\"slug\":\"player-assists\",\"code\":\"playerAssists\",\"marketType\":\"total\"},\"matchOffers\":[{\"match\":{\"id\""
+  },
+  {
+    "market": "assists",
+    "status": 400,
+    "bytes": 2443,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"marketCode must be one of: moneyline, total-points, team-total, player-points, player-assist"
+  },
+  {
+    "market": "player-points",
+    "status": 200,
+    "bytes": 24571,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":6,\"name\":\"Player Points\",\"slug\":\"player-points\",\"code\":\"playerPoints\",\"marketType\":\"total\"},\"matchOffers\":[{\"match\":{\"id\":14"
+  },
+  {
+    "market": "player-rebounds",
+    "status": 200,
+    "bytes": 20685,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":7,\"name\":\"Player Rebounds\",\"slug\":\"player-rebounds\",\"code\":\"playerRebounds\",\"marketType\":\"total\"},\"matchOffers\":[{\"match\":{\""
+  },
+  {
+    "market": "rebounds-assists",
+    "status": 400,
+    "bytes": 2443,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"marketCode must be one of: moneyline, total-points, team-total, player-points, player-assist"
+  },
+  {
+    "market": "player-rebounds-assists",
+    "status": 200,
+    "bytes": 19063,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":11,\"name\":\"Player Rebounds + Assists\",\"slug\":\"player-rebounds-assists\",\"code\":\"playerReboundsAssists\",\"marketType\":\"total\"},"
+  },
+  {
+    "market": "points-assists",
+    "status": 400,
+    "bytes": 2443,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"marketCode must be one of: moneyline, total-points, team-total, player-points, player-assist"
+  },
+  {
+    "market": "points-rebounds-assists",
+    "status": 400,
+    "bytes": 2443,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"marketCode must be one of: moneyline, total-points, team-total, player-points, player-assist"
+  }
+]

@@ -1,0 +1,1278 @@
+{
+  "leagueCode": "wnba",
+  "market": {
+    "id": 7,
+    "name": "Player Rebounds",
+    "slug": "player-rebounds",
+    "code": "playerRebounds",
+    "marketType": "total"
+  },
+  "matchOffers": [
+    {
+      "match": {
+        "id": 14592,
+        "homeTeam": {
+          "id": 31,
+          "name": "Atlanta Dream",
+          "shortName": "Dream",
+          "nameAbbreviation": "ATL",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/31.webp",
+          "primaryColor": "#C8102E",
+          "secondaryColor": "#418FDE"
+        },
+        "awayTeam": {
+          "id": 33,
+          "name": "Connecticut Sun",
+          "shortName": "Sun",
+          "nameAbbreviation": "CON",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/33.webp",
+          "primaryColor": "#A6192E",
+          "secondaryColor": "#041E42"
+        },
+        "startDateTimestamp": 1789687800,
+        "homeScore": null,
+        "awayScore": null,
+        "seasonId": 13,
+        "isDayGame": null,
+        "status": "scheduled"
+      },
+      "offer": [
+        {
+          "matchId": 14592,
+          "player": {
+            "id": 693,
+            "firstName": "Jordin",
+            "lastName": "Canada",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/693.webp",
+            "teamId": 31,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14592,
+          "player": {
+            "id": 728,
+            "firstName": "Allisha",
+            "lastName": "Gray",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/728.webp",
+            "teamId": 31,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14592,
+          "player": {
+            "id": 737,
+            "firstName": "Naz",
+            "lastName": "Hillmon",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/737.webp",
+            "teamId": 31,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14592,
+          "player": {
+            "id": 741,
+            "firstName": "Rhyne",
+            "lastName": "Howard",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/741.webp",
+            "teamId": 31,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14592,
+          "player": {
+            "id": 776,
+            "firstName": "Angel",
+            "lastName": "Reese",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/776.webp",
+            "teamId": 31,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        }
+      ]
+    },
+    {
+      "match": {
+        "id": 14590,
+        "homeTeam": {
+          "id": 37,
+          "name": "Dallas Wings",
+          "shortName": "Wings",
+          "nameAbbreviation": "DAL",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/37.webp",
+          "primaryColor": "#0C2340",
+          "secondaryColor": "#C4D600"
+        },
+        "awayTeam": {
+          "id": 39,
+          "name": "Los Angeles Sparks",
+          "shortName": "Sparks",
+          "nameAbbreviation": "LAS",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/39.webp",
+          "primaryColor": "#FFC72C",
+          "secondaryColor": "#702F8A"
+        },
+        "startDateTimestamp": 1789689600,
+        "homeScore": null,
+        "awayScore": null,
+        "seasonId": 13,
+        "isDayGame": null,
+        "status": "scheduled"
+      },
+      "offer": [
+        {
+          "matchId": 14590,
+          "player": {
+            "id": 1026,
+            "firstName": "Jessica",
+            "lastName": "Shepard",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/1026.webp",
+            "teamId": 37,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": {
+              "id": 10,
+              "name": "FanDuel",
+              "slug": "fanduel",
+              "imageUrl": "https://assets.propsmadness.com/images/sportsbooks/10.webp"
+            },
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": 10.5,
+            "odds": {
+              "over": -140,
+              "under": 106
+            }
+          },
+          "offerType": "fallback",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14590,
+          "player": {
+            "id": 11178,
+            "firstName": "Awak",
+            "lastName": "Kuier",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/11178.webp",
+            "teamId": 37,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": {
+              "id": 10,
+              "name": "FanDuel",
+              "slug": "fanduel",
+              "imageUrl": "https://assets.propsmadness.com/images/sportsbooks/10.webp"
+            },
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": 6.5,
+            "odds": {
+              "over": -114,
+              "under": -114
+            }
+          },
+          "offerType": "fallback",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14590,
+          "player": {
+            "id": 769,
+            "firstName": "Arike",
+            "lastName": "Ogunbowale",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/769.webp",
+            "teamId": 37,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": {
+              "id": 10,
+              "name": "FanDuel",
+              "slug": "fanduel",
+              "imageUrl": "https://assets.propsmadness.com/images/sportsbooks/10.webp"
+            },
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": 2.5,
+            "odds": {
+              "over": -125,
+              "under": -106
+            }
+          },
+          "offerType": "fallback",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14590,
+          "player": {
+            "id": 786,
+            "firstName": "Alanna",
+            "lastName": "Smith",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/786.webp",
+            "teamId": 37,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14590,
+          "player": {
+            "id": 978,
+            "firstName": "Paige",
+            "lastName": "Bueckers",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/978.webp",
+            "teamId": 37,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14590,
+          "player": {
+            "id": 770,
+            "firstName": "Nneka",
+            "lastName": "Ogwumike",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/770.webp",
+            "teamId": 39,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        }
+      ]
+    },
+    {
+      "match": {
+        "id": 14591,
+        "homeTeam": {
+          "id": 32,
+          "name": "Chicago Sky",
+          "shortName": "Sky",
+          "nameAbbreviation": "CHI",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/32.webp",
+          "primaryColor": "#FFCD00",
+          "secondaryColor": "#418FDE"
+        },
+        "awayTeam": {
+          "id": 36,
+          "name": "Washington Mystics",
+          "shortName": "Mystics",
+          "nameAbbreviation": "WAS",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/36.webp",
+          "primaryColor": "#006bb6",
+          "secondaryColor": "#f58426"
+        },
+        "startDateTimestamp": 1789689600,
+        "homeScore": null,
+        "awayScore": null,
+        "seasonId": 13,
+        "isDayGame": null,
+        "status": "scheduled"
+      },
+      "offer": [
+        {
+          "matchId": 14591,
+          "player": {
+            "id": 695,
+            "firstName": "Kamilla",
+            "lastName": "Cardoso",
+            "position": "C",
+            "imageUrl": "https://assets.propsmadness.com/images/players/695.webp",
+            "teamId": 32,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14591,
+          "player": {
+            "id": 679,
+            "firstName": "Shakira",
+            "lastName": "Austin",
+            "position": "C",
+            "imageUrl": "https://assets.propsmadness.com/images/players/679.webp",
+            "teamId": 36,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14591,
+          "player": {
+            "id": 982,
+            "firstName": "Sonia",
+            "lastName": "Citron",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/982.webp",
+            "teamId": 36,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14591,
+          "player": {
+            "id": 994,
+            "firstName": "Kiki",
+            "lastName": "Iriafen",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/994.webp",
+            "teamId": 36,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        }
+      ]
+    },
+    {
+      "match": {
+        "id": 14589,
+        "homeTeam": {
+          "id": 106,
+          "name": "Portland Fire",
+          "shortName": "Fire",
+          "nameAbbreviation": "PDX",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/106.webp",
+          "primaryColor": "#C8102E",
+          "secondaryColor": "#4E3629"
+        },
+        "awayTeam": {
+          "id": 41,
+          "name": "Phoenix Mercury",
+          "shortName": "Mercury",
+          "nameAbbreviation": "PHX",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/41.webp",
+          "primaryColor": "#201747",
+          "secondaryColor": "#CB6015"
+        },
+        "startDateTimestamp": 1789696800,
+        "homeScore": null,
+        "awayScore": null,
+        "seasonId": 13,
+        "isDayGame": null,
+        "status": "scheduled"
+      },
+      "offer": [
+        {
+          "matchId": 14589,
+          "player": {
+            "id": 721,
+            "firstName": "Emily",
+            "lastName": "Engstler",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/721.webp",
+            "teamId": 106,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14589,
+          "player": {
+            "id": 798,
+            "firstName": "Alyssa",
+            "lastName": "Thomas",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/798.webp",
+            "teamId": 41,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        }
+      ]
+    },
+    {
+      "match": {
+        "id": 14588,
+        "homeTeam": {
+          "id": 42,
+          "name": "Seattle Storm",
+          "shortName": "Storm",
+          "nameAbbreviation": "SEA",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/42.webp",
+          "primaryColor": "#FBE122",
+          "secondaryColor": "#2C5234"
+        },
+        "awayTeam": {
+          "id": 38,
+          "name": "Las Vegas Aces",
+          "shortName": "Aces",
+          "nameAbbreviation": "LVA",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/38.webp",
+          "primaryColor": "#BA0C2F",
+          "secondaryColor": "#000000"
+        },
+        "startDateTimestamp": 1789696800,
+        "homeScore": null,
+        "awayScore": null,
+        "seasonId": 13,
+        "isDayGame": null,
+        "status": "scheduled"
+      },
+      "offer": [
+        {
+          "matchId": 14588,
+          "player": {
+            "id": 1007,
+            "firstName": "Dominique",
+            "lastName": "Malonga",
+            "position": "C",
+            "imageUrl": "https://assets.propsmadness.com/images/players/1007.webp",
+            "teamId": 42,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14588,
+          "player": {
+            "id": 729,
+            "firstName": "Chelsea",
+            "lastName": "Gray",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/729.webp",
+            "teamId": 38,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14588,
+          "player": {
+            "id": 812,
+            "firstName": "A'ja",
+            "lastName": "Wilson",
+            "position": "C",
+            "imageUrl": "https://assets.propsmadness.com/images/players/812.webp",
+            "teamId": 38,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14588,
+          "player": {
+            "id": 813,
+            "firstName": "Jackie",
+            "lastName": "Young",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/813.webp",
+            "teamId": 38,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        }
+      ]
+    },
+    {
+      "match": {
+        "id": 14587,
+        "homeTeam": {
+          "id": 107,
+          "name": "Toronto Tempo",
+          "shortName": "Tempo",
+          "nameAbbreviation": "TOR",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/107.webp",
+          "primaryColor": "#612C51",
+          "secondaryColor": "#B8CCEA"
+        },
+        "awayTeam": {
+          "id": 34,
+          "name": "Indiana Fever",
+          "shortName": "Fever",
+          "nameAbbreviation": "IND",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/34.webp",
+          "primaryColor": "#C8102E",
+          "secondaryColor": "#041E42"
+        },
+        "startDateTimestamp": 1789774200,
+        "homeScore": null,
+        "awayScore": null,
+        "seasonId": 13,
+        "isDayGame": null,
+        "status": "scheduled"
+      },
+      "offer": [
+        {
+          "matchId": 14587,
+          "player": {
+            "id": 686,
+            "firstName": "Aliyah",
+            "lastName": "Boston",
+            "position": "C",
+            "imageUrl": "https://assets.propsmadness.com/images/players/686.webp",
+            "teamId": 34,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14587,
+          "player": {
+            "id": 702,
+            "firstName": "Caitlin",
+            "lastName": "Clark",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/702.webp",
+            "teamId": 34,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14587,
+          "player": {
+            "id": 763,
+            "firstName": "Kelsey",
+            "lastName": "Mitchell",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/763.webp",
+            "teamId": 34,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14587,
+          "player": {
+            "id": 1030,
+            "firstName": "Makayla",
+            "lastName": "Timpson",
+            "position": "F-C",
+            "imageUrl": "https://assets.propsmadness.com/images/players/1030.webp",
+            "teamId": 34,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        }
+      ]
+    },
+    {
+      "match": {
+        "id": 14586,
+        "homeTeam": {
+          "id": 40,
+          "name": "Minnesota Lynx",
+          "shortName": "Lynx",
+          "nameAbbreviation": "MIN",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/40.webp",
+          "primaryColor": "#0C2340",
+          "secondaryColor": "#236192"
+        },
+        "awayTeam": {
+          "id": 35,
+          "name": "New York Liberty",
+          "shortName": "Liberty",
+          "nameAbbreviation": "NYL",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/35.webp",
+          "primaryColor": "#6ECEB2",
+          "secondaryColor": "#000000"
+        },
+        "startDateTimestamp": 1789774200,
+        "homeScore": null,
+        "awayScore": null,
+        "seasonId": 13,
+        "isDayGame": null,
+        "status": "scheduled"
+      },
+      "offer": [
+        {
+          "matchId": 14586,
+          "player": {
+            "id": 705,
+            "firstName": "Napheesa",
+            "lastName": "Collier",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/705.webp",
+            "teamId": 40,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14586,
+          "player": {
+            "id": 758,
+            "firstName": "Kayla",
+            "lastName": "McBride",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/758.webp",
+            "teamId": 40,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14586,
+          "player": {
+            "id": 809,
+            "firstName": "Courtney",
+            "lastName": "Williams",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/809.webp",
+            "teamId": 40,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14586,
+          "player": {
+            "id": 11184,
+            "firstName": "Olivia",
+            "lastName": "Miles",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/11184.webp",
+            "teamId": 40,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14586,
+          "player": {
+            "id": 743,
+            "firstName": "Sabrina",
+            "lastName": "Ionescu",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/743.webp",
+            "teamId": 35,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14586,
+          "player": {
+            "id": 748,
+            "firstName": "Jonquel",
+            "lastName": "Jones",
+            "position": "C",
+            "imageUrl": "https://assets.propsmadness.com/images/players/748.webp",
+            "teamId": 35,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14586,
+          "player": {
+            "id": 791,
+            "firstName": "Breanna",
+            "lastName": "Stewart",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/791.webp",
+            "teamId": 35,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        }
+      ]
+    },
+    {
+      "match": {
+        "id": 14585,
+        "homeTeam": {
+          "id": 43,
+          "name": "Golden State Valkyries",
+          "shortName": "Valkyries",
+          "nameAbbreviation": "GSV",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/43.webp",
+          "primaryColor": "#AD96DC",
+          "secondaryColor": "#010101"
+        },
+        "awayTeam": {
+          "id": 106,
+          "name": "Portland Fire",
+          "shortName": "Fire",
+          "nameAbbreviation": "PDX",
+          "imageUrl": "https://assets.propsmadness.com/images/teams/106.webp",
+          "primaryColor": "#C8102E",
+          "secondaryColor": "#4E3629"
+        },
+        "startDateTimestamp": 1789783200,
+        "homeScore": null,
+        "awayScore": null,
+        "seasonId": 13,
+        "isDayGame": null,
+        "status": "scheduled"
+      },
+      "offer": [
+        {
+          "matchId": 14585,
+          "player": {
+            "id": 817,
+            "firstName": "Veronica",
+            "lastName": "Burton",
+            "position": "G",
+            "imageUrl": "https://assets.propsmadness.com/images/players/817.webp",
+            "teamId": 43,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14585,
+          "player": {
+            "id": 828,
+            "firstName": "Gabby",
+            "lastName": "Williams",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/828.webp",
+            "teamId": 43,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        },
+        {
+          "matchId": 14585,
+          "player": {
+            "id": 721,
+            "firstName": "Emily",
+            "lastName": "Engstler",
+            "position": "F",
+            "imageUrl": "https://assets.propsmadness.com/images/players/721.webp",
+            "teamId": 106,
+            "throwingHand": null,
+            "battingHand": null
+          },
+          "bet": {
+            "sportsbook": null,
+            "market": {
+              "id": 7,
+              "name": "Player Rebounds",
+              "slug": "player-rebounds",
+              "code": "playerRebounds",
+              "marketType": "total"
+            },
+            "line": null,
+            "odds": null
+          },
+          "offerType": "locked",
+          "fallbackLine": null,
+          "referenceBet": null
+        }
+      ]
+    }
+  ],
+  "playerInjuryMap": {
+    "786": {
+      "status": "out",
+      "statusDetail": null,
+      "fromDateTimestamp": 1788912000,
+      "toDateTimestamp": null
+    },
+    "828": {
+      "status": "out",
+      "statusDetail": null,
+      "fromDateTimestamp": 1787875200,
+      "toDateTimestamp": null
+    }
+  }
+}
