@@ -1,0 +1,140 @@
+name: WNBA 2025 potential assists probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/wnba-potential-assists-2025.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install requests
+        run: pip install requests
+      - name: Probe official and proxy routes
+        shell: bash
+        run: |
+          cat > /tmp/probe.py <<'PY'
+          import csv, json, os, sys, time
+          from urllib.parse import urlencode, quote
+          import requests
+
+          params = {
+              'College':'','Conference':'','Country':'','DateFrom':'','DateTo':'','Division':'',
+              'DraftPick':'','DraftYear':'','GameScope':'','GameSegment':'','Height':'',
+              'LastNGames':'0','LeagueID':'10','Location':'','Month':'0','OpponentTeamID':'0',
+              'Outcome':'','PORound':'0','PerMode':'PerGame','PlayerExperience':'',
+              'PlayerOrTeam':'Player','PlayerPosition':'','PtMeasureType':'Passing','Season':'2025',
+              'SeasonSegment':'','SeasonType':'Regular Season','StarterBench':'','TeamID':'0',
+              'VsConference':'','VsDivision':'','Weight':''
+          }
+          q = urlencode(params)
+          targets = [
+              'https://stats.wnba.com/stats/leaguedashptstats?' + q,
+              'https://stats.nba.com/stats/leaguedashptstats?' + q,
+          ]
+          headersets = [
+              {
+                  'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                  'Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9',
+                  'Referer':'https://www.wnba.com/','Origin':'https://www.wnba.com',
+                  'x-nba-stats-origin':'stats','x-nba-stats-token':'true','Connection':'keep-alive'
+              },
+              {
+                  'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0',
+                  'Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.5',
+                  'Referer':'https://www.nba.com/','x-nba-stats-origin':'stats','x-nba-stats-token':'true',
+                  'Cache-Control':'no-cache','Pragma':'no-cache','Connection':'keep-alive'
+              },
+          ]
+
+          routes=[]
+          for t in targets:
+              routes.append(('direct', t))
+              routes.append(('jina-http', 'https://r.jina.ai/http://' + t.split('://',1)[1]))
+              routes.append(('jina-https', 'https://r.jina.ai/https://' + t.split('://',1)[1]))
+              routes.append(('allorigins', 'https://api.allorigins.win/raw?url=' + quote(t, safe='')))
+              routes.append(('corsproxy', 'https://corsproxy.io/?url=' + quote(t, safe='')))
+
+          attempts=[]
+          payload=None
+          winner=None
+
+          def parse_candidate(text):
+              # Direct JSON first.
+              try:
+                  js=json.loads(text)
+              except Exception:
+                  # Some text proxies wrap JSON in markdown fences or prepend a title.
+                  starts=[text.find('{'), text.find('[')]
+                  starts=[x for x in starts if x>=0]
+                  if not starts: return None
+                  s=min(starts)
+                  try: js=json.loads(text[s:])
+                  except Exception: return None
+              if not isinstance(js, dict): return None
+              rs=js.get('resultSets') or js.get('resultSet')
+              if isinstance(rs, dict): rs=[rs]
+              if not rs: return None
+              for r in rs:
+                  hdr=r.get('headers') or []
+                  if 'POTENTIAL_AST' in hdr and r.get('rowSet') is not None:
+                      return js
+              return None
+
+          for kind,url in routes:
+              for hi,h in enumerate(headersets if kind=='direct' else [{}]):
+                  rec={'kind':kind,'url':url,'headerset':hi}
+                  try:
+                      st=time.time()
+                      r=requests.get(url,headers=h,timeout=40,allow_redirects=True)
+                      rec.update(status=r.status_code,elapsed=round(time.time()-st,2),content_type=r.headers.get('content-type'),bytes=len(r.content),prefix=r.text[:180])
+                      cand=parse_candidate(r.text)
+                      if cand is not None:
+                          payload=cand; winner=rec.copy(); attempts.append(rec); break
+                  except Exception as e:
+                      rec['error']=repr(e)
+                  attempts.append(rec)
+              if payload is not None: break
+
+          out={'season':'2025','metric':'POTENTIAL_AST','attempts':attempts,'winner':winner}
+          with open('wnba_potential_assists_2025_probe.json','w') as f:
+              json.dump(out,f,indent=2)
+
+          if payload is None:
+              print(json.dumps(out,indent=2))
+              sys.exit(0)
+
+          rs=payload.get('resultSets') or payload.get('resultSet')
+          if isinstance(rs,dict): rs=[rs]
+          table=None
+          for r in rs:
+              if 'POTENTIAL_AST' in (r.get('headers') or []): table=r; break
+          H=table['headers']; rows=[dict(zip(H,x)) for x in table.get('rowSet',[])]
+          rows.sort(key=lambda x: (x.get('POTENTIAL_AST') is not None, x.get('POTENTIAL_AST') or -1), reverse=True)
+          wanted=['PLAYER_ID','PLAYER_NAME','TEAM_ID','TEAM_ABBREVIATION','GP','MIN','PASSES_MADE','PASSES_RECEIVED','AST','SECONDARY_AST','POTENTIAL_AST','AST_POINTS_CREATED','AST_ADJ','AST_TO_PASS_PCT','AST_TO_PASS_PCT_ADJ']
+          cols=[c for c in wanted if c in H]
+          with open('wnba_potential_assists_2025.csv','w',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=cols); w.writeheader(); w.writerows([{c:r.get(c) for c in cols} for r in rows])
+          with open('wnba_potential_assists_2025_raw.json','w') as f:
+              json.dump(payload,f)
+          print('SUCCESS', winner)
+          print('rows',len(rows),'top10',[(r.get('PLAYER_NAME'),r.get('POTENTIAL_AST')) for r in rows[:10]])
+          PY
+          python /tmp/probe.py
+      - name: Commit results
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add wnba_potential_assists_2025_probe.json wnba_potential_assists_2025.csv wnba_potential_assists_2025_raw.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m 'WNBA 2025 potential assists probe results'
+          git push
