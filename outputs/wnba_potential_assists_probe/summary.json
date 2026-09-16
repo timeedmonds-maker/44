@@ -1,0 +1,197 @@
+{
+  "attempts": [
+    {
+      "name": "official_wnba",
+      "url": "https://stats.wnba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=10&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&PtMeasureType=Passing&Season=2025&SeasonSegment=&SeasonType=Regular+Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight=",
+      "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='stats.wnba.com', port=443): Read timed out. (read timeout=45)\"))"
+    },
+    {
+      "name": "official_nba_league10",
+      "url": "https://stats.nba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=10&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&PtMeasureType=Passing&Season=2025&SeasonSegment=&SeasonType=Regular+Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight=",
+      "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='stats.nba.com', port=443): Read timed out. (read timeout=45)\"))"
+    },
+    {
+      "name": "jina_0",
+      "url": "https://r.jina.ai/https://stats.wnba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=10&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&PtMeasureType=Passing&Season=2025&SeasonSegment=&SeasonType=Regular+Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight=",
+      "status": 403,
+      "final_url": "https://r.jina.ai/https://stats.wnba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=10&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&PtMeasureType=Passing&Season=2025&SeasonSegment=&SeasonType=Regular+Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight=",
+      "length": 7917,
+      "content_type": "text/html; charset=UTF-8",
+      "prefix": "<!DOCTYPE html><html lang=\"en-US\"><head><title>Just a moment...</title><meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content"
+    },
+    {
+      "name": "allorigins_0",
+      "url": "https://api.allorigins.win/raw?url=https%3A%2F%2Fstats.wnba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "status": 408,
+      "final_url": "https://api.allorigins.win/raw?url=https%3A%2F%2Fstats.wnba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "length": 24,
+      "content_type": "text/plain;charset=UTF-8",
+      "prefix": "Oops... Request Timeout."
+    },
+    {
+      "name": "corsproxy_0",
+      "url": "https://corsproxy.io/?url=https%3A%2F%2Fstats.wnba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "status": 401,
+      "final_url": "https://corsproxy.io/?url=https%3A%2F%2Fstats.wnba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "length": 81,
+      "content_type": "application/json",
+      "prefix": "{\"error\":\"A valid API key is required. Get one at https://console.corsproxy.io/\"}"
+    },
+    {
+      "name": "codetabs_0",
+      "url": "https://api.codetabs.com/v1/proxy?quest=https%3A%2F%2Fstats.wnba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "status": 522,
+      "final_url": "https://api.codetabs.com/v1/proxy?quest=https%3A%2F%2Fstats.wnba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "length": 7244,
+      "content_type": "text/html; charset=UTF-8",
+      "prefix": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]>"
+    },
+    {
+      "name": "jina_1",
+      "url": "https://r.jina.ai/https://stats.nba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=10&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&PtMeasureType=Passing&Season=2025&SeasonSegment=&SeasonType=Regular+Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight=",
+      "status": 403,
+      "final_url": "https://r.jina.ai/https://stats.nba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=10&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&PtMeasureType=Passing&Season=2025&SeasonSegment=&SeasonType=Regular+Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight=",
+      "length": 7935,
+      "content_type": "text/html; charset=UTF-8",
+      "prefix": "<!DOCTYPE html><html lang=\"en-US\"><head><title>Just a moment...</title><meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content"
+    },
+    {
+      "name": "allorigins_1",
+      "url": "https://api.allorigins.win/raw?url=https%3A%2F%2Fstats.nba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "status": 500,
+      "final_url": "https://api.allorigins.win/raw?url=https%3A%2F%2Fstats.nba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "length": 579,
+      "content_type": "text/html",
+      "prefix": "<html>\r <head><title>500 Internal Server Error</title></head>\r <body>\r <center><h1>500 Internal Server Error</h1></center>\r <hr><center>nginx/1.22.1</center>\r </body>\r </html>\r <!-"
+    },
+    {
+      "name": "corsproxy_1",
+      "url": "https://corsproxy.io/?url=https%3A%2F%2Fstats.nba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "status": 401,
+      "final_url": "https://corsproxy.io/?url=https%3A%2F%2Fstats.nba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "length": 81,
+      "content_type": "application/json",
+      "prefix": "{\"error\":\"A valid API key is required. Get one at https://console.corsproxy.io/\"}"
+    },
+    {
+      "name": "codetabs_1",
+      "url": "https://api.codetabs.com/v1/proxy?quest=https%3A%2F%2Fstats.nba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "status": 522,
+      "final_url": "https://api.codetabs.com/v1/proxy?quest=https%3A%2F%2Fstats.nba.com%2Fstats%2Fleaguedashptstats%3FCollege%3D%26Conference%3D%26Country%3D%26DateFrom%3D%26DateTo%3D%26Division%3D%26DraftPick%3D%26DraftYear%3D%26GameScope%3D%26Height%3D%26LastNGames%3D0%26LeagueID%3D10%26Location%3D%26Month%3D0%26OpponentTeamID%3D0%26Outcome%3D%26PORound%3D0%26PerMode%3DPerGame%26PlayerExperience%3D%26PlayerOrTeam%3DPlayer%26PlayerPosition%3D%26PtMeasureType%3DPassing%26Season%3D2025%26SeasonSegment%3D%26SeasonType%3DRegular%2BSeason%26StarterBench%3D%26TeamID%3D0%26VsConference%3D%26VsDivision%3D%26Weight%3D",
+      "length": 7244,
+      "content_type": "text/html; charset=UTF-8",
+      "prefix": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]>"
+    },
+    {
+      "name": "props_api_00",
+      "url": "https://api.propsmadness.com/",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/",
+      "length": 80,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /\"}",
+      "path": "/"
+    },
+    {
+      "name": "props_api_01",
+      "url": "https://api.propsmadness.com/health",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/health",
+      "length": 86,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /health\"}",
+      "path": "/health"
+    },
+    {
+      "name": "props_api_02",
+      "url": "https://api.propsmadness.com/openapi.json",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/openapi.json",
+      "length": 92,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /openapi.json\"}",
+      "path": "/openapi.json"
+    },
+    {
+      "name": "props_api_03",
+      "url": "https://api.propsmadness.com/swagger.json",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/swagger.json",
+      "length": 92,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /swagger.json\"}",
+      "path": "/swagger.json"
+    },
+    {
+      "name": "props_api_04",
+      "url": "https://api.propsmadness.com/docs",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/docs",
+      "length": 84,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /docs\"}",
+      "path": "/docs"
+    },
+    {
+      "name": "props_api_05",
+      "url": "https://api.propsmadness.com/redoc",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/redoc",
+      "length": 85,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /redoc\"}",
+      "path": "/redoc"
+    },
+    {
+      "name": "props_api_06",
+      "url": "https://api.propsmadness.com/offer/wnba/bets/featured",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/offer/wnba/bets/featured",
+      "length": 104,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /offer/wnba/bets/featured\"}",
+      "path": "/offer/wnba/bets/featured"
+    },
+    {
+      "name": "props_api_07",
+      "url": "https://api.propsmadness.com/offer/wnba/bets",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/offer/wnba/bets",
+      "length": 95,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /offer/wnba/bets\"}",
+      "path": "/offer/wnba/bets"
+    },
+    {
+      "name": "props_api_08",
+      "url": "https://api.propsmadness.com/players?league=wnba",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/players?league=wnba",
+      "length": 99,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /players?league=wnba\"}",
+      "path": "/players?league=wnba"
+    },
+    {
+      "name": "props_api_09",
+      "url": "https://api.propsmadness.com/players/wnba",
+      "status": 404,
+      "final_url": "https://api.propsmadness.com/players/wnba",
+      "length": 92,
+      "content_type": "application/json; charset=utf-8",
+      "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /players/wnba\"}",
+      "path": "/players/wnba"
+    },
+    {
+      "name": "props_wnba_page",
+      "url": "https://propsmadness.com/wnba",
+      "status": 200,
+      "final_url": "https://propsmadness.com/wnba",
+      "length": 294029,
+      "content_type": "text/html; charset=utf-8",
+      "prefix": "<!DOCTYPE html><html data-dpl-id=\"ae79eb0e5d9bd6666c98a42092d509e18ac53c46\" lang=\"en\" class=\"inter_e8e54af-module__r7opxW__variable chakrapetch_6acde86d-module__fNWBGq__variable\"><"
+    }
+  ],
+  "parsed": [],
+  "props_bundle_hits": 7
+}

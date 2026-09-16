@@ -1,0 +1,1 @@
+ReadTimeout(ReadTimeoutError("HTTPSConnectionPool(host='stats.wnba.com', port=443): Read timed out. (read timeout=45)"))
