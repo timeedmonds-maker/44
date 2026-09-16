@@ -1,0 +1,32 @@
+{
+  "source_repo": "sportsdataverse/wehoop-wnba-stats-raw",
+  "source_endpoint": "boxscorematchupsv3",
+  "metric_field": "matchupPotentialAssists",
+  "regular_season_game_id_filter": "102YY*",
+  "player_game_rows": 9682,
+  "games_by_season": {
+    "2025": 283,
+    "2026": 219
+  },
+  "players_by_season": {
+    "2025": 181,
+    "2026": 223
+  },
+  "failures": 0,
+  "assist_qa_rows": 9682,
+  "assist_qa_exact_matches": 7102,
+  "assist_qa_exact_pct": 73.3526,
+  "assist_qa_max_abs_diff": 6,
+  "alyssa_thomas_first_7_2026_game_ids": [
+    "1022600005",
+    "1022600011",
+    "1022600013",
+    "1022600024",
+    "1022600031",
+    "1022600037",
+    "1022600044"
+  ],
+  "alyssa_thomas_first_7_2026_potential_assists": 0,
+  "external_validation_target": 118,
+  "external_validation_pass": false
+}
