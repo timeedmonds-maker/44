@@ -1,0 +1,1205 @@
+[
+  {
+    "playerId": "693",
+    "playerName": "Jordin Canada",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/693/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "693",
+    "playerName": "Jordin Canada",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/693/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "693",
+    "playerName": "Jordin Canada",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/693/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "728",
+    "playerName": "Allisha Gray",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/728/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "728",
+    "playerName": "Allisha Gray",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/728/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "728",
+    "playerName": "Allisha Gray",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/728/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "737",
+    "playerName": "Naz Hillmon",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/737/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "737",
+    "playerName": "Naz Hillmon",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/737/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "737",
+    "playerName": "Naz Hillmon",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/737/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "741",
+    "playerName": "Rhyne Howard",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/741/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "741",
+    "playerName": "Rhyne Howard",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/741/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "741",
+    "playerName": "Rhyne Howard",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/741/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "776",
+    "playerName": "Angel Reese",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/776/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "776",
+    "playerName": "Angel Reese",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/776/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "776",
+    "playerName": "Angel Reese",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/776/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "769",
+    "playerName": "Arike Ogunbowale",
+    "offerType": "fallback",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/769/match-statistics",
+    "status": 200,
+    "bytes": 360443,
+    "prefix": "{\"playerId\":769,\"seasonReference\":null,\"matchPlayerStatistics\":[{\"match\":{\"id\":\"14590\",\"seasonId\":\"13\",\"year\":\"2026\",\"homeTeam\":{\"id\":\"37\",\"name\":\"Dallas Wings\",\"shortName\":\"Wings\",\"nameAbbreviation\":\"DAL\",\"imageUrl\":\"https://assets.propsmadness.com/",
+    "hasPA": true
+  },
+  {
+    "playerId": "769",
+    "playerName": "Arike Ogunbowale",
+    "offerType": "fallback",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/769/match-statistics?seasonReference=2025",
+    "status": 400,
+    "bytes": 147,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"seasonReference must be one of the following values: current, previous, prior\"}"
+  },
+  {
+    "playerId": "769",
+    "playerName": "Arike Ogunbowale",
+    "offerType": "fallback",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/769/match-statistics?seasonReference=12",
+    "status": 400,
+    "bytes": 147,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"seasonReference must be one of the following values: current, previous, prior\"}"
+  },
+  {
+    "playerId": "1026",
+    "playerName": "Jessica Shepard",
+    "offerType": "fallback",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/1026/match-statistics",
+    "status": 200,
+    "bytes": 286722,
+    "prefix": "{\"playerId\":1026,\"seasonReference\":null,\"matchPlayerStatistics\":[{\"match\":{\"id\":\"14590\",\"seasonId\":\"13\",\"year\":\"2026\",\"homeTeam\":{\"id\":\"37\",\"name\":\"Dallas Wings\",\"shortName\":\"Wings\",\"nameAbbreviation\":\"DAL\",\"imageUrl\":\"https://assets.propsmadness.com",
+    "hasPA": true
+  },
+  {
+    "playerId": "1026",
+    "playerName": "Jessica Shepard",
+    "offerType": "fallback",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/1026/match-statistics?seasonReference=2025",
+    "status": 400,
+    "bytes": 147,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"seasonReference must be one of the following values: current, previous, prior\"}"
+  },
+  {
+    "playerId": "1026",
+    "playerName": "Jessica Shepard",
+    "offerType": "fallback",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/1026/match-statistics?seasonReference=12",
+    "status": 400,
+    "bytes": 147,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"seasonReference must be one of the following values: current, previous, prior\"}"
+  },
+  {
+    "playerId": "11178",
+    "playerName": "Awak Kuier",
+    "offerType": "fallback",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/11178/match-statistics",
+    "status": 200,
+    "bytes": 125339,
+    "prefix": "{\"playerId\":11178,\"seasonReference\":null,\"matchPlayerStatistics\":[{\"match\":{\"id\":\"14590\",\"seasonId\":\"13\",\"year\":\"2026\",\"homeTeam\":{\"id\":\"37\",\"name\":\"Dallas Wings\",\"shortName\":\"Wings\",\"nameAbbreviation\":\"DAL\",\"imageUrl\":\"https://assets.propsmadness.co",
+    "hasPA": true
+  },
+  {
+    "playerId": "11178",
+    "playerName": "Awak Kuier",
+    "offerType": "fallback",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/11178/match-statistics?seasonReference=2025",
+    "status": 400,
+    "bytes": 147,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"seasonReference must be one of the following values: current, previous, prior\"}"
+  },
+  {
+    "playerId": "11178",
+    "playerName": "Awak Kuier",
+    "offerType": "fallback",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/11178/match-statistics?seasonReference=12",
+    "status": 400,
+    "bytes": 147,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"seasonReference must be one of the following values: current, previous, prior\"}"
+  },
+  {
+    "playerId": "786",
+    "playerName": "Alanna Smith",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/786/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "786",
+    "playerName": "Alanna Smith",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/786/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "786",
+    "playerName": "Alanna Smith",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/786/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "978",
+    "playerName": "Paige Bueckers",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/978/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "978",
+    "playerName": "Paige Bueckers",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/978/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "978",
+    "playerName": "Paige Bueckers",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/978/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "770",
+    "playerName": "Nneka Ogwumike",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/770/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "770",
+    "playerName": "Nneka Ogwumike",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/770/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "770",
+    "playerName": "Nneka Ogwumike",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/770/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "695",
+    "playerName": "Kamilla Cardoso",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/695/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "695",
+    "playerName": "Kamilla Cardoso",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/695/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "695",
+    "playerName": "Kamilla Cardoso",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/695/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "679",
+    "playerName": "Shakira Austin",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/679/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "679",
+    "playerName": "Shakira Austin",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/679/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "679",
+    "playerName": "Shakira Austin",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/679/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "972",
+    "playerName": "Georgia Amoore",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/972/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "972",
+    "playerName": "Georgia Amoore",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/972/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "972",
+    "playerName": "Georgia Amoore",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/972/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "982",
+    "playerName": "Sonia Citron",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/982/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "982",
+    "playerName": "Sonia Citron",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/982/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "982",
+    "playerName": "Sonia Citron",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/982/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "994",
+    "playerName": "Kiki Iriafen",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/994/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "994",
+    "playerName": "Kiki Iriafen",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/994/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "994",
+    "playerName": "Kiki Iriafen",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/994/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "696",
+    "playerName": "Bridget Carleton",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/696/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "696",
+    "playerName": "Bridget Carleton",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/696/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "696",
+    "playerName": "Bridget Carleton",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/696/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "721",
+    "playerName": "Emily Engstler",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/721/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "721",
+    "playerName": "Emily Engstler",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/721/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "721",
+    "playerName": "Emily Engstler",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/721/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "731",
+    "playerName": "Megan Gustafson",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/731/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "731",
+    "playerName": "Megan Gustafson",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/731/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "731",
+    "playerName": "Megan Gustafson",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/731/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1005",
+    "playerName": "Carla Leite",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/1005/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1005",
+    "playerName": "Carla Leite",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/1005/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1005",
+    "playerName": "Carla Leite",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/1005/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "708",
+    "playerName": "Kahleah Copper",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/708/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "708",
+    "playerName": "Kahleah Copper",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/708/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "708",
+    "playerName": "Kahleah Copper",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/708/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "755",
+    "playerName": "Natasha Mack",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/755/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "755",
+    "playerName": "Natasha Mack",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/755/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "755",
+    "playerName": "Natasha Mack",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/755/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "798",
+    "playerName": "Alyssa Thomas",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/798/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "798",
+    "playerName": "Alyssa Thomas",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/798/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "798",
+    "playerName": "Alyssa Thomas",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/798/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1007",
+    "playerName": "Dominique Malonga",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/1007/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1007",
+    "playerName": "Dominique Malonga",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/1007/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1007",
+    "playerName": "Dominique Malonga",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/1007/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "729",
+    "playerName": "Chelsea Gray",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/729/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "729",
+    "playerName": "Chelsea Gray",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/729/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "729",
+    "playerName": "Chelsea Gray",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/729/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "812",
+    "playerName": "A'ja Wilson",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/812/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "812",
+    "playerName": "A'ja Wilson",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/812/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "812",
+    "playerName": "A'ja Wilson",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/812/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "813",
+    "playerName": "Jackie Young",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/813/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "813",
+    "playerName": "Jackie Young",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/813/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "813",
+    "playerName": "Jackie Young",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/813/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "686",
+    "playerName": "Aliyah Boston",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/686/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "686",
+    "playerName": "Aliyah Boston",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/686/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "686",
+    "playerName": "Aliyah Boston",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/686/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "702",
+    "playerName": "Caitlin Clark",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/702/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "702",
+    "playerName": "Caitlin Clark",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/702/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "702",
+    "playerName": "Caitlin Clark",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/702/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "763",
+    "playerName": "Kelsey Mitchell",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/763/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "763",
+    "playerName": "Kelsey Mitchell",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/763/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "763",
+    "playerName": "Kelsey Mitchell",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/763/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1030",
+    "playerName": "Makayla Timpson",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/1030/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1030",
+    "playerName": "Makayla Timpson",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/1030/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "1030",
+    "playerName": "Makayla Timpson",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/1030/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "705",
+    "playerName": "Napheesa Collier",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/705/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "705",
+    "playerName": "Napheesa Collier",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/705/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "705",
+    "playerName": "Napheesa Collier",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/705/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "758",
+    "playerName": "Kayla McBride",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/758/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "758",
+    "playerName": "Kayla McBride",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/758/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "758",
+    "playerName": "Kayla McBride",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/758/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "809",
+    "playerName": "Courtney Williams",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/809/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "809",
+    "playerName": "Courtney Williams",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/809/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "809",
+    "playerName": "Courtney Williams",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/809/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "11184",
+    "playerName": "Olivia Miles",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/11184/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "11184",
+    "playerName": "Olivia Miles",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/11184/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "11184",
+    "playerName": "Olivia Miles",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/11184/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "743",
+    "playerName": "Sabrina Ionescu",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/743/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "743",
+    "playerName": "Sabrina Ionescu",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/743/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "743",
+    "playerName": "Sabrina Ionescu",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/743/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "748",
+    "playerName": "Jonquel Jones",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/748/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "748",
+    "playerName": "Jonquel Jones",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/748/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "748",
+    "playerName": "Jonquel Jones",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/748/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "791",
+    "playerName": "Breanna Stewart",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/791/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "791",
+    "playerName": "Breanna Stewart",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/791/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "791",
+    "playerName": "Breanna Stewart",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/791/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "817",
+    "playerName": "Veronica Burton",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/817/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "817",
+    "playerName": "Veronica Burton",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/817/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "817",
+    "playerName": "Veronica Burton",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/817/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "828",
+    "playerName": "Gabby Williams",
+    "offerType": "locked",
+    "ref": "current",
+    "url": "https://api.propsmadness.com/api/players/828/match-statistics",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "828",
+    "playerName": "Gabby Williams",
+    "offerType": "locked",
+    "ref": "2025",
+    "url": "https://api.propsmadness.com/api/players/828/match-statistics?seasonReference=2025",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "playerId": "828",
+    "playerName": "Gabby Williams",
+    "offerType": "locked",
+    "ref": "12",
+    "url": "https://api.propsmadness.com/api/players/828/match-statistics?seasonReference=12",
+    "status": 403,
+    "bytes": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  }
+]

@@ -1,0 +1,362 @@
+{
+  "693": {
+    "id": "693",
+    "name": "Jordin Canada",
+    "teamId": 31,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14592,
+    "seasonId": 13
+  },
+  "728": {
+    "id": "728",
+    "name": "Allisha Gray",
+    "teamId": 31,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14592,
+    "seasonId": 13
+  },
+  "737": {
+    "id": "737",
+    "name": "Naz Hillmon",
+    "teamId": 31,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14592,
+    "seasonId": 13
+  },
+  "741": {
+    "id": "741",
+    "name": "Rhyne Howard",
+    "teamId": 31,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14592,
+    "seasonId": 13
+  },
+  "776": {
+    "id": "776",
+    "name": "Angel Reese",
+    "teamId": 31,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14592,
+    "seasonId": 13
+  },
+  "769": {
+    "id": "769",
+    "name": "Arike Ogunbowale",
+    "teamId": 37,
+    "position": "G",
+    "offerType": "fallback",
+    "matchId": 14590,
+    "seasonId": 13
+  },
+  "1026": {
+    "id": "1026",
+    "name": "Jessica Shepard",
+    "teamId": 37,
+    "position": "F",
+    "offerType": "fallback",
+    "matchId": 14590,
+    "seasonId": 13
+  },
+  "11178": {
+    "id": "11178",
+    "name": "Awak Kuier",
+    "teamId": 37,
+    "position": "F",
+    "offerType": "fallback",
+    "matchId": 14590,
+    "seasonId": 13
+  },
+  "786": {
+    "id": "786",
+    "name": "Alanna Smith",
+    "teamId": 37,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14590,
+    "seasonId": 13
+  },
+  "978": {
+    "id": "978",
+    "name": "Paige Bueckers",
+    "teamId": 37,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14590,
+    "seasonId": 13
+  },
+  "770": {
+    "id": "770",
+    "name": "Nneka Ogwumike",
+    "teamId": 39,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14590,
+    "seasonId": 13
+  },
+  "695": {
+    "id": "695",
+    "name": "Kamilla Cardoso",
+    "teamId": 32,
+    "position": "C",
+    "offerType": "locked",
+    "matchId": 14591,
+    "seasonId": 13
+  },
+  "679": {
+    "id": "679",
+    "name": "Shakira Austin",
+    "teamId": 36,
+    "position": "C",
+    "offerType": "locked",
+    "matchId": 14591,
+    "seasonId": 13
+  },
+  "972": {
+    "id": "972",
+    "name": "Georgia Amoore",
+    "teamId": 36,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14591,
+    "seasonId": 13
+  },
+  "982": {
+    "id": "982",
+    "name": "Sonia Citron",
+    "teamId": 36,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14591,
+    "seasonId": 13
+  },
+  "994": {
+    "id": "994",
+    "name": "Kiki Iriafen",
+    "teamId": 36,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14591,
+    "seasonId": 13
+  },
+  "696": {
+    "id": "696",
+    "name": "Bridget Carleton",
+    "teamId": 106,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14585,
+    "seasonId": 13
+  },
+  "721": {
+    "id": "721",
+    "name": "Emily Engstler",
+    "teamId": 106,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14585,
+    "seasonId": 13
+  },
+  "731": {
+    "id": "731",
+    "name": "Megan Gustafson",
+    "teamId": 106,
+    "position": "C",
+    "offerType": "locked",
+    "matchId": 14585,
+    "seasonId": 13
+  },
+  "1005": {
+    "id": "1005",
+    "name": "Carla Leite",
+    "teamId": 106,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14585,
+    "seasonId": 13
+  },
+  "708": {
+    "id": "708",
+    "name": "Kahleah Copper",
+    "teamId": 41,
+    "position": "G-F",
+    "offerType": "locked",
+    "matchId": 14589,
+    "seasonId": 13
+  },
+  "755": {
+    "id": "755",
+    "name": "Natasha Mack",
+    "teamId": 41,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14589,
+    "seasonId": 13
+  },
+  "798": {
+    "id": "798",
+    "name": "Alyssa Thomas",
+    "teamId": 41,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14589,
+    "seasonId": 13
+  },
+  "1007": {
+    "id": "1007",
+    "name": "Dominique Malonga",
+    "teamId": 42,
+    "position": "C",
+    "offerType": "locked",
+    "matchId": 14588,
+    "seasonId": 13
+  },
+  "729": {
+    "id": "729",
+    "name": "Chelsea Gray",
+    "teamId": 38,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14588,
+    "seasonId": 13
+  },
+  "812": {
+    "id": "812",
+    "name": "A'ja Wilson",
+    "teamId": 38,
+    "position": "C",
+    "offerType": "locked",
+    "matchId": 14588,
+    "seasonId": 13
+  },
+  "813": {
+    "id": "813",
+    "name": "Jackie Young",
+    "teamId": 38,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14588,
+    "seasonId": 13
+  },
+  "686": {
+    "id": "686",
+    "name": "Aliyah Boston",
+    "teamId": 34,
+    "position": "C",
+    "offerType": "locked",
+    "matchId": 14587,
+    "seasonId": 13
+  },
+  "702": {
+    "id": "702",
+    "name": "Caitlin Clark",
+    "teamId": 34,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14587,
+    "seasonId": 13
+  },
+  "763": {
+    "id": "763",
+    "name": "Kelsey Mitchell",
+    "teamId": 34,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14587,
+    "seasonId": 13
+  },
+  "1030": {
+    "id": "1030",
+    "name": "Makayla Timpson",
+    "teamId": 34,
+    "position": "F-C",
+    "offerType": "locked",
+    "matchId": 14587,
+    "seasonId": 13
+  },
+  "705": {
+    "id": "705",
+    "name": "Napheesa Collier",
+    "teamId": 40,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14586,
+    "seasonId": 13
+  },
+  "758": {
+    "id": "758",
+    "name": "Kayla McBride",
+    "teamId": 40,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14586,
+    "seasonId": 13
+  },
+  "809": {
+    "id": "809",
+    "name": "Courtney Williams",
+    "teamId": 40,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14586,
+    "seasonId": 13
+  },
+  "11184": {
+    "id": "11184",
+    "name": "Olivia Miles",
+    "teamId": 40,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14586,
+    "seasonId": 13
+  },
+  "743": {
+    "id": "743",
+    "name": "Sabrina Ionescu",
+    "teamId": 35,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14586,
+    "seasonId": 13
+  },
+  "748": {
+    "id": "748",
+    "name": "Jonquel Jones",
+    "teamId": 35,
+    "position": "C",
+    "offerType": "locked",
+    "matchId": 14586,
+    "seasonId": 13
+  },
+  "791": {
+    "id": "791",
+    "name": "Breanna Stewart",
+    "teamId": 35,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14586,
+    "seasonId": 13
+  },
+  "817": {
+    "id": "817",
+    "name": "Veronica Burton",
+    "teamId": 43,
+    "position": "G",
+    "offerType": "locked",
+    "matchId": 14585,
+    "seasonId": 13
+  },
+  "828": {
+    "id": "828",
+    "name": "Gabby Williams",
+    "teamId": 43,
+    "position": "F",
+    "offerType": "locked",
+    "matchId": 14585,
+    "seasonId": 13
+  }
+}
