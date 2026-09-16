@@ -1,0 +1,7 @@
+{
+  "success": false,
+  "error": "Failed to fetch player props: Supabase fetch failed: 530  - error code: 1016",
+  "sport": "wnba",
+  "date": null,
+  "timestamp": "2026-09-16T01:59:27.928Z"
+}

@@ -1,0 +1,256 @@
+[
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba",
+    "status": 200,
+    "bytes": 170,
+    "prefix": "{\"success\":false,\"error\":\"Failed to fetch player props: Supabase fetch failed: 530  - error code: 1016\",\"sport\":\"wnba\",\"date\":null,\"timestamp\":\"2026-09-16T01:59:27.928Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/wnba/player-props",
+    "status": 404,
+    "bytes": 498,
+    "prefix": "{\"error\":\"Endpoint not found\",\"availableEndpoints\":[\"/backfill-all\",\"/backfill-recent\",\"/backfill-full\",\"/backfill-league/{league}\",\"/backfill-season/{season}\",\"/backfill-progressive\",\"/ingest\",\"/ingest/{league}\",\"/refresh-analytics\",\"/incr"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/debug-api?league=wnba&limit=100",
+    "status": 200,
+    "bytes": 50,
+    "prefix": "{\"success\":true,\"eventsCount\":0,\"firstEvent\":null}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/debug/sgo-api?league=wnba",
+    "status": 200,
+    "bytes": 66,
+    "prefix": "{\"success\":true,\"league\":\"wnba\",\"eventsFound\":0,\"sampleEvents\":[]}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/wnba/player-props?date=2025-06-15",
+    "status": 404,
+    "bytes": 498,
+    "prefix": "{\"error\":\"Endpoint not found\",\"availableEndpoints\":[\"/backfill-all\",\"/backfill-recent\",\"/backfill-full\",\"/backfill-league/{league}\",\"/backfill-season/{season}\",\"/backfill-progressive\",\"/ingest\",\"/ingest/{league}\",\"/refresh-analytics\",\"/incr"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba&date=2025-06-15",
+    "status": 200,
+    "bytes": 217,
+    "prefix": "{\"success\":true,\"data\":[],\"cached\":false,\"cacheKey\":\"player-props-wnba-2025-06-15\",\"responseTime\":1789523968571,\"totalEvents\":0,\"totalProps\":0,\"sport\":\"wnba\",\"date\":\"2025-06-15\",\"timestamp\":\"2026-09-16T01:59:28.571Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba&date_from=2025-06-15&date_to=2025-06-15",
+    "status": 200,
+    "bytes": 203,
+    "prefix": "{\"success\":true,\"data\":[],\"cached\":false,\"cacheKey\":\"player-props-wnba-null\",\"responseTime\":1789523969544,\"totalEvents\":0,\"totalProps\":0,\"sport\":\"wnba\",\"date\":null,\"timestamp\":\"2026-09-16T01:59:29.544Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/wnba/player-props?date=2025-07-15",
+    "status": 404,
+    "bytes": 498,
+    "prefix": "{\"error\":\"Endpoint not found\",\"availableEndpoints\":[\"/backfill-all\",\"/backfill-recent\",\"/backfill-full\",\"/backfill-league/{league}\",\"/backfill-season/{season}\",\"/backfill-progressive\",\"/ingest\",\"/ingest/{league}\",\"/refresh-analytics\",\"/incr"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba&date=2025-07-15",
+    "status": 200,
+    "bytes": 217,
+    "prefix": "{\"success\":true,\"data\":[],\"cached\":false,\"cacheKey\":\"player-props-wnba-2025-07-15\",\"responseTime\":1789523969651,\"totalEvents\":0,\"totalProps\":0,\"sport\":\"wnba\",\"date\":\"2025-07-15\",\"timestamp\":\"2026-09-16T01:59:29.651Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba&date_from=2025-07-15&date_to=2025-07-15",
+    "status": 200,
+    "bytes": 203,
+    "prefix": "{\"success\":true,\"data\":[],\"cached\":false,\"cacheKey\":\"player-props-wnba-null\",\"responseTime\":1789523969958,\"totalEvents\":0,\"totalProps\":0,\"sport\":\"wnba\",\"date\":null,\"timestamp\":\"2026-09-16T01:59:29.958Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/wnba/player-props?date=2025-08-15",
+    "status": 404,
+    "bytes": 498,
+    "prefix": "{\"error\":\"Endpoint not found\",\"availableEndpoints\":[\"/backfill-all\",\"/backfill-recent\",\"/backfill-full\",\"/backfill-league/{league}\",\"/backfill-season/{season}\",\"/backfill-progressive\",\"/ingest\",\"/ingest/{league}\",\"/refresh-analytics\",\"/incr"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba&date=2025-08-15",
+    "status": 200,
+    "bytes": 217,
+    "prefix": "{\"success\":true,\"data\":[],\"cached\":false,\"cacheKey\":\"player-props-wnba-2025-08-15\",\"responseTime\":1789523970068,\"totalEvents\":0,\"totalProps\":0,\"sport\":\"wnba\",\"date\":\"2025-08-15\",\"timestamp\":\"2026-09-16T01:59:30.068Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba&date_from=2025-08-15&date_to=2025-08-15",
+    "status": 200,
+    "bytes": 203,
+    "prefix": "{\"success\":true,\"data\":[],\"cached\":false,\"cacheKey\":\"player-props-wnba-null\",\"responseTime\":1789523970684,\"totalEvents\":0,\"totalProps\":0,\"sport\":\"wnba\",\"date\":null,\"timestamp\":\"2026-09-16T01:59:30.684Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/wnba/player-props?date=2025-09-11",
+    "status": 404,
+    "bytes": 498,
+    "prefix": "{\"error\":\"Endpoint not found\",\"availableEndpoints\":[\"/backfill-all\",\"/backfill-recent\",\"/backfill-full\",\"/backfill-league/{league}\",\"/backfill-season/{season}\",\"/backfill-progressive\",\"/ingest\",\"/ingest/{league}\",\"/refresh-analytics\",\"/incr"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba&date=2025-09-11",
+    "status": 200,
+    "bytes": 217,
+    "prefix": "{\"success\":true,\"data\":[],\"cached\":false,\"cacheKey\":\"player-props-wnba-2025-09-11\",\"responseTime\":1789523970792,\"totalEvents\":0,\"totalProps\":0,\"sport\":\"wnba\",\"date\":\"2025-09-11\",\"timestamp\":\"2026-09-16T01:59:30.792Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-player-props.statpedia.workers.dev/api/player-props?sport=wnba&date_from=2025-09-11&date_to=2025-09-11",
+    "status": 200,
+    "bytes": 203,
+    "prefix": "{\"success\":true,\"data\":[],\"cached\":false,\"cacheKey\":\"player-props-wnba-null\",\"responseTime\":1789523971110,\"totalEvents\":0,\"totalProps\":0,\"sport\":\"wnba\",\"date\":null,\"timestamp\":\"2026-09-16T01:59:31.110Z\"}"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/wnba/player-props",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/debug-api?league=wnba&limit=100",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/debug/sgo-api?league=wnba",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/wnba/player-props?date=2025-06-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba&date=2025-06-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba&date_from=2025-06-15&date_to=2025-06-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/wnba/player-props?date=2025-07-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba&date=2025-07-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba&date_from=2025-07-15&date_to=2025-07-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/wnba/player-props?date=2025-08-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba&date=2025-08-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba&date_from=2025-08-15&date_to=2025-08-15",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/wnba/player-props?date=2025-09-11",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba&date=2025-09-11",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "GET",
+    "url": "https://statpedia-storage.statpedia.workers.dev/api/player-props?sport=wnba&date_from=2025-09-11&date_to=2025-09-11",
+    "status": 404,
+    "bytes": 14,
+    "prefix": "File not found"
+  },
+  {
+    "method": "POST",
+    "name": "typename",
+    "url": "https://statpedia-proxy.statpedia.workers.dev/v1/graphql",
+    "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='statpedia-proxy.statpedia.workers.dev', port=443): Read timed out. (read timeout=25)\"))"
+  },
+  {
+    "method": "POST",
+    "name": "playergamelogs_sample",
+    "url": "https://statpedia-proxy.statpedia.workers.dev/v1/graphql",
+    "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='statpedia-proxy.statpedia.workers.dev', port=443): Read timed out. (read timeout=25)\"))"
+  },
+  {
+    "method": "POST",
+    "name": "playergamelogs_wnba",
+    "url": "https://statpedia-proxy.statpedia.workers.dev/v1/graphql",
+    "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='statpedia-proxy.statpedia.workers.dev', port=443): Read timed out. (read timeout=25)\"))"
+  },
+  {
+    "method": "POST",
+    "name": "props_wnba",
+    "url": "https://statpedia-proxy.statpedia.workers.dev/v1/graphql",
+    "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='statpedia-proxy.statpedia.workers.dev', port=443): Read timed out. (read timeout=25)\"))"
+  },
+  {
+    "method": "POST",
+    "name": "games_2025",
+    "url": "https://statpedia-proxy.statpedia.workers.dev/v1/graphql",
+    "error": "ReadTimeout(ReadTimeoutError(\"HTTPSConnectionPool(host='statpedia-proxy.statpedia.workers.dev', port=443): Read timed out. (read timeout=25)\"))"
+  }
+]
