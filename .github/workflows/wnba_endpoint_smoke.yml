@@ -1,0 +1,47 @@
+name: WNBA endpoint smoke
+
+on:
+  push:
+    branches: [agent/wnba-potential-assists-probe]
+    paths: [.github/workflows/wnba_endpoint_smoke.yml]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip -q install curl_cffi
+      - name: Probe hidden WNBA endpoints
+        run: |
+          python - <<'PY'
+          from curl_cffi import requests
+          import json
+          headers={'User-Agent':'Mozilla/5.0','Referer':'https://www.wnba.com/','Origin':'https://www.wnba.com','Accept':'application/json, text/plain, */*'}
+          tests=[
+            ('wnba_matchups','https://stats.wnba.com/stats/boxscorematchupsv3',[('GameID','1022600011')]),
+            ('nba_matchups','https://stats.nba.com/stats/boxscorematchupsv3',[('GameID','1022600011')]),
+            ('wnba_passing','https://stats.wnba.com/stats/leaguedashptstats',[('LeagueID','10'),('Season','2026'),('SeasonType','Regular Season'),('PerMode','Totals'),('PlayerOrTeam','Player'),('PtMeasureType','Passing')]),
+            ('nba_passing_wnba','https://stats.nba.com/stats/leaguedashptstats',[('LeagueID','10'),('Season','2026'),('SeasonType','Regular Season'),('PerMode','Totals'),('PlayerOrTeam','Player'),('PtMeasureType','Passing')]),
+          ]
+          for name,url,params in tests:
+            try:
+              r=requests.get(url,params=params,headers=headers,impersonate='chrome',timeout=6)
+              print('TEST',name,'STATUS',r.status_code,'LEN',len(r.content),'URL',r.url)
+              print('BODY',r.text[:1200].replace('\n',' '))
+              if r.status_code==200:
+                try:
+                  j=r.json()
+                  print('KEYS',list(j)[:20])
+                  s=json.dumps(j)
+                  print('HAS_matchupPotentialAssists', 'matchupPotentialAssists' in s)
+                  print('HAS_POTENTIAL_AST', 'POTENTIAL_AST' in s)
+                  if 'resultSets' in j:
+                    rs=j['resultSets'][0] if j['resultSets'] else {}
+                    print('RESULT_ROWS',len(rs.get('rowSet',[])),'HEADERS',rs.get('headers',[])[:50])
+                except Exception as e: print('JSONERR',repr(e))
+            except Exception as e:
+              print('TEST',name,'ERROR',type(e).__name__,repr(e))
+          PY
