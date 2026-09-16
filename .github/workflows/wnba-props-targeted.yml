@@ -1,0 +1,186 @@
+name: WNBA PropsMadness targeted extraction
+
+on:
+  push:
+    paths:
+      - .github/workflows/wnba-props-targeted.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wnba-potential-assists-2025
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Reverse engineer current PropsMadness API and extract 2025 PA
+        shell: bash
+        run: |
+          cat >/tmp/props_target.py <<'PY'
+          import csv,json,re,urllib.parse
+          from pathlib import Path
+          import requests
+          O=Path('outputs/wnba_props_targeted'); O.mkdir(parents=True,exist_ok=True)
+          s=requests.Session(); H={'User-Agent':'Mozilla/5.0','Accept':'application/json,text/plain,*/*','Origin':'https://propsmadness.com','Referer':'https://propsmadness.com/wnba'}
+          html=s.get('https://propsmadness.com/wnba',headers=H,timeout=20).text
+          scripts=[]
+          for x in re.findall(r'<script[^>]+src=["\']([^"\']+)',html):
+            if x.startswith('/'): x='https://propsmadness.com'+x
+            if x.startswith('http'): scripts.append(x)
+          blobs=[]
+          for u in dict.fromkeys(scripts):
+            try:
+              r=s.get(u,headers={'User-Agent':'Mozilla/5.0'},timeout=15)
+              blobs.append((u,r.text))
+            except: pass
+          alljs='\n'.join(t for _,t in blobs)
+          # Evidence snippets around routing/base-url concepts.
+          needles=['api.propsmadness','baseURL','baseUrl','match-statistics','seasonReference','featured','LeagueSlug','offer/','/offers','/matches','/players']
+          evid=[]
+          for n in needles:
+            start=0
+            while True:
+              p=alljs.find(n,start)
+              if p<0: break
+              evid.append({'needle':n,'snippet':alljs[max(0,p-800):p+1600]})
+              start=p+len(n)
+              if sum(1 for e in evid if e['needle']==n)>=15: break
+          (O/'route_evidence.json').write_text(json.dumps(evid,indent=2),encoding='utf8')
+          # Collect URLs and quoted route-like strings.
+          urls=sorted(set(re.findall(r'https?://[^"\'`\\ )]+',alljs)))
+          routes=[]
+          for m in re.finditer(r'["\']([^"\']{2,180})["\']',alljs):
+            x=m.group(1)
+            if x.startswith('/') and any(k in x.lower() for k in ['offer','bet','player','match','league','featured','statistic','wnba']): routes.append(x)
+          routes=sorted(set(routes))
+          (O/'discovered_urls.json').write_text(json.dumps(urls,indent=2),encoding='utf8')
+          (O/'discovered_routes.json').write_text(json.dumps(routes,indent=2),encoding='utf8')
+          print('URL candidates:', [u for u in urls if 'props' in u.lower() or 'api' in u.lower()][:50])
+          print('route strings:', routes[:120])
+          # Find likely API host/base from live bundle, then include current known host/prefix guesses.
+          bases=[]
+          for u in urls:
+            if 'propsmadness' in u.lower() and ('api' in u.lower() or '/api' in u.lower()): bases.append(u.rstrip('/'))
+          host='https://api.propsmadness.com'
+          bases += [host,host+'/api',host+'/v1',host+'/api/v1',host+'/v2',host+'/api/v2']
+          bases=list(dict.fromkeys(bases))
+          # Candidate public WNBA/slate endpoints from known route semantics and discovered constant strings.
+          candidates=[
+            '/offer/wnba/bets/featured','/offers/wnba/bets/featured','/wnba/bets/featured',
+            '/league/wnba/bets/featured','/leagues/wnba/bets/featured','/bets/wnba/featured',
+            '/matches/wnba','/matches?league=wnba','/wnba/matches','/leagues/wnba/matches',
+            '/players?league=wnba','/wnba/players','/leagues/wnba/players','/players/wnba'
+          ]
+          for r in routes:
+            low=r.lower()
+            if ('wnba' in low or 'featured' in low) and '{' not in r and '<' not in r and len(r)<150: candidates.append(r)
+          candidates=list(dict.fromkeys(candidates))
+          attempts=[]; payloads=[]
+          for b in bases:
+            # Don't treat a full URL with query/path as base unless hostish.
+            if b.count('/')>3 and not b.endswith(('/api','/v1','/v2','/api/v1','/api/v2')): continue
+            for p in candidates:
+              try:
+                r=s.get(b+p,headers=H,timeout=8)
+                rec={'url':b+p,'status':r.status_code,'len':len(r.content),'prefix':r.text[:180]}; attempts.append(rec)
+                if r.status_code==200 and r.text.strip().startswith(('{','[')):
+                  try:
+                    j=r.json(); payloads.append((b,p,j)); print('PUBLIC HIT',b+p,len(r.content))
+                    (O/('hit_'+str(len(payloads)).zfill(2)+'.json')).write_text(json.dumps(j,indent=2),encoding='utf8')
+                  except: pass
+              except Exception as e: attempts.append({'url':b+p,'error':repr(e)})
+          (O/'probe_attempts.json').write_text(json.dumps(attempts,indent=2),encoding='utf8')
+
+          def walk(x):
+            if isinstance(x,dict):
+              yield x
+              for v in x.values(): yield from walk(v)
+            elif isinstance(x,list):
+              for v in x: yield from walk(v)
+          # Pull IDs/names from every successful public slate payload.
+          players={}
+          for b,p,j in payloads:
+            for d in walk(j):
+              name=d.get('playerName') or d.get('name') or d.get('fullName') or d.get('displayName')
+              pid=d.get('playerId') or d.get('playerID') or d.get('player_id')
+              # common nested player object
+              if isinstance(d.get('player'),dict):
+                q=d['player']; name=name or q.get('name') or q.get('fullName'); pid=pid or q.get('id') or q.get('playerId')
+              if pid is not None and name: players[str(pid)]={'id':str(pid),'name':str(name)}
+          print('players discovered',len(players),list(players.values())[:20])
+          (O/'players_discovered.json').write_text(json.dumps(players,indent=2),encoding='utf8')
+          # If route payload isn't giving player IDs, mine all successful JSON for player-ish numeric IDs anyway.
+          fallback=[]
+          for b,p,j in payloads:
+            for d in walk(j):
+              for k,v in d.items():
+                if ('player' in k.lower() or 'athlete' in k.lower()) and isinstance(v,(int,str)) and str(v).isdigit(): fallback.append(str(v))
+          ids=list(players) + [x for x in dict.fromkeys(fallback) if x not in players]
+          # Try 2025 match-statistics. seasonReference is confirmed by current bundle.
+          hist=[]
+          player_base_candidates=list(dict.fromkeys([b for b,_,_ in payloads]+bases))
+          for pid in ids[:400]:
+            for b in player_base_candidates:
+              if b.count('/')>3 and not b.endswith(('/api','/v1','/v2','/api/v1','/api/v2')): continue
+              u=f'{b}/players/{pid}/match-statistics?seasonReference=2025'
+              try:
+                r=s.get(u,headers=H,timeout=8)
+                if r.status_code==200 and r.text.strip().startswith(('{','[')):
+                  j=r.json(); txt=r.text
+                  has='potentialAssists' in txt or 'POTENTIAL_AST' in txt or 'potential_assists' in txt
+                  hist.append({'playerId':pid,'base':b,'hasPA':has,'payload':j})
+                  print('HISTORY',pid,'PA',has,'bytes',len(r.content),u)
+                  if has: break
+              except: pass
+          # Save full historical payloads, then flatten game-level PA rows.
+          (O/'history_payloads.json').write_text(json.dumps(hist,indent=2),encoding='utf8')
+          rows=[]
+          for h in hist:
+            if not h['hasPA']: continue
+            pid=h['playerId']; pname=players.get(pid,{}).get('name','')
+            for d in walk(h['payload']):
+              pa=d.get('potentialAssists',d.get('POTENTIAL_AST',d.get('potential_assists')))
+              if pa is None: continue
+              # only game-ish dictionaries, dedup later
+              date=d.get('date') or d.get('matchDate') or d.get('gameDate') or d.get('startDate') or ''
+              mid=d.get('matchId') or d.get('gameId') or d.get('id') or ''
+              opp=d.get('opponent') or d.get('opponentAbbreviation') or d.get('opponentName') or ''
+              if isinstance(opp,dict): opp=opp.get('abbreviation') or opp.get('name') or opp.get('id') or ''
+              rows.append({'playerId':pid,'playerName':pname,'matchId':mid,'date':date,'opponent':opp,'potentialAssists':pa})
+          seen=set(); clean=[]
+          for r in rows:
+            key=(r['playerId'],str(r['matchId']),str(r['date']),str(r['potentialAssists']))
+            if key not in seen: seen.add(key); clean.append(r)
+          with (O/'wnba_2025_potential_assists_gamelogs.csv').open('w',newline='',encoding='utf8') as f:
+            w=csv.DictWriter(f,fieldnames=['playerId','playerName','matchId','date','opponent','potentialAssists']);w.writeheader();w.writerows(clean)
+          # Aggregate per player from game rows if available.
+          agg={}
+          for r in clean:
+            try:v=float(r['potentialAssists'])
+            except:continue
+            a=agg.setdefault(r['playerId'],{'playerId':r['playerId'],'playerName':r['playerName'],'games':0,'potentialAssistsTotal':0.0})
+            a['games']+=1;a['potentialAssistsTotal']+=v
+          for a in agg.values(): a['potentialAssistsPerGame']=round(a['potentialAssistsTotal']/a['games'],3) if a['games'] else None
+          leaderboard=sorted(agg.values(),key=lambda x:x['potentialAssistsPerGame'] or -1,reverse=True)
+          with (O/'wnba_2025_potential_assists_by_player.csv').open('w',newline='',encoding='utf8') as f:
+            fields=['playerId','playerName','games','potentialAssistsTotal','potentialAssistsPerGame']; w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows(leaderboard)
+          (O/'summary.json').write_text(json.dumps({'scriptCount':len(blobs),'bases':bases,'successfulPublicPayloads':len(payloads),'players':len(players),'historyResponses':len(hist),'historyWithPotentialAssists':sum(h['hasPA'] for h in hist),'gameRows':len(clean),'leaderboardPlayers':len(leaderboard)},indent=2),encoding='utf8')
+          print('FINAL',json.loads((O/'summary.json').read_text()))
+          PY
+          python /tmp/props_target.py
+      - name: Commit isolated outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add outputs/wnba_props_targeted
+          git diff --staged --quiet || git commit -m "Extract targeted WNBA 2025 potential assists route [skip ci]"
+          git push origin HEAD:agent/wnba-potential-assists-2025
