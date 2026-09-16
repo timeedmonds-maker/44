@@ -1,0 +1,1 @@
+Trigger the branch-scoped GitHub Actions probe for 2025 WNBA potential assists.
