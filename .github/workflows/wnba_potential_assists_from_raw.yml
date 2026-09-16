@@ -1,0 +1,176 @@
+name: WNBA potential assists from preserved raw
+
+on:
+  push:
+    branches: [agent/wnba-potential-assists-probe]
+    paths: [.github/workflows/wnba_potential_assists_from_raw.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wnba-potential-assists-probe
+      - name: Sparse clone official WNBA raw mirror
+        run: |
+          git clone --depth 1 --filter=blob:none --no-checkout https://github.com/sportsdataverse/wehoop-wnba-stats-raw.git /tmp/wnba_raw
+          git -C /tmp/wnba_raw sparse-checkout init --cone
+          git -C /tmp/wnba_raw sparse-checkout set \
+            wnba_stats/json/boxscorematchupsv3/2025 \
+            wnba_stats/json/boxscorematchupsv3/2026 \
+            wnba_stats/json/boxscoretraditionalv3/2025 \
+            wnba_stats/json/boxscoretraditionalv3/2026
+          git -C /tmp/wnba_raw checkout main
+          echo 'matchup files:'
+          find /tmp/wnba_raw/wnba_stats/json/boxscorematchupsv3 -type f -name '*.json' | wc -l
+      - name: Aggregate hidden matchup potential assists
+        run: |
+          python - <<'PY'
+          import csv, json, glob, os
+          from collections import defaultdict
+          from pathlib import Path
+
+          ROOT=Path('/tmp/wnba_raw/wnba_stats/json')
+          OUT=Path('outputs/wnba_potential_assists')
+          OUT.mkdir(parents=True,exist_ok=True)
+          seasons=(2025,2026)
+
+          def load(path):
+              try:
+                  with open(path,encoding='utf-8') as f: return json.load(f)
+              except Exception: return None
+
+          # actual-assist lookup by (game, player) for QA
+          actual_ast={}
+          for season in seasons:
+              for p in glob.glob(str(ROOT/f'boxscoretraditionalv3/{season}/102{str(season)[-2:]}*.json')):
+                  j=load(p) or {}
+                  root=j.get('boxScoreTraditional') or {}
+                  gid=str(root.get('gameId') or Path(p).stem)
+                  for side in ('homeTeam','awayTeam'):
+                      for pl in (root.get(side) or {}).get('players') or []:
+                          pid=pl.get('personId')
+                          st=pl.get('statistics') or {}
+                          if pid is not None and st.get('assists') is not None:
+                              actual_ast[(gid,int(pid))]=int(st['assists'])
+
+          rows=[]
+          failures=[]
+          for season in seasons:
+              patt=str(ROOT/f'boxscorematchupsv3/{season}/102{str(season)[-2:]}*.json')
+              files=sorted(glob.glob(patt))
+              print('SEASON',season,'REGULAR_MATCHUP_FILES',len(files))
+              for p in files:
+                  j=load(p)
+                  if not j:
+                      failures.append((season,Path(p).stem,'json_load_failed')); continue
+                  root=j.get('boxScoreMatchups') or {}
+                  gid=str(root.get('gameId') or Path(p).stem)
+                  if not root:
+                      failures.append((season,gid,'no_boxScoreMatchups')); continue
+                  for side in ('homeTeam','awayTeam'):
+                      team=root.get(side) or {}
+                      tid=team.get('teamId'); tri=team.get('teamTricode')
+                      for pl in team.get('players') or []:
+                          pid=pl.get('personId')
+                          if pid is None: continue
+                          name=' '.join(x for x in (pl.get('firstName'),pl.get('familyName')) if x).strip()
+                          pa=ast=0; n=0
+                          for m in pl.get('matchups') or []:
+                              s=m.get('statistics') or {}
+                              v=s.get('matchupPotentialAssists')
+                              a=s.get('matchupAssists')
+                              if v is not None: pa += int(v)
+                              if a is not None: ast += int(a)
+                              n += 1
+                          rows.append({
+                              'season':season,'game_id':gid,'team_id':tid,'team_abbreviation':tri,
+                              'player_id':int(pid),'player_name':name,'potential_assists':pa,
+                              'matchup_assists':ast,'actual_assists':actual_ast.get((gid,int(pid))),
+                              'matchup_rows':n,
+                          })
+
+          # defensive de-dupe
+          uniq={}
+          for r in rows: uniq[(r['game_id'],r['player_id'])]=r
+          rows=sorted(uniq.values(),key=lambda r:(r['season'],r['game_id'],r['team_abbreviation'] or '',r['player_name']))
+
+          # QA: does summing matchupAssists reproduce box-score assists?
+          qa=[r for r in rows if r['actual_assists'] is not None]
+          exact=sum(r['matchup_assists']==r['actual_assists'] for r in qa)
+          maxdiff=max((abs(r['matchup_assists']-r['actual_assists']) for r in qa),default=None)
+
+          # Alyssa Thomas external validation target: 118 potential assists in first 7 PHX games of 2026.
+          at=sorted([r for r in rows if r['season']==2026 and r['player_name'].lower()=='alyssa thomas'],key=lambda r:r['game_id'])
+          at7=at[:7]
+          at7sum=sum(r['potential_assists'] for r in at7)
+          print('ALYSSA_FIRST7',[(r['game_id'],r['potential_assists'],r['actual_assists']) for r in at7], 'SUM',at7sum)
+
+          # aggregate by player across all teams; retain team list
+          ag={}
+          for r in rows:
+              key=(r['season'],r['player_id'],r['player_name'])
+              x=ag.setdefault(key,{'season':r['season'],'player_id':r['player_id'],'player_name':r['player_name'],'teams':set(),'games':0,'potential_assists':0,'actual_assists':0,'actual_assists_games':0})
+              if r['team_abbreviation']: x['teams'].add(r['team_abbreviation'])
+              x['games']+=1; x['potential_assists']+=r['potential_assists']
+              if r['actual_assists'] is not None:
+                  x['actual_assists']+=r['actual_assists']; x['actual_assists_games']+=1
+          totals=[]
+          for x in ag.values():
+              gp=x['games']
+              totals.append({
+                  'season':x['season'],'player_id':x['player_id'],'player_name':x['player_name'],
+                  'teams':'/'.join(sorted(x['teams'])),'games':gp,'potential_assists':x['potential_assists'],
+                  'potential_assists_per_game':round(x['potential_assists']/gp,3) if gp else None,
+                  'actual_assists':x['actual_assists'] if x['actual_assists_games']==gp else '',
+                  'potential_assist_conversion_pct':round(100*x['actual_assists']/x['potential_assists'],2) if x['potential_assists'] and x['actual_assists_games']==gp else '',
+              })
+          totals.sort(key=lambda x:(x['season'],-x['potential_assists'],x['player_name']))
+
+          def write(path, data, fields):
+              with open(path,'w',newline='',encoding='utf-8') as f:
+                  w=csv.DictWriter(f,fieldnames=fields); w.writeheader(); w.writerows(data)
+          write(OUT/'wnba_potential_assists_player_game_2025_2026.csv',rows,
+                ['season','game_id','team_id','team_abbreviation','player_id','player_name','potential_assists','matchup_assists','actual_assists','matchup_rows'])
+          write(OUT/'wnba_potential_assists_season_totals_2025_2026.csv',totals,
+                ['season','player_id','player_name','teams','games','potential_assists','potential_assists_per_game','actual_assists','potential_assist_conversion_pct'])
+          write(OUT/'wnba_potential_assists_failures.csv',[{'season':a,'game_id':b,'error':c} for a,b,c in failures],['season','game_id','error'])
+
+          summary={
+              'source_repo':'sportsdataverse/wehoop-wnba-stats-raw',
+              'source_endpoint':'boxscorematchupsv3',
+              'metric_field':'matchupPotentialAssists',
+              'regular_season_game_id_filter':'102YY*',
+              'player_game_rows':len(rows),
+              'games_by_season':{str(s):len({r['game_id'] for r in rows if r['season']==s}) for s in seasons},
+              'players_by_season':{str(s):len({r['player_id'] for r in rows if r['season']==s}) for s in seasons},
+              'failures':len(failures),
+              'assist_qa_rows':len(qa),
+              'assist_qa_exact_matches':exact,
+              'assist_qa_exact_pct':round(100*exact/len(qa),4) if qa else None,
+              'assist_qa_max_abs_diff':maxdiff,
+              'alyssa_thomas_first_7_2026_game_ids':[r['game_id'] for r in at7],
+              'alyssa_thomas_first_7_2026_potential_assists':at7sum,
+              'external_validation_target':118,
+              'external_validation_pass':at7sum==118,
+          }
+          (OUT/'qa_summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
+          print('QA',json.dumps(summary,sort_keys=True))
+          for s in seasons:
+              print('TOP',s)
+              for x in [t for t in totals if t['season']==s][:20]: print(json.dumps(x,sort_keys=True))
+          PY
+      - name: Commit recovered dataset
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add outputs/wnba_potential_assists/
+          if git diff --cached --quiet; then echo 'No changes'; else
+            git commit -m 'Add WNBA 2025-26 potential assists dataset from preserved official matchup feed'
+            git push origin HEAD:agent/wnba-potential-assists-probe
+          fi
