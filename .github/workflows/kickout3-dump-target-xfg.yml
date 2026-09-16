@@ -1,0 +1,40 @@
+name: Kickout 3 inspect exact xFG payload
+on:
+  push:
+    branches: [screen-tracker-kickout-3]
+    paths: ['.github/workflows/kickout3-dump-target-xfg.yml']
+  workflow_dispatch:
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install -q requests
+      - name: Dump target shot payloads
+        run: |
+          python - <<'PY'
+          import json, requests, pathlib
+          url='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','Accept':'application/json, text/plain, */*'}
+          targets=[('0022500255',201142,247),('0022500131',201142,585)]
+          out=[]
+          for gid,pid,ev in targets:
+            r=requests.get(url,params={'GameID':gid,'PlayerID':pid},headers=H,timeout=40); r.raise_for_status(); j=r.json()
+            match=[]
+            for s in j.get('shotList') or []:
+              cand=[]
+              for k in ('eventNum','event_num','eventNumber','eventId','eventID','actionNumber'):
+                try: cand.append(int(float(s.get(k))))
+                except: pass
+              if ev in cand: match.append(s)
+            out.append({'game_id':gid,'event_num':ev,'matches':match,'top_level_keys':sorted(j.keys())})
+          pathlib.Path('target_xfg_payloads.json').write_text(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kickout3-target-xfg-payloads
+          path: target_xfg_payloads.json
+          retention-days: 30
