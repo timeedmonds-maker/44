@@ -1,0 +1,116 @@
+[
+  {
+    "type": "page",
+    "path": "/research/wnba",
+    "status": 200,
+    "bytes": 217556,
+    "has2025": true,
+    "hasPotAst": false,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsy"
+  },
+  {
+    "type": "page",
+    "path": "/research/wnba?season=2025",
+    "status": 200,
+    "bytes": 190273,
+    "has2025": true,
+    "hasPotAst": false,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsy"
+  },
+  {
+    "type": "page",
+    "path": "/research/wnba?season=2025&t=MIN",
+    "status": 200,
+    "bytes": 212809,
+    "has2025": true,
+    "hasPotAst": false,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsy"
+  },
+  {
+    "type": "page",
+    "path": "/research/wnba?season=2025&t=MIN&view=players",
+    "status": 200,
+    "bytes": 202930,
+    "has2025": true,
+    "hasPotAst": false,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsy"
+  },
+  {
+    "type": "page",
+    "path": "/research/wnba?season=2025&team=MIN&view=players",
+    "status": 200,
+    "bytes": 217528,
+    "has2025": true,
+    "hasPotAst": false,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsy"
+  },
+  {
+    "type": "page",
+    "path": "/research/wnba/team/minnesota-lynx?season=2025",
+    "status": 200,
+    "bytes": 213126,
+    "has2025": true,
+    "hasPotAst": false,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsy"
+  },
+  {
+    "type": "page",
+    "path": "/research/wnba/team/min?season=2025",
+    "status": 404,
+    "bytes": 40864,
+    "has2025": true,
+    "hasPotAst": false,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device"
+  },
+  {
+    "type": "page",
+    "path": "/wnba/players?season=2025",
+    "status": 404,
+    "bytes": 61274,
+    "has2025": true,
+    "hasPotAst": false,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsy"
+  },
+  {
+    "type": "api",
+    "url": "https://www.therundown.gg/api/research/wnba?season=2025",
+    "status": 404,
+    "bytes": 62603,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsyXyG__variable h-full antialiased overflow-x-clip\"><head><met"
+  },
+  {
+    "type": "api",
+    "url": "https://www.therundown.gg/api/wnba/research?season=2025",
+    "status": 404,
+    "bytes": 62603,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsyXyG__variable h-full antialiased overflow-x-clip\"><head><met"
+  },
+  {
+    "type": "api",
+    "url": "https://www.therundown.gg/api/wnba/players?season=2025",
+    "status": 404,
+    "bytes": 62602,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsyXyG__variable h-full antialiased overflow-x-clip\"><head><met"
+  },
+  {
+    "type": "api",
+    "url": "https://www.therundown.gg/api/research/wnba/players?season=2025",
+    "status": 404,
+    "bytes": 62615,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsyXyG__variable h-full antialiased overflow-x-clip\"><head><met"
+  },
+  {
+    "type": "api",
+    "url": "https://www.therundown.gg/api/wnba/player-stats?season=2025",
+    "status": 404,
+    "bytes": 62607,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsyXyG__variable h-full antialiased overflow-x-clip\"><head><met"
+  },
+  {
+    "type": "api",
+    "url": "https://www.therundown.gg/api/wnba/stats?season=2025",
+    "status": 404,
+    "bytes": 62600,
+    "prefix": "<!DOCTYPE html><html data-dpl-id=\"dpl_DekHYGxxWGchHJzWf5DM18HesAT2\" lang=\"en\" class=\"inter_8db6fa51-module__MMaAbG__variable jetbrains_mono_9a2f2d6c-module__wsyXyG__variable h-full antialiased overflow-x-clip\"><head><met"
+  }
+]
