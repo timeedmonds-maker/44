@@ -1,0 +1,578 @@
+[
+  {
+    "url": "https://api.propsmadness.com/offer/wnba/bets/featured",
+    "status": 404,
+    "len": 104,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /offer/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/offers/wnba/bets/featured",
+    "status": 404,
+    "len": 105,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /offers/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/wnba/bets/featured",
+    "status": 404,
+    "len": 98,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/league/wnba/bets/featured",
+    "status": 404,
+    "len": 105,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /league/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/leagues/wnba/bets/featured",
+    "status": 404,
+    "len": 106,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /leagues/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/bets/wnba/featured",
+    "status": 404,
+    "len": 98,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /bets/wnba/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/matches/wnba",
+    "status": 404,
+    "len": 92,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /matches/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/matches?league=wnba",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /matches?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/wnba/matches",
+    "status": 404,
+    "len": 92,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/leagues/wnba/matches",
+    "status": 404,
+    "len": 100,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /leagues/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/players?league=wnba",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /players?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/wnba/players",
+    "status": 404,
+    "len": 92,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/leagues/wnba/players",
+    "status": 404,
+    "len": 100,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /leagues/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/players/wnba",
+    "status": 404,
+    "len": 92,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /players/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/images/no-offer-wnba.webp",
+    "status": 404,
+    "len": 105,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /images/no-offer-wnba.webp\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/logos/wnba.svg",
+    "status": 404,
+    "len": 94,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /logos/wnba.svg\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/offer/wnba/bets/featured",
+    "status": 200,
+    "len": 18482,
+    "prefix": "{\"leagueCode\":\"wnba\",\"matchOffers\":[{\"match\":{\"id\":14592,\"homeTeam\":{\"id\":31,\"name\":\"Atlanta Dream\",\"shortName\":\"Dream\",\"nameAbbreviation\":\"ATL\",\"imageUrl\":\"https://assets.propsmad"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/offers/wnba/bets/featured",
+    "status": 404,
+    "len": 109,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/offers/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/wnba/bets/featured",
+    "status": 404,
+    "len": 102,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/league/wnba/bets/featured",
+    "status": 404,
+    "len": 109,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/league/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/leagues/wnba/bets/featured",
+    "status": 404,
+    "len": 110,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/leagues/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/bets/wnba/featured",
+    "status": 404,
+    "len": 102,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/bets/wnba/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/matches/wnba",
+    "status": 400,
+    "len": 134,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"matchId must be a number conforming to the specified constraints\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/matches?league=wnba",
+    "status": 404,
+    "len": 103,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/matches?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/wnba/matches",
+    "status": 404,
+    "len": 96,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/leagues/wnba/matches",
+    "status": 404,
+    "len": 104,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/leagues/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/players?league=wnba",
+    "status": 404,
+    "len": 103,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/players?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/wnba/players",
+    "status": 404,
+    "len": 96,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/leagues/wnba/players",
+    "status": 404,
+    "len": 104,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/leagues/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/players/wnba",
+    "status": 403,
+    "len": 103,
+    "prefix": "{\"statusCode\":403,\"error\":\"Forbidden\",\"errorCode\":null,\"message\":\"User does not have access to player\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/images/no-offer-wnba.webp",
+    "status": 404,
+    "len": 109,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/images/no-offer-wnba.webp\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/logos/wnba.svg",
+    "status": 404,
+    "len": 98,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/logos/wnba.svg\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/offer/wnba/bets/featured",
+    "status": 404,
+    "len": 107,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/offer/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/offers/wnba/bets/featured",
+    "status": 404,
+    "len": 108,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/offers/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/wnba/bets/featured",
+    "status": 404,
+    "len": 101,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/league/wnba/bets/featured",
+    "status": 404,
+    "len": 108,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/league/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/leagues/wnba/bets/featured",
+    "status": 404,
+    "len": 109,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/leagues/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/bets/wnba/featured",
+    "status": 404,
+    "len": 101,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/bets/wnba/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/matches/wnba",
+    "status": 404,
+    "len": 95,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/matches/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/matches?league=wnba",
+    "status": 404,
+    "len": 102,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/matches?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/wnba/matches",
+    "status": 404,
+    "len": 95,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/leagues/wnba/matches",
+    "status": 404,
+    "len": 103,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/leagues/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/players?league=wnba",
+    "status": 404,
+    "len": 102,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/players?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/wnba/players",
+    "status": 404,
+    "len": 95,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/leagues/wnba/players",
+    "status": 404,
+    "len": 103,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/leagues/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/players/wnba",
+    "status": 404,
+    "len": 95,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/players/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/images/no-offer-wnba.webp",
+    "status": 404,
+    "len": 108,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/images/no-offer-wnba.webp\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v1/logos/wnba.svg",
+    "status": 404,
+    "len": 97,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v1/logos/wnba.svg\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/offer/wnba/bets/featured",
+    "status": 404,
+    "len": 111,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/offer/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/offers/wnba/bets/featured",
+    "status": 404,
+    "len": 112,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/offers/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/wnba/bets/featured",
+    "status": 404,
+    "len": 105,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/league/wnba/bets/featured",
+    "status": 404,
+    "len": 112,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/league/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/leagues/wnba/bets/featured",
+    "status": 404,
+    "len": 113,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/leagues/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/bets/wnba/featured",
+    "status": 404,
+    "len": 105,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/bets/wnba/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/matches/wnba",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/matches/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/matches?league=wnba",
+    "status": 404,
+    "len": 106,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/matches?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/wnba/matches",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/leagues/wnba/matches",
+    "status": 404,
+    "len": 107,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/leagues/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/players?league=wnba",
+    "status": 404,
+    "len": 106,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/players?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/wnba/players",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/leagues/wnba/players",
+    "status": 404,
+    "len": 107,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/leagues/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/players/wnba",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/players/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/images/no-offer-wnba.webp",
+    "status": 404,
+    "len": 112,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/images/no-offer-wnba.webp\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v1/logos/wnba.svg",
+    "status": 404,
+    "len": 101,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v1/logos/wnba.svg\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/offer/wnba/bets/featured",
+    "status": 404,
+    "len": 107,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/offer/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/offers/wnba/bets/featured",
+    "status": 404,
+    "len": 108,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/offers/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/wnba/bets/featured",
+    "status": 404,
+    "len": 101,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/league/wnba/bets/featured",
+    "status": 404,
+    "len": 108,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/league/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/leagues/wnba/bets/featured",
+    "status": 404,
+    "len": 109,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/leagues/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/bets/wnba/featured",
+    "status": 404,
+    "len": 101,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/bets/wnba/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/matches/wnba",
+    "status": 404,
+    "len": 95,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/matches/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/matches?league=wnba",
+    "status": 404,
+    "len": 102,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/matches?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/wnba/matches",
+    "status": 404,
+    "len": 95,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/leagues/wnba/matches",
+    "status": 404,
+    "len": 103,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/leagues/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/players?league=wnba",
+    "status": 404,
+    "len": 102,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/players?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/wnba/players",
+    "status": 404,
+    "len": 95,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/leagues/wnba/players",
+    "status": 404,
+    "len": 103,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/leagues/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/players/wnba",
+    "status": 404,
+    "len": 95,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/players/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/images/no-offer-wnba.webp",
+    "status": 404,
+    "len": 108,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/images/no-offer-wnba.webp\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/v2/logos/wnba.svg",
+    "status": 404,
+    "len": 97,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /v2/logos/wnba.svg\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/offer/wnba/bets/featured",
+    "status": 404,
+    "len": 111,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/offer/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/offers/wnba/bets/featured",
+    "status": 404,
+    "len": 112,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/offers/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/wnba/bets/featured",
+    "status": 404,
+    "len": 105,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/league/wnba/bets/featured",
+    "status": 404,
+    "len": 112,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/league/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/leagues/wnba/bets/featured",
+    "status": 404,
+    "len": 113,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/leagues/wnba/bets/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/bets/wnba/featured",
+    "status": 404,
+    "len": 105,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/bets/wnba/featured\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/matches/wnba",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/matches/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/matches?league=wnba",
+    "status": 404,
+    "len": 106,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/matches?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/wnba/matches",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/leagues/wnba/matches",
+    "status": 404,
+    "len": 107,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/leagues/wnba/matches\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/players?league=wnba",
+    "status": 404,
+    "len": 106,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/players?league=wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/wnba/players",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/leagues/wnba/players",
+    "status": 404,
+    "len": 107,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/leagues/wnba/players\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/players/wnba",
+    "status": 404,
+    "len": 99,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/players/wnba\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/images/no-offer-wnba.webp",
+    "status": 404,
+    "len": 112,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/images/no-offer-wnba.webp\"}"
+  },
+  {
+    "url": "https://api.propsmadness.com/api/v2/logos/wnba.svg",
+    "status": 404,
+    "len": 101,
+    "prefix": "{\"statusCode\":404,\"error\":\"Not Found\",\"errorCode\":null,\"message\":\"Cannot GET /api/v2/logos/wnba.svg\"}"
+  }
+]

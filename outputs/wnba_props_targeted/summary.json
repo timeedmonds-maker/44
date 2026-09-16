@@ -1,0 +1,17 @@
+{
+  "scriptCount": 41,
+  "bases": [
+    "https://api.propsmadness.com",
+    "https://api.propsmadness.com/api",
+    "https://api.propsmadness.com/v1",
+    "https://api.propsmadness.com/api/v1",
+    "https://api.propsmadness.com/v2",
+    "https://api.propsmadness.com/api/v2"
+  ],
+  "successfulPublicPayloads": 1,
+  "players": 0,
+  "historyResponses": 0,
+  "historyWithPotentialAssists": 0,
+  "gameRows": 0,
+  "leaderboardPlayers": 0
+}
