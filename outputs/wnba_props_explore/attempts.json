@@ -1,0 +1,58 @@
+[
+  {
+    "market": "player-assists",
+    "path": "/offer/wnba/explore/player-assists",
+    "status": 200,
+    "bytes": 15743,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":4,\"name\":\"Player Assists\",\"slug\":\"player-assists\",\"code\":\"playerAssists\",\"marketType\":\"total\"},\"offers\":[{\"offer\":{\"matchId\":14592,\"player\":{\"id\":693,\"firstName\":\"Jordin\",\"lastName\":\"C"
+  },
+  {
+    "market": "player-assists",
+    "path": "/offer/wnba/explore/player-assists?seasonReference=previous",
+    "status": 200,
+    "bytes": 15743,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":4,\"name\":\"Player Assists\",\"slug\":\"player-assists\",\"code\":\"playerAssists\",\"marketType\":\"total\"},\"offers\":[{\"offer\":{\"matchId\":14592,\"player\":{\"id\":693,\"firstName\":\"Jordin\",\"lastName\":\"C"
+  },
+  {
+    "market": "player-rebounds-assists",
+    "path": "/offer/wnba/explore/player-rebounds-assists",
+    "status": 200,
+    "bytes": 15133,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":11,\"name\":\"Player Rebounds + Assists\",\"slug\":\"player-rebounds-assists\",\"code\":\"playerReboundsAssists\",\"marketType\":\"total\"},\"offers\":[{\"offer\":{\"matchId\":14592,\"player\":{\"id\":693,\"firs"
+  },
+  {
+    "market": "player-rebounds-assists",
+    "path": "/offer/wnba/explore/player-rebounds-assists?seasonReference=previous",
+    "status": 200,
+    "bytes": 15133,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":11,\"name\":\"Player Rebounds + Assists\",\"slug\":\"player-rebounds-assists\",\"code\":\"playerReboundsAssists\",\"marketType\":\"total\"},\"offers\":[{\"offer\":{\"matchId\":14592,\"player\":{\"id\":693,\"firs"
+  },
+  {
+    "market": "player-points-rebounds-assists",
+    "path": "/offer/wnba/explore/player-points-rebounds-assists",
+    "status": 200,
+    "bytes": 18077,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":10,\"name\":\"Player Points + Rebounds + Assists\",\"slug\":\"player-points-rebounds-assists\",\"code\":\"playerPointsReboundsAssists\",\"marketType\":\"total\"},\"offers\":[{\"offer\":{\"matchId\":14592,\"p"
+  },
+  {
+    "market": "player-points-rebounds-assists",
+    "path": "/offer/wnba/explore/player-points-rebounds-assists?seasonReference=previous",
+    "status": 200,
+    "bytes": 18077,
+    "prefix": "{\"leagueCode\":\"wnba\",\"market\":{\"id\":10,\"name\":\"Player Points + Rebounds + Assists\",\"slug\":\"player-points-rebounds-assists\",\"code\":\"playerPointsReboundsAssists\",\"marketType\":\"total\"},\"offers\":[{\"offer\":{\"matchId\":14592,\"p"
+  },
+  {
+    "market": "featured",
+    "path": "/offer/wnba/explore/featured",
+    "status": 400,
+    "bytes": 2443,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"marketCode must be one of: moneyline, total-points, team-total, player-points, player-assists, player-rebounds, player-made-threes, player-points-assist"
+  },
+  {
+    "market": "featured",
+    "path": "/offer/wnba/explore/featured?seasonReference=previous",
+    "status": 400,
+    "bytes": 2443,
+    "prefix": "{\"statusCode\":400,\"error\":\"Bad Request\",\"errorCode\":null,\"message\":\"marketCode must be one of: moneyline, total-points, team-total, player-points, player-assists, player-rebounds, player-made-threes, player-points-assist"
+  }
+]
