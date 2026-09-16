@@ -1,0 +1,36 @@
+{
+  "search_total": 6,
+  "scans": [
+    {
+      "uuid": "019c777a-ecfd-747a-9e5d-bbb7598e3fd5",
+      "task_url": "https://accounts.propsmadness.com/",
+      "error": "<HTTPError 403: 'Forbidden'>"
+    },
+    {
+      "uuid": "0198b634-cda9-774f-890d-1a65a5b3f5fb",
+      "task_url": "http://propsmadness.pages.dev/",
+      "error": "<HTTPError 403: 'Forbidden'>"
+    },
+    {
+      "uuid": "3fb45d3e-83e7-4e4e-860d-94e7ce0d9091",
+      "task_url": "http://www.propsmadness.com/",
+      "error": "<HTTPError 403: 'Forbidden'>"
+    },
+    {
+      "uuid": "7efd6f55-8208-423c-af16-544e37e6ea8b",
+      "task_url": "http://www.propsmadness.com/",
+      "error": "<HTTPError 403: 'Forbidden'>"
+    },
+    {
+      "uuid": "a5089970-395a-42a3-a170-a6a50d56fd05",
+      "task_url": "http://propsmadness.com/",
+      "error": "<HTTPError 403: 'Forbidden'>"
+    },
+    {
+      "uuid": "1e936c0c-9c5e-4b62-b295-e459720d1d66",
+      "task_url": "http://www.propsmadness.com/",
+      "error": "<HTTPError 403: 'Forbidden'>"
+    }
+  ],
+  "api_urls": []
+}
