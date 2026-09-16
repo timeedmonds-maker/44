@@ -1,0 +1,71 @@
+name: PropsMadness public bundle probe
+
+on:
+  push:
+    branches: [agent/wnba-potential-assists-probe]
+    paths: [.github/workflows/propsmadness_bundle_probe.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wnba-potential-assists-probe
+      - name: Download public WNBA page and JS bundles
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/pm outputs/wnba_potential_assists
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+          curl -L --fail --max-time 30 -A "$UA" https://propsmadness.com/wnba -o /tmp/pm/page.html
+          echo HTML_BYTES=$(wc -c </tmp/pm/page.html)
+          python - <<'PY'
+          import re,html
+          s=open('/tmp/pm/page.html',encoding='utf-8',errors='ignore').read()
+          srcs=[]
+          for x in re.findall(r'<script[^>]+src=["\']([^"\']+)',s):
+              x=html.unescape(x)
+              if x.startswith('/'): x='https://propsmadness.com'+x
+              if x.startswith('http'): srcs.append(x)
+          open('/tmp/pm/scripts.txt','w').write('\n'.join(dict.fromkeys(srcs)))
+          print('SCRIPTS',len(dict.fromkeys(srcs)))
+          print('\n'.join(dict.fromkeys(srcs)))
+          PY
+          i=0
+          while IFS= read -r u; do
+            [ -n "$u" ] || continue
+            i=$((i+1)); curl -L --fail --max-time 30 -A "$UA" "$u" -o "/tmp/pm/$i.js" || true
+          done </tmp/pm/scripts.txt
+          cat /tmp/pm/page.html /tmp/pm/*.js > /tmp/pm/all.txt
+          python - <<'PY'
+          import re,json
+          s=open('/tmp/pm/all.txt',encoding='utf-8',errors='ignore').read()
+          terms=['api.propsmadness.com','potential_assists','potentialAssists','potential assists','WNBA','wnba']
+          out={'bytes':len(s),'terms':{},'urls':[],'snippets':[]}
+          for t in terms: out['terms'][t]=s.lower().count(t.lower())
+          urls=sorted(set(re.findall(r'https?://[^"\'`\\<> ]+',s)))
+          out['urls']=[u for u in urls if 'propsmadness' in u.lower()]
+          needles=['api.propsmadness.com','potential_assists','potentialAssists','potential assists']
+          seen=set()
+          for n in needles:
+              for m in re.finditer(re.escape(n),s,re.I):
+                  a=max(0,m.start()-500); b=min(len(s),m.end()+900)
+                  sn=s[a:b].replace('\n',' ')
+                  if sn not in seen:
+                      out['snippets'].append({'term':n,'snippet':sn}); seen.add(sn)
+                      if len(out['snippets'])>=80: break
+          open('outputs/wnba_potential_assists/propsmadness_bundle_probe.json','w').write(json.dumps(out,indent=2))
+          print(json.dumps({'bytes':out['bytes'],'terms':out['terms'],'props_urls':out['urls'][:100]},indent=2))
+          for x in out['snippets'][:25]: print('\nSNIP',x['term'],x['snippet'][:1600])
+          PY
+      - name: Commit bundle findings
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add outputs/wnba_potential_assists/propsmadness_bundle_probe.json
+          git commit -m 'Add PropsMadness bundle API route findings' || exit 0
+          git push origin HEAD:agent/wnba-potential-assists-probe
