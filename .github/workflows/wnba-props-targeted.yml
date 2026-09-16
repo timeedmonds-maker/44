@@ -1,4 +1,4 @@
-name: WNBA PropsMadness targeted extraction
+name: WNBA potential assists public mirror probe
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   extract:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,55 +22,112 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests
-      - name: Probe league-wide WNBA Explore data
+      - name: Query public Statpedia worker and GraphQL surfaces
         shell: bash
         run: |
-          cat >/tmp/explore.py <<'PY'
-          import csv,json
+          cat >/tmp/statpedia_public.py <<'PY'
+          import csv,json,re,time
           from pathlib import Path
           import requests
-          O=Path('outputs/wnba_props_explore'); O.mkdir(parents=True,exist_ok=True)
-          s=requests.Session(); H={'User-Agent':'Mozilla/5.0 Chrome/122 Safari/537.36','Accept':'application/json,text/plain,*/*','Origin':'https://propsmadness.com','Referer':'https://propsmadness.com/wnba'}
-          B='https://api.propsmadness.com/api'
-          markets=['player-assists','player-rebounds-assists','player-points-rebounds-assists','featured']
-          attempts=[]; payloads=[]
-          for m in markets:
-              for path in [f'/offer/wnba/explore/{m}',f'/offer/wnba/explore/{m}?seasonReference=previous']:
-                  try:
-                      r=s.get(B+path,headers=H,timeout=30)
-                      rec={'market':m,'path':path,'status':r.status_code,'bytes':len(r.content),'prefix':r.text[:220]};attempts.append(rec)
-                      print(path,r.status_code,len(r.content))
-                      if r.status_code==200 and r.text.strip().startswith(('{','[')):
-                          j=r.json();payloads.append((m,path,j));
-                          safe=m+'_'+('previous' if 'previous' in path else 'default')
-                          (O/f'{safe}.json').write_text(json.dumps(j,indent=2),encoding='utf8')
-                  except Exception as e:attempts.append({'market':m,'path':path,'error':repr(e)})
-          (O/'attempts.json').write_text(json.dumps(attempts,indent=2),encoding='utf8')
+
+          O=Path('outputs/wnba_statpedia_public'); O.mkdir(parents=True,exist_ok=True)
+          s=requests.Session(); H={'User-Agent':'Mozilla/5.0 Chrome/122 Safari/537.36','Accept':'application/json','Content-Type':'application/json'}
+          attempts=[]
+
+          # Public GET surfaces explicitly referenced by the Statpedia frontend/repo.
+          get_urls=[]
+          hosts=['https://statpedia-player-props.statpedia.workers.dev','https://statpedia-storage.statpedia.workers.dev']
+          dates=['2025-06-15','2025-07-15','2025-08-15','2025-09-11']
+          for host in hosts:
+              get_urls += [
+                host+'/api/player-props?sport=wnba',
+                host+'/api/wnba/player-props',
+                host+'/debug-api?league=wnba&limit=100',
+                host+'/debug/sgo-api?league=wnba',
+              ]
+              for d in dates:
+                  get_urls += [
+                    host+f'/api/wnba/player-props?date={d}',
+                    host+f'/api/player-props?sport=wnba&date={d}',
+                    host+f'/api/player-props?sport=wnba&date_from={d}&date_to={d}',
+                  ]
+          get_payloads=[]
+          for i,u in enumerate(dict.fromkeys(get_urls)):
+              try:
+                  r=s.get(u,headers={'User-Agent':H['User-Agent'],'Accept':'application/json'},timeout=18)
+                  rec={'method':'GET','url':u,'status':r.status_code,'bytes':len(r.content),'prefix':r.text[:240]}; attempts.append(rec)
+                  print('GET',r.status_code,len(r.content),u)
+                  if r.status_code==200 and r.text.strip().startswith(('{','[')):
+                      try:j=r.json()
+                      except:continue
+                      get_payloads.append((u,j))
+                      (O/f'get_{len(get_payloads):02d}.json').write_text(json.dumps(j,indent=2),encoding='utf8')
+              except Exception as e: attempts.append({'method':'GET','url':u,'error':repr(e)})
+
+          gql='https://statpedia-proxy.statpedia.workers.dev/v1/graphql'
+          queries={
+            'typename':'query { __typename }',
+            'playergamelogs_sample':'query { playergamelogs(limit: 20) { date season opponent value player_id prop_type } }',
+            'playergamelogs_wnba':'query { playergamelogs(where:{season:{_eq:2025}},limit:5000) { date season opponent value player_id prop_type } }',
+            'props_wnba':'query { props(limit:200, where:{player:{team:{league:{_eq:"wnba"}}}}) { id prop_type line game_id player { id name position team { abbreviation league } } } }',
+            'games_2025':'query { games(where:{game_date:{_gte:"2025-05-01",_lte:"2025-10-31"}},limit:5000) { id game_date } }',
+          }
+          gql_payloads={}
+          for name,q in queries.items():
+              try:
+                  r=s.post(gql,headers=H,json={'query':q},timeout=25)
+                  rec={'method':'POST','name':name,'url':gql,'status':r.status_code,'bytes':len(r.content),'prefix':r.text[:400]};attempts.append(rec)
+                  print('GQL',name,r.status_code,len(r.content),r.text[:140].replace('\n',' '))
+                  if r.status_code==200 and r.text.strip().startswith(('{','[')):
+                      try:j=r.json()
+                      except:continue
+                      gql_payloads[name]=j;(O/f'gql_{name}.json').write_text(json.dumps(j,indent=2),encoding='utf8')
+              except Exception as e:attempts.append({'method':'POST','name':name,'url':gql,'error':repr(e)})
+
+          # If playergamelogs query works, find potential-assist-like prop types first, then collect all 2025 rows.
+          rows=[]
+          for name,j in gql_payloads.items():
+              data=(j or {}).get('data') or {}
+              gl=data.get('playergamelogs')
+              if isinstance(gl,list): rows.extend(gl)
+          # dedupe
+          clean=[];seen=set()
+          for r in rows:
+              key=(str(r.get('player_id')),str(r.get('date')),str(r.get('prop_type')),str(r.get('value')))
+              if key not in seen:seen.add(key);clean.append(r)
+          pa=[r for r in clean if 'potential' in str(r.get('prop_type','')).lower() and 'assist' in str(r.get('prop_type','')).lower()]
+          alltypes=sorted(set(str(r.get('prop_type')) for r in clean if r.get('prop_type') is not None))
+          (O/'playergamelogs_prop_types.json').write_text(json.dumps(alltypes,indent=2),encoding='utf8')
+          if pa:
+              fields=sorted(set().union(*(r.keys() for r in pa)))
+              with (O/'wnba_2025_potential_assists_rows.csv').open('w',newline='',encoding='utf8') as f:
+                  w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows(pa)
+
+          # Search all public payloads recursively for potential-assist keys/values or strings.
+          hits=[]
           def walk(x,path=''):
               if isinstance(x,dict):
                   yield path,x
                   for k,v in x.items():yield from walk(v,path+'/'+str(k))
               elif isinstance(x,list):
                   for i,v in enumerate(x):yield from walk(v,path+'/'+str(i))
-          hits=[]
-          for m,p,j in payloads:
+          for src,j in get_payloads+[(f'gql:{k}',v) for k,v in gql_payloads.items()]:
               for path,d in walk(j):
                   if not isinstance(d,dict):continue
-                  for key in ['potentialAssists','POTENTIAL_AST','potential_assists']:
-                      if key in d:
-                          hits.append({'market':m,'requestPath':p,'jsonPath':path,'key':key,'value':d.get(key),'object':d})
-                          break
+                  keys=[k for k in d if 'potential' in str(k).lower() and 'assist' in str(k).lower()]
+                  vals=[(k,v) for k,v in d.items() if isinstance(v,str) and 'potential' in v.lower() and 'assist' in v.lower()]
+                  if keys or vals:hits.append({'source':src,'path':path,'keys':keys,'matchingValues':vals,'object':d})
           (O/'potential_assist_hits.json').write_text(json.dumps(hits,indent=2),encoding='utf8')
-          nonnull=[h for h in hits if h['value'] is not None]
-          (O/'summary.json').write_text(json.dumps({'successfulPayloads':len(payloads),'potentialAssistObjects':len(hits),'nonNullPotentialAssistObjects':len(nonnull),'sampleNonNull':nonnull[:25]},indent=2),encoding='utf8')
-          print('PA HITS',len(hits),'NONNULL',len(nonnull))
-          if nonnull: print(json.dumps(nonnull[:10]))
+          (O/'attempts.json').write_text(json.dumps(attempts,indent=2),encoding='utf8')
+          summary={'successfulGETPayloads':len(get_payloads),'successfulGraphQLPayloads':list(gql_payloads),'playerGameLogRows':len(clean),'propTypes':alltypes,'potentialAssistGameLogRows':len(pa),'potentialAssistObjectsAcrossAllPayloads':len(hits)}
+          (O/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf8')
+          print('SUMMARY',json.dumps(summary)[:6000])
           PY
-          python /tmp/explore.py
+          python /tmp/statpedia_public.py
       - name: Commit isolated outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add outputs/wnba_props_explore
-          git diff --staged --quiet || git commit -m "Probe WNBA Explore potential assists payload [skip ci]"
+          git add outputs/wnba_statpedia_public
+          git diff --staged --quiet || git commit -m "Probe Statpedia public WNBA tracking cache [skip ci]"
           git push origin HEAD:agent/wnba-potential-assists-2025
