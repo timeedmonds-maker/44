@@ -1,0 +1,73 @@
+name: WNBA Rundown historical slate probe
+
+on:
+  push:
+    paths:
+      - .github/workflows/wnba-rundown-slate-2025.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wnba-potential-assists-2025
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests beautifulsoup4
+      - name: Probe point-in-time WNBA boards
+        shell: bash
+        run: |
+          cat >/tmp/slate_probe.py <<'PY'
+          import json,re
+          from pathlib import Path
+          import requests
+          from bs4 import BeautifulSoup
+          O=Path('outputs/wnba_rundown_slate_2025');O.mkdir(parents=True,exist_ok=True)
+          B='https://www.therundown.gg'; S=requests.Session();H={'User-Agent':'Mozilla/5.0 Chrome/122 Safari/537.36','Accept':'text/html,application/xhtml+xml,*/*'}
+          dates=['2025-09-11','2025-09-09','2025-09-07','2025-08-31','2025-08-15','2025-07-15']
+          boards=['slate','dvp','targets','rotations']
+          attempts=[]; contexts=[]; files=[]
+          for d in dates:
+            for board in boards:
+              path=f'/wnba/{board}/{d}'
+              try:
+                r=S.get(B+path,headers=H,timeout=25)
+                txt=r.text; clean=BeautifulSoup(txt,'html.parser').get_text(' ',strip=True)
+                pa=bool(re.search(r'POT\s*AST|potential.?assist|potentialAssist|potential_assist',txt,re.I))
+                attempts.append({'date':d,'board':board,'status':r.status_code,'bytes':len(r.content),'pa':pa,'title':BeautifulSoup(txt,'html.parser').title.string if '<title' in txt else None})
+                print(d,board,r.status_code,len(r.content),'PA',pa)
+                if r.status_code==200:
+                  name=f'{board}_{d}.html';(O/name).write_text(txt,encoding='utf8');files.append(name)
+                  # Context in raw HTML and rendered text around every PA marker.
+                  for source,blob in [('raw',txt),('text',clean)]:
+                    low=blob.lower()
+                    for needle in ['pot ast','potential assist','potentialassist','potential_assist','potential_ast']:
+                      start=0
+                      while True:
+                        i=low.find(needle,start)
+                        if i<0:break
+                        contexts.append({'date':d,'board':board,'source':source,'needle':needle,'snippet':blob[max(0,i-1000):i+2500]})
+                        start=i+len(needle)
+                        if sum(c['date']==d and c['board']==board and c['needle']==needle for c in contexts)>=20:break
+              except Exception as e:attempts.append({'date':d,'board':board,'error':repr(e)})
+          (O/'attempts.json').write_text(json.dumps(attempts,indent=2),encoding='utf8')
+          (O/'pa_contexts.json').write_text(json.dumps(contexts,indent=2),encoding='utf8')
+          (O/'summary.json').write_text(json.dumps({'pages200':sum(a.get('status')==200 for a in attempts),'pagesWithPAMarker':sum(bool(a.get('pa')) for a in attempts),'contexts':len(contexts),'files':files},indent=2),encoding='utf8')
+          print('SUMMARY',json.loads((O/'summary.json').read_text()))
+          PY
+          python /tmp/slate_probe.py
+      - name: Commit isolated outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add outputs/wnba_rundown_slate_2025
+          git diff --staged --quiet || git commit -m "Probe historical 2025 WNBA Rundown boards [skip ci]"
+          git push origin HEAD:agent/wnba-potential-assists-2025
