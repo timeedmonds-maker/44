@@ -1,0 +1,156 @@
+name: WNBA Rundown 2025 tracking probe
+
+on:
+  push:
+    paths:
+      - .github/workflows/wnba-rundown-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wnba-potential-assists-2025
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Reverse engineer public WNBA research page
+        shell: bash
+        run: |
+          cat >/tmp/rundown.py <<'PY'
+          import json,re,urllib.parse
+          from pathlib import Path
+          import requests
+
+          O=Path('outputs/wnba_rundown_probe'); O.mkdir(parents=True,exist_ok=True)
+          s=requests.Session(); H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36','Accept':'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8'}
+          base='https://www.therundown.gg'
+          attempts=[]
+
+          variants=[
+              '/research/wnba',
+              '/research/wnba?season=2025',
+              '/research/wnba?season=2025&t=MIN',
+              '/research/wnba?season=2025&t=MIN&view=players',
+              '/research/wnba?season=2025&team=MIN&view=players',
+              '/research/wnba/team/minnesota-lynx?season=2025',
+              '/research/wnba/team/min?season=2025',
+              '/wnba/players?season=2025',
+          ]
+          htmls=[]
+          for i,path in enumerate(variants):
+              try:
+                  r=s.get(base+path,headers=H,timeout=25)
+                  txt=r.text
+                  attempts.append({'type':'page','path':path,'status':r.status_code,'bytes':len(r.content),'has2025':'2025' in txt,'hasPotAst':bool(re.search(r'potential.?assist|POT AST|pot_ast',txt,re.I)),'prefix':txt[:160]})
+                  print('PAGE',path,r.status_code,len(r.content),'2025',('2025' in txt),'PA',bool(re.search(r'potential.?assist|POT AST|pot_ast',txt,re.I)))
+                  if r.status_code==200:
+                      htmls.append((path,txt,r.url));(O/f'page_{i:02d}.html').write_text(txt,encoding='utf8')
+              except Exception as e: attempts.append({'type':'page','path':path,'error':repr(e)})
+
+          # Collect JS bundle URLs across successful pages.
+          scripts=[]
+          for path,txt,final in htmls:
+              for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',txt):
+                  if src.startswith('/'): src=base+src
+                  elif src.startswith('//'):src='https:'+src
+                  if src.startswith('http'):scripts.append(src)
+          scripts=list(dict.fromkeys(scripts))
+          print('SCRIPTS',len(scripts))
+          bundles=[]
+          for i,u in enumerate(scripts):
+              try:
+                  r=s.get(u,headers={'User-Agent':H['User-Agent']},timeout=20)
+                  if r.status_code==200:
+                      txt=r.text;bundles.append((u,txt))
+                      if any(k in txt.lower() for k in ['wnba','potential','research','pot_ast']):
+                          (O/f'bundle_{i:03d}.js').write_text(txt,encoding='utf8')
+              except Exception as e: attempts.append({'type':'script','url':u,'error':repr(e)})
+
+          # Search HTML + bundles for API/data endpoint strings and context around key terms.
+          corpus=[('HTML:'+p,t) for p,t,_ in htmls]+[(u,t) for u,t in bundles]
+          evidence=[]; urls=set(); routes=set()
+          needles=['potential_assist','potentialAssist','potential assist','pot_ast','POT AST','research/wnba','wnba','season=','/api/','supabase','graphql','tracking']
+          for src,txt in corpus:
+              low=txt.lower()
+              for n in needles:
+                  start=0; count=0; nl=n.lower()
+                  while True:
+                      pos=low.find(nl,start)
+                      if pos<0:break
+                      evidence.append({'source':src,'needle':n,'snippet':txt[max(0,pos-700):pos+1800]})
+                      start=pos+len(nl);count+=1
+                      if count>=15:break
+              for u in re.findall(r'https?://[^"\'`\\<> )]+',txt):
+                  if any(k in u.lower() for k in ['api','data','rundown','supabase','wnba']):urls.add(u)
+              for m in re.finditer(r'["\'`](/[^"\'`]{2,220})["\'`]',txt):
+                  rt=m.group(1)
+                  if any(k in rt.lower() for k in ['api','wnba','research','player','stat','team','season']):routes.add(rt)
+          (O/'evidence.json').write_text(json.dumps(evidence,indent=2),encoding='utf8')
+          (O/'urls.json').write_text(json.dumps(sorted(urls),indent=2),encoding='utf8')
+          (O/'routes.json').write_text(json.dumps(sorted(routes),indent=2),encoding='utf8')
+          print('URLS',sorted(urls)[:120]);print('ROUTES',sorted(routes)[:160])
+
+          # Probe only same-origin/public data routes discovered in bundles.
+          candidates=[]
+          for rt in routes:
+              l=rt.lower()
+              if rt.startswith('/api/') and any(k in l for k in ['wnba','research','player','stat','team']):candidates.append(base+rt)
+          # High-value conventional guesses based on page purpose.
+          candidates += [
+              base+'/api/research/wnba?season=2025',
+              base+'/api/wnba/research?season=2025',
+              base+'/api/wnba/players?season=2025',
+              base+'/api/research/wnba/players?season=2025',
+              base+'/api/wnba/player-stats?season=2025',
+              base+'/api/wnba/stats?season=2025',
+          ]
+          jsons=[]
+          for i,u in enumerate(dict.fromkeys(candidates)):
+              # skip routes with dynamic template syntax
+              if any(c in u for c in ['${','[',']','{','}']):continue
+              try:
+                  r=s.get(u,headers={'User-Agent':H['User-Agent'],'Accept':'application/json,text/plain,*/*','Referer':base+'/research/wnba'},timeout=15)
+                  rec={'type':'api','url':u,'status':r.status_code,'bytes':len(r.content),'prefix':r.text[:220]};attempts.append(rec)
+                  if r.status_code==200 and r.text.strip().startswith(('{','[')):
+                      try:j=r.json()
+                      except:continue
+                      jsons.append((u,j));(O/f'api_{len(jsons):02d}.json').write_text(json.dumps(j,indent=2),encoding='utf8')
+                      print('API HIT',u,len(r.content))
+              except Exception as e:attempts.append({'type':'api','url':u,'error':repr(e)})
+
+          # Search every JSON/HTML evidence source for real PA rows/values.
+          hits=[]
+          def walk(x,path=''):
+              if isinstance(x,dict):
+                  yield path,x
+                  for k,v in x.items():yield from walk(v,path+'/'+str(k))
+              elif isinstance(x,list):
+                  for i,v in enumerate(x):yield from walk(v,path+'/'+str(i))
+          for src,j in jsons:
+              for path,d in walk(j):
+                  if not isinstance(d,dict):continue
+                  ks=[k for k in d if 'assist' in str(k).lower() and ('potential' in str(k).lower() or 'pot_' in str(k).lower())]
+                  if ks:hits.append({'source':src,'path':path,'keys':ks,'object':d})
+          (O/'pa_hits.json').write_text(json.dumps(hits,indent=2),encoding='utf8')
+          (O/'attempts.json').write_text(json.dumps(attempts,indent=2),encoding='utf8')
+          summary={'pages200':len(htmls),'scripts':len(scripts),'bundlesFetched':len(bundles),'evidenceHits':len(evidence),'discoveredUrls':len(urls),'discoveredRoutes':len(routes),'apiJsonHits':len(jsons),'potentialAssistJsonObjects':len(hits)}
+          (O/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf8')
+          print('SUMMARY',summary)
+          PY
+          python /tmp/rundown.py
+      - name: Commit isolated outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add outputs/wnba_rundown_probe
+          git diff --staged --quiet || git commit -m "Probe public Rundown WNBA 2025 tracking data [skip ci]"
+          git push origin HEAD:agent/wnba-potential-assists-2025
