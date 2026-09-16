@@ -1,0 +1,42 @@
+name: WNBA potential assists probe
+
+on:
+  push:
+    branches:
+      - agent/wnba-potential-assists-probe
+    paths:
+      - .github/workflows/wnba_potential_assists_probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wnba-potential-assists-probe
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install transport
+        run: pip install --disable-pip-version-check curl_cffi
+      - name: Recover 2025-2026 WNBA potential assists
+        env:
+          WNBA_WORKERS: '6'
+        run: python analysis/wnba_potential_assists_probe.py
+      - name: Commit recovered data
+        if: success()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add outputs/wnba_potential_assists/
+          if git diff --cached --quiet; then
+            echo 'No output changes'
+          else
+            git commit -m 'Add recovered WNBA potential assists data'
+            git push origin HEAD:agent/wnba-potential-assists-probe
+          fi
