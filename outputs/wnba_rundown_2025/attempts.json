@@ -1,0 +1,638 @@
+[
+  {
+    "path": "/research/wnba/players?season=2025&gt=Regular+Season",
+    "status": 200,
+    "bytes": 386548,
+    "final": "https://www.therundown.gg/research/wnba/players?season=2025&gt=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/players?season=2025",
+    "status": 200,
+    "bytes": 386466,
+    "final": "https://www.therundown.gg/research/wnba/players?season=2025"
+  },
+  {
+    "path": "/research/wnba/player/courtney-williams?season=2025&gt=Regular+Season",
+    "status": 200,
+    "bytes": 352163,
+    "final": "https://www.therundown.gg/research/wnba/player/courtney-williams?season=2025&gt=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/alyssa-thomas?season=2025&gt=Regular+Season",
+    "status": 200,
+    "bytes": 332991,
+    "final": "https://www.therundown.gg/research/wnba/player/alyssa-thomas?season=2025&gt=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/chelsea-gray?season=2025&gt=Regular+Season",
+    "status": 200,
+    "bytes": 349382,
+    "final": "https://www.therundown.gg/research/wnba/player/chelsea-gray?season=2025&gt=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/paige-bueckers?season=2025&gt=Regular+Season",
+    "status": 200,
+    "bytes": 322035,
+    "final": "https://www.therundown.gg/research/wnba/player/paige-bueckers?season=2025&gt=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/aaliyah-edwards?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 291905,
+    "final": "https://www.therundown.gg/research/wnba/player/aaliyah-edwards?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/aari-mcdonald?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 272588,
+    "final": "https://www.therundown.gg/research/wnba/player/aari-mcdonald?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/aja-wilson?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 327463,
+    "final": "https://www.therundown.gg/research/wnba/player/aja-wilson?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/alanna-smith?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 307516,
+    "final": "https://www.therundown.gg/research/wnba/player/alanna-smith?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/aliyah-boston?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 324427,
+    "final": "https://www.therundown.gg/research/wnba/player/aliyah-boston?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/allisha-gray?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 337341,
+    "final": "https://www.therundown.gg/research/wnba/player/allisha-gray?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/alyssa-thomas?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 330283,
+    "final": "https://www.therundown.gg/research/wnba/player/alyssa-thomas?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/aneesah-morrow?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 293702,
+    "final": "https://www.therundown.gg/research/wnba/player/aneesah-morrow?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/angel-reese?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 333381,
+    "final": "https://www.therundown.gg/research/wnba/player/angel-reese?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/ariel-atkins?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 328994,
+    "final": "https://www.therundown.gg/research/wnba/player/ariel-atkins?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/arike-ogunbowale?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 337198,
+    "final": "https://www.therundown.gg/research/wnba/player/arike-ogunbowale?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/aziaha-james?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 316554,
+    "final": "https://www.therundown.gg/research/wnba/player/aziaha-james?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/azura-stevens?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 307334,
+    "final": "https://www.therundown.gg/research/wnba/player/azura-stevens?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/breanna-stewart?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 337034,
+    "final": "https://www.therundown.gg/research/wnba/player/breanna-stewart?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/bria-hartley?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 321655,
+    "final": "https://www.therundown.gg/research/wnba/player/bria-hartley?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/bridget-carleton?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 333716,
+    "final": "https://www.therundown.gg/research/wnba/player/bridget-carleton?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/brionna-jones?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 187404,
+    "final": "https://www.therundown.gg/research/wnba/player/brionna-jones?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/brittney-griner?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 266209,
+    "final": "https://www.therundown.gg/research/wnba/player/brittney-griner?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/brittney-sykes?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 263369,
+    "final": "https://www.therundown.gg/research/wnba/player/brittney-sykes?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/caitlin-clark?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 325327,
+    "final": "https://www.therundown.gg/research/wnba/player/caitlin-clark?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/carla-leite?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 322419,
+    "final": "https://www.therundown.gg/research/wnba/player/carla-leite?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/cecilia-zandalasini?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 320208,
+    "final": "https://www.therundown.gg/research/wnba/player/cecilia-zandalasini?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/chelsea-gray?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 336402,
+    "final": "https://www.therundown.gg/research/wnba/player/chelsea-gray?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/courtney-williams?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 333919,
+    "final": "https://www.therundown.gg/research/wnba/player/courtney-williams?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/dana-evans?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 221220,
+    "final": "https://www.therundown.gg/research/wnba/player/dana-evans?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/dearica-hamby?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 336442,
+    "final": "https://www.therundown.gg/research/wnba/player/dearica-hamby?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/dewanna-bonner?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 329999,
+    "final": "https://www.therundown.gg/research/wnba/player/dewanna-bonner?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/dijonai-carrington?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 221970,
+    "final": "https://www.therundown.gg/research/wnba/player/dijonai-carrington?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/dominique-malonga?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 306283,
+    "final": "https://www.therundown.gg/research/wnba/player/dominique-malonga?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/elizabeth-williams?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 334480,
+    "final": "https://www.therundown.gg/research/wnba/player/elizabeth-williams?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/emma-meesseman?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 254437,
+    "final": "https://www.therundown.gg/research/wnba/player/emma-meesseman?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/erica-wheeler?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332680,
+    "final": "https://www.therundown.gg/research/wnba/player/erica-wheeler?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/ezi-magbegor?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 251584,
+    "final": "https://www.therundown.gg/research/wnba/player/ezi-magbegor?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/gabby-williams?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 327669,
+    "final": "https://www.therundown.gg/research/wnba/player/gabby-williams?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/haley-jones?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 183999,
+    "final": "https://www.therundown.gg/research/wnba/player/haley-jones?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/iliana-rupert?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 265882,
+    "final": "https://www.therundown.gg/research/wnba/player/iliana-rupert?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/jackie-young?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 337151,
+    "final": "https://www.therundown.gg/research/wnba/player/jackie-young?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/jacy-sheldon?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 334913,
+    "final": "https://www.therundown.gg/research/wnba/player/jacy-sheldon?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/jade-melbourne?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 333594,
+    "final": "https://www.therundown.gg/research/wnba/player/jade-melbourne?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/janelle-salaun?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 327935,
+    "final": "https://www.therundown.gg/research/wnba/player/janelle-salaun?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/jessica-shepard?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 328559,
+    "final": "https://www.therundown.gg/research/wnba/player/jessica-shepard?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/jewell-loyd?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332932,
+    "final": "https://www.therundown.gg/research/wnba/player/jewell-loyd?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/jj-quinerly?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 161163,
+    "final": "https://www.therundown.gg/research/wnba/player/jj-quinerly?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/jonquel-jones?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 336446,
+    "final": "https://www.therundown.gg/research/wnba/player/jonquel-jones?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/jordin-canada?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 334178,
+    "final": "https://www.therundown.gg/research/wnba/player/jordin-canada?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kahleah-copper?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 331828,
+    "final": "https://www.therundown.gg/research/wnba/player/kahleah-copper?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kaila-charles?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332234,
+    "final": "https://www.therundown.gg/research/wnba/player/kaila-charles?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kamilla-cardoso?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 333134,
+    "final": "https://www.therundown.gg/research/wnba/player/kamilla-cardoso?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kate-martin?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 239104,
+    "final": "https://www.therundown.gg/research/wnba/player/kate-martin?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kayla-mcbride?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 337267,
+    "final": "https://www.therundown.gg/research/wnba/player/kayla-mcbride?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kayla-thornton?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 334825,
+    "final": "https://www.therundown.gg/research/wnba/player/kayla-thornton?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kelsey-mitchell?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 337428,
+    "final": "https://www.therundown.gg/research/wnba/player/kelsey-mitchell?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kelsey-plum?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 263553,
+    "final": "https://www.therundown.gg/research/wnba/player/kelsey-plum?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kennedy-burke?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 325770,
+    "final": "https://www.therundown.gg/research/wnba/player/kennedy-burke?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kia-nurse?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332585,
+    "final": "https://www.therundown.gg/research/wnba/player/kia-nurse?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kiki-iriafen?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 325252,
+    "final": "https://www.therundown.gg/research/wnba/player/kiki-iriafen?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/kitija-laksa?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 304722,
+    "final": "https://www.therundown.gg/research/wnba/player/kitija-laksa?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/leila-lacan?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 293325,
+    "final": "https://www.therundown.gg/research/wnba/player/leila-lacan?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/leonie-fiebich?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 264271,
+    "final": "https://www.therundown.gg/research/wnba/player/leonie-fiebich?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/lexie-hull?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 334653,
+    "final": "https://www.therundown.gg/research/wnba/player/lexie-hull?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/li-yueru?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 298878,
+    "final": "https://www.therundown.gg/research/wnba/player/li-yueru?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/luisa-geiselsoder?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 272375,
+    "final": "https://www.therundown.gg/research/wnba/player/luisa-geiselsoder?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/maddy-siegrist?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 324518,
+    "final": "https://www.therundown.gg/research/wnba/player/maddy-siegrist?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/marina-mabrey?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 312220,
+    "final": "https://www.therundown.gg/research/wnba/player/marina-mabrey?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/marine-johannes?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 326654,
+    "final": "https://www.therundown.gg/research/wnba/player/marine-johannes?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/maya-caldwell?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332746,
+    "final": "https://www.therundown.gg/research/wnba/player/maya-caldwell?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/michaela-onyenwere?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 322469,
+    "final": "https://www.therundown.gg/research/wnba/player/michaela-onyenwere?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/monique-akoa-makani?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 289644,
+    "final": "https://www.therundown.gg/research/wnba/player/monique-akoa-makani?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/monique-billings?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332875,
+    "final": "https://www.therundown.gg/research/wnba/player/monique-billings?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/myisha-hines-allen?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 314485,
+    "final": "https://www.therundown.gg/research/wnba/player/myisha-hines-allen?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/nalyssa-smith?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 333727,
+    "final": "https://www.therundown.gg/research/wnba/player/nalyssa-smith?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/napheesa-collier?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 247165,
+    "final": "https://www.therundown.gg/research/wnba/player/napheesa-collier?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/natasha-cloud?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332886,
+    "final": "https://www.therundown.gg/research/wnba/player/natasha-cloud?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/natasha-howard?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 336354,
+    "final": "https://www.therundown.gg/research/wnba/player/natasha-howard?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/natisha-hiedeman?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 324236,
+    "final": "https://www.therundown.gg/research/wnba/player/natisha-hiedeman?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/naz-hillmon?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332793,
+    "final": "https://www.therundown.gg/research/wnba/player/naz-hillmon?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/nneka-ogwumike?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 334766,
+    "final": "https://www.therundown.gg/research/wnba/player/nneka-ogwumike?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/nyara-sabally?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 284715,
+    "final": "https://www.therundown.gg/research/wnba/player/nyara-sabally?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/odyssey-sims?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 306600,
+    "final": "https://www.therundown.gg/research/wnba/player/odyssey-sims?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/olivia-nelson-ododa?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 310664,
+    "final": "https://www.therundown.gg/research/wnba/player/olivia-nelson-ododa?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/paige-bueckers?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 329091,
+    "final": "https://www.therundown.gg/research/wnba/player/paige-bueckers?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/rachel-banham?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 323028,
+    "final": "https://www.therundown.gg/research/wnba/player/rachel-banham?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/rae-burrell?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 334179,
+    "final": "https://www.therundown.gg/research/wnba/player/rae-burrell?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/rhyne-howard?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 333615,
+    "final": "https://www.therundown.gg/research/wnba/player/rhyne-howard?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/rickea-jackson?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 170970,
+    "final": "https://www.therundown.gg/research/wnba/player/rickea-jackson?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/sabrina-ionescu?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 298653,
+    "final": "https://www.therundown.gg/research/wnba/player/sabrina-ionescu?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/sami-whitcomb?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 261656,
+    "final": "https://www.therundown.gg/research/wnba/player/sami-whitcomb?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/saniya-rivers?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 321207,
+    "final": "https://www.therundown.gg/research/wnba/player/saniya-rivers?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/satou-sabally?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 228314,
+    "final": "https://www.therundown.gg/research/wnba/player/satou-sabally?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/shakira-austin?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 333567,
+    "final": "https://www.therundown.gg/research/wnba/player/shakira-austin?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/skylar-diggins?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 269448,
+    "final": "https://www.therundown.gg/research/wnba/player/skylar-diggins?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/sonia-citron?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 325683,
+    "final": "https://www.therundown.gg/research/wnba/player/sonia-citron?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/sophie-cunningham?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 332495,
+    "final": "https://www.therundown.gg/research/wnba/player/sophie-cunningham?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/sug-sutton?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 286217,
+    "final": "https://www.therundown.gg/research/wnba/player/sug-sutton?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/te-hina-paopao?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 304014,
+    "final": "https://www.therundown.gg/research/wnba/player/te-hina-paopao?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/teaira-mccowan?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 189564,
+    "final": "https://www.therundown.gg/research/wnba/player/teaira-mccowan?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/temi-fagbenle?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 279416,
+    "final": "https://www.therundown.gg/research/wnba/player/temi-fagbenle?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/tiffany-hayes?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 329426,
+    "final": "https://www.therundown.gg/research/wnba/player/tiffany-hayes?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/tina-charles?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 344728,
+    "final": "https://www.therundown.gg/research/wnba/player/tina-charles?season=2025%3E=Regular+Season"
+  },
+  {
+    "path": "/research/wnba/player/veronica-burton?season=2025>=Regular+Season",
+    "status": 200,
+    "bytes": 336355,
+    "final": "https://www.therundown.gg/research/wnba/player/veronica-burton?season=2025%3E=Regular+Season"
+  }
+]
