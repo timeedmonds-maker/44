@@ -1,0 +1,66 @@
+name: Screen Tracker - Kickout 3 final identity
+on:
+  push:
+    branches: [screen-tracker-kickout-3]
+    paths: ['.github/workflows/kickout3-final-identity.yml']
+  workflow_dispatch:
+jobs:
+  identify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - key: cle_left_slash_final
+            run_id: 35043818262
+          - key: tor_left_slash_final
+            run_id: 35043818262
+          - key: cle_right_slash_final
+            run_id: 35044033597
+          - key: tor_right_slash_final
+            run_id: 35044033597
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Download finished track artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kickout3-final-${{ matrix.key }}
+          path: artifacts/${{ matrix.key }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ matrix.run_id }}
+      - name: Install raw identity stack
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg git
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install pandas 'numpy<2' opencv-python-headless timm pytorch-lightning pillow tqdm pyyaml gdown scikit-learn nltk
+          git clone -q https://github.com/cyrushadavi1/nba_video_analysis_v2.git /tmp/nbacv
+          cd /tmp/nbacv && git checkout -q b7b115c7ace11348512c0ebfb679b48cad35f1fb
+          mkdir -p /tmp/nbacv/models
+          gdown -q 1uRln22tlhneVt3P6MePmVxBWSLMsL3bm -O /tmp/nbacv/models/parseq_soccernet.ckpt
+          gdown -q 18HAuZbge3z8TSfRiX_FzsnKgiBs-RRNw -O /tmp/nbacv/models/legibility_soccernet.pth
+      - name: Build exact roster from embedded PBP lineup
+        run: |
+          python screen_tracker_kickout3/build_pbp_roster.py \
+            --context artifacts/${{ matrix.key }}/tracks/context.json \
+            --out artifacts/${{ matrix.key }}/roster.json
+      - name: Resolve raw tracklet identities
+        run: |
+          python screen_tracker_kickout3/resolve_raw_identity.py \
+            --tracks artifacts/${{ matrix.key }}/tracks/tracks.csv \
+            --source artifacts/${{ matrix.key }}/tracks/source_native.mp4 \
+            --context artifacts/${{ matrix.key }}/tracks/context.json \
+            --roster artifacts/${{ matrix.key }}/roster.json \
+            --nbacv-src /tmp/nbacv/src \
+            --out artifacts/${{ matrix.key }}/identity_raw
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kickout3-identity-${{ matrix.key }}
+          path: |
+            artifacts/${{ matrix.key }}/identity_raw/
+            artifacts/${{ matrix.key }}/roster.json
+          retention-days: 30
