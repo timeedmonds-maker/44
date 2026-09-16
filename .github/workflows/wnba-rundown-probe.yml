@@ -1,4 +1,4 @@
-name: WNBA Rundown 2025 tracking probe
+name: WNBA Rundown 2025 tracking extraction
 
 on:
   push:
@@ -10,9 +10,9 @@ permissions:
   contents: write
 
 jobs:
-  probe:
+  extract:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,136 +21,139 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install requests
-      - name: Reverse engineer public WNBA research page
+      - run: pip install requests beautifulsoup4
+      - name: Extract server-rendered 2025 WNBA player data
         shell: bash
         run: |
-          cat >/tmp/rundown.py <<'PY'
-          import json,re,urllib.parse
+          cat >/tmp/rundown_extract.py <<'PY'
+          import csv,html,json,re,time
           from pathlib import Path
+          from urllib.parse import urljoin
           import requests
+          from bs4 import BeautifulSoup
 
-          O=Path('outputs/wnba_rundown_probe'); O.mkdir(parents=True,exist_ok=True)
-          s=requests.Session(); H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36','Accept':'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8'}
-          base='https://www.therundown.gg'
+          O=Path('outputs/wnba_rundown_2025'); O.mkdir(parents=True,exist_ok=True)
+          B='https://www.therundown.gg'
+          S=requests.Session(); H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36','Accept':'text/html,application/xhtml+xml,*/*'}
           attempts=[]
 
-          variants=[
-              '/research/wnba',
-              '/research/wnba?season=2025',
-              '/research/wnba?season=2025&t=MIN',
-              '/research/wnba?season=2025&t=MIN&view=players',
-              '/research/wnba?season=2025&team=MIN&view=players',
-              '/research/wnba/team/minnesota-lynx?season=2025',
-              '/research/wnba/team/min?season=2025',
-              '/wnba/players?season=2025',
-          ]
-          htmls=[]
-          for i,path in enumerate(variants):
+          def get(path,name):
               try:
-                  r=s.get(base+path,headers=H,timeout=25)
-                  txt=r.text
-                  attempts.append({'type':'page','path':path,'status':r.status_code,'bytes':len(r.content),'has2025':'2025' in txt,'hasPotAst':bool(re.search(r'potential.?assist|POT AST|pot_ast',txt,re.I)),'prefix':txt[:160]})
-                  print('PAGE',path,r.status_code,len(r.content),'2025',('2025' in txt),'PA',bool(re.search(r'potential.?assist|POT AST|pot_ast',txt,re.I)))
+                  r=S.get(urljoin(B,path),headers=H,timeout=30)
+                  attempts.append({'path':path,'status':r.status_code,'bytes':len(r.content),'final':r.url})
+                  print('GET',path,r.status_code,len(r.content),r.url)
                   if r.status_code==200:
-                      htmls.append((path,txt,r.url));(O/f'page_{i:02d}.html').write_text(txt,encoding='utf8')
-              except Exception as e: attempts.append({'type':'page','path':path,'error':repr(e)})
+                      (O/f'{name}.html').write_text(r.text,encoding='utf8')
+                      return r.text
+              except Exception as e:
+                  attempts.append({'path':path,'error':repr(e)}); print('ERR',path,e)
+              return ''
 
-          # Collect JS bundle URLs across successful pages.
-          scripts=[]
-          for path,txt,final in htmls:
-              for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',txt):
-                  if src.startswith('/'): src=base+src
-                  elif src.startswith('//'):src='https:'+src
-                  if src.startswith('http'):scripts.append(src)
-          scripts=list(dict.fromkeys(scripts))
-          print('SCRIPTS',len(scripts))
-          bundles=[]
-          for i,u in enumerate(scripts):
-              try:
-                  r=s.get(u,headers={'User-Agent':H['User-Agent']},timeout=20)
-                  if r.status_code==200:
-                      txt=r.text;bundles.append((u,txt))
-                      if any(k in txt.lower() for k in ['wnba','potential','research','pot_ast']):
-                          (O/f'bundle_{i:03d}.js').write_text(txt,encoding='utf8')
-              except Exception as e: attempts.append({'type':'script','url':u,'error':repr(e)})
-
-          # Search HTML + bundles for API/data endpoint strings and context around key terms.
-          corpus=[('HTML:'+p,t) for p,t,_ in htmls]+[(u,t) for u,t in bundles]
-          evidence=[]; urls=set(); routes=set()
-          needles=['potential_assist','potentialAssist','potential assist','pot_ast','POT AST','research/wnba','wnba','season=','/api/','supabase','graphql','tracking']
-          for src,txt in corpus:
-              low=txt.lower()
-              for n in needles:
-                  start=0; count=0; nl=n.lower()
-                  while True:
-                      pos=low.find(nl,start)
-                      if pos<0:break
-                      evidence.append({'source':src,'needle':n,'snippet':txt[max(0,pos-700):pos+1800]})
-                      start=pos+len(nl);count+=1
-                      if count>=15:break
-              for u in re.findall(r'https?://[^"\'`\\<> )]+',txt):
-                  if any(k in u.lower() for k in ['api','data','rundown','supabase','wnba']):urls.add(u)
-              for m in re.finditer(r'["\'`](/[^"\'`]{2,220})["\'`]',txt):
-                  rt=m.group(1)
-                  if any(k in rt.lower() for k in ['api','wnba','research','player','stat','team','season']):routes.add(rt)
-          (O/'evidence.json').write_text(json.dumps(evidence,indent=2),encoding='utf8')
-          (O/'urls.json').write_text(json.dumps(sorted(urls),indent=2),encoding='utf8')
-          (O/'routes.json').write_text(json.dumps(sorted(routes),indent=2),encoding='utf8')
-          print('URLS',sorted(urls)[:120]);print('ROUTES',sorted(routes)[:160])
-
-          # Probe only same-origin/public data routes discovered in bundles.
-          candidates=[]
-          for rt in routes:
-              l=rt.lower()
-              if rt.startswith('/api/') and any(k in l for k in ['wnba','research','player','stat','team']):candidates.append(base+rt)
-          # High-value conventional guesses based on page purpose.
-          candidates += [
-              base+'/api/research/wnba?season=2025',
-              base+'/api/wnba/research?season=2025',
-              base+'/api/wnba/players?season=2025',
-              base+'/api/research/wnba/players?season=2025',
-              base+'/api/wnba/player-stats?season=2025',
-              base+'/api/wnba/stats?season=2025',
+          paths=[
+              ('/research/wnba/players?season=2025&gt=Regular+Season','all_players_2025'),
+              ('/research/wnba/players?season=2025','all_players_2025_simple'),
+              ('/research/wnba/player/courtney-williams?season=2025&gt=Regular+Season','courtney_williams'),
+              ('/research/wnba/player/alyssa-thomas?season=2025&gt=Regular+Season','alyssa_thomas'),
+              ('/research/wnba/player/chelsea-gray?season=2025&gt=Regular+Season','chelsea_gray'),
+              ('/research/wnba/player/paige-bueckers?season=2025&gt=Regular+Season','paige_bueckers'),
           ]
-          jsons=[]
-          for i,u in enumerate(dict.fromkeys(candidates)):
-              # skip routes with dynamic template syntax
-              if any(c in u for c in ['${','[',']','{','}']):continue
-              try:
-                  r=s.get(u,headers={'User-Agent':H['User-Agent'],'Accept':'application/json,text/plain,*/*','Referer':base+'/research/wnba'},timeout=15)
-                  rec={'type':'api','url':u,'status':r.status_code,'bytes':len(r.content),'prefix':r.text[:220]};attempts.append(rec)
-                  if r.status_code==200 and r.text.strip().startswith(('{','[')):
-                      try:j=r.json()
-                      except:continue
-                      jsons.append((u,j));(O/f'api_{len(jsons):02d}.json').write_text(json.dumps(j,indent=2),encoding='utf8')
-                      print('API HIT',u,len(r.content))
-              except Exception as e:attempts.append({'type':'api','url':u,'error':repr(e)})
+          pages=[]
+          for p,n in paths:
+              txt=get(p,n)
+              if txt: pages.append((p,n,txt))
 
-          # Search every JSON/HTML evidence source for real PA rows/values.
-          hits=[]
-          def walk(x,path=''):
-              if isinstance(x,dict):
-                  yield path,x
-                  for k,v in x.items():yield from walk(v,path+'/'+str(k))
-              elif isinstance(x,list):
-                  for i,v in enumerate(x):yield from walk(v,path+'/'+str(i))
-          for src,j in jsons:
-              for path,d in walk(j):
-                  if not isinstance(d,dict):continue
-                  ks=[k for k in d if 'assist' in str(k).lower() and ('potential' in str(k).lower() or 'pot_' in str(k).lower())]
-                  if ks:hits.append({'source':src,'path':path,'keys':ks,'object':d})
-          (O/'pa_hits.json').write_text(json.dumps(hits,indent=2),encoding='utf8')
+          def table_dump(txt):
+              soup=BeautifulSoup(txt,'html.parser')
+              out=[]
+              for ti,t in enumerate(soup.find_all('table')):
+                  headers=[x.get_text(' ',strip=True) for x in t.find_all('th')]
+                  rows=[]
+                  for tr in t.find_all('tr'):
+                      cells=[x.get_text(' ',strip=True) for x in tr.find_all(['td','th'])]
+                      if cells: rows.append(cells)
+                  out.append({'index':ti,'headers':headers,'rows':rows})
+              return out,soup
+
+          all_tables={}; player_links=set(); textual=[]
+          for p,n,txt in pages:
+              tables,soup=table_dump(txt); all_tables[n]=tables
+              text=soup.get_text(' ',strip=True)
+              textual.append({'page':n,'length':len(text),'potAstPositions':[m.start() for m in re.finditer(r'POT\s*AST|Potential Assists?',text,re.I)][:30],'sample':text[:1200]})
+              for a in soup.find_all('a',href=True):
+                  h=html.unescape(a['href'])
+                  if h.startswith('/research/wnba/player/'):
+                      if 'season=' not in h: h += ('&' if '?' in h else '?')+'season=2025&gt=Regular+Season'
+                      player_links.add(h)
+              print(n,'tables',len(tables),'playerlinks',len(player_links),'POT AST?',bool(re.search(r'POT\s*AST|Potential Assists?',text,re.I)))
+          (O/'tables_initial.json').write_text(json.dumps(all_tables,indent=2),encoding='utf8')
+          (O/'page_text_summary.json').write_text(json.dumps(textual,indent=2),encoding='utf8')
+          (O/'player_links.json').write_text(json.dumps(sorted(player_links),indent=2),encoding='utf8')
+
+          # Convert any table whose headers actually contain potential assists.
+          extracted=[]
+          for page,tables in all_tables.items():
+              for t in tables:
+                  hdr=t['headers']
+                  joined=' | '.join(hdr)
+                  if re.search(r'POT\s*AST|Potential Assists?',joined,re.I):
+                      extracted.append({'page':page,'headers':hdr,'rows':t['rows']})
+          (O/'potential_assist_tables.json').write_text(json.dumps(extracted,indent=2),encoding='utf8')
+
+          # If all-player page is member-truncated or lacks PA, fetch discovered 2025 player pages.
+          # Server-rendered individual research pages are public; cap at every discovered player URL.
+          player_results=[]
+          for idx,h in enumerate(sorted(player_links)):
+              if idx>=260: break
+              txt=get(h,f'player_{idx:03d}')
+              if not txt: continue
+              tables,soup=table_dump(txt)
+              page_text=soup.get_text(' ',strip=True)
+              pname=''
+              h1=soup.find('h1');
+              if h1:pname=h1.get_text(' ',strip=True)
+              matched=[]
+              for t in tables:
+                  hj=' | '.join(t['headers'])
+                  if re.search(r'POT\s*AST|Potential Assists?',hj,re.I): matched.append(t)
+              # also save compact context around potential-assist phrases if values rendered outside a table
+              contexts=[]
+              for m in re.finditer(r'POT\s*AST|Potential Assists?',page_text,re.I):
+                  contexts.append(page_text[max(0,m.start()-600):m.start()+1200])
+              if matched or contexts:
+                  player_results.append({'url':h,'player':pname,'tables':matched,'contexts':contexts[:8]})
+                  print('PA PLAYER',idx,pname,'tables',len(matched),'contexts',len(contexts))
+              time.sleep(.03)
+          (O/'player_pa_pages.json').write_text(json.dumps(player_results,indent=2),encoding='utf8')
+
+          # General flatten: detect header columns and write rows wherever a PA table is present.
+          flat=[]
+          for pr in player_results:
+              for t in pr['tables']:
+                  hdr=t['headers']
+                  # rows often include header as first row; align only equal-length data rows
+                  for row in t['rows']:
+                      if len(row)!=len(hdr) or row==hdr: continue
+                      d={hdr[i]:row[i] for i in range(len(hdr))}
+                      d['_player_page']=pr['player']; d['_url']=pr['url']; flat.append(d)
+          # union columns
+          cols=[]
+          for d in flat:
+              for k in d:
+                  if k not in cols:cols.append(k)
+          if flat:
+              with (O/'wnba_2025_potential_assists_raw_tables.csv').open('w',newline='',encoding='utf8') as f:
+                  w=csv.DictWriter(f,fieldnames=cols);w.writeheader();w.writerows(flat)
+
           (O/'attempts.json').write_text(json.dumps(attempts,indent=2),encoding='utf8')
-          summary={'pages200':len(htmls),'scripts':len(scripts),'bundlesFetched':len(bundles),'evidenceHits':len(evidence),'discoveredUrls':len(urls),'discoveredRoutes':len(routes),'apiJsonHits':len(jsons),'potentialAssistJsonObjects':len(hits)}
+          summary={'initialPages':len(pages),'playerLinksDiscovered':len(player_links),'initialPATables':len(extracted),'playerPagesWithPA':len(player_results),'flatPARows':len(flat)}
           (O/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf8')
           print('SUMMARY',summary)
           PY
-          python /tmp/rundown.py
+          python /tmp/rundown_extract.py
       - name: Commit isolated outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add outputs/wnba_rundown_probe
-          git diff --staged --quiet || git commit -m "Probe public Rundown WNBA 2025 tracking data [skip ci]"
+          git add outputs/wnba_rundown_2025
+          git diff --staged --quiet || git commit -m "Extract 2025 WNBA potential assists from public Rundown research [skip ci]"
           git push origin HEAD:agent/wnba-potential-assists-2025
